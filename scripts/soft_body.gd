@@ -32,6 +32,8 @@ static var _door_tried := false
 ## arm are BRACED in a landing and a braced muscle is several times stiffer (Wakeling and Nigg 2001: activation raises the
 ## vibration frequency), so they take 100 and 50 kPa: calibrated until the ring-down of bar 2b sits in its window, a stated knob.
 ## damp (1/s): zeta = damp / 2 omega, about 0.2 at 20 Hz for 45.
+## L32: the arm (landing swing peaked at 84 mm with E 50 kPa, damp 45) takes the thigh's braced E 100 kPa and damp 150: peak 4 .. 30 mm window
+## (tests/soft2_test.gd bar A, Blache et al. 2017 arm-marker artefact 3.9 .. 25.6 mm average, second-hand). Sweep in the L32 report.
 const REGIONS := {
 	"belly": {"host": "spine_01", "dir": Vector3(0, 0, 1), "t": 0.5, "width": 0.26, "height": 0.16, "outer": 0.035, "inner": 0.55,
 		"E": 8.0e3, "nu": 0.45, "rho": 1000.0, "damp": 35.0, "n": Vector3i(4, 3, 2)},
@@ -42,9 +44,9 @@ const REGIONS := {
 	"thigh_r": {"host": "thigh_r", "dir": Vector3(-0.35, 0, 0.94), "t": 0.45, "width": 0.14, "height": 0.26, "outer": 0.012, "inner": 0.45,
 		"E": 1.0e5, "nu": 0.45, "rho": 1050.0, "damp": 45.0, "n": Vector3i(3, 4, 2)},
 	"arm_l": {"host": "upperarm_l", "dir": Vector3(0, -0.5, -0.87), "t": 0.5, "width": 0.09, "height": 0.16, "outer": 0.01, "inner": 0.5,
-		"E": 5.0e4, "nu": 0.45, "rho": 1050.0, "damp": 45.0, "n": Vector3i(2, 3, 2)},
+		"E": 1.0e5, "nu": 0.45, "rho": 1050.0, "damp": 150.0, "n": Vector3i(2, 3, 2)},
 	"arm_r": {"host": "upperarm_r", "dir": Vector3(0, -0.5, -0.87), "t": 0.5, "width": 0.09, "height": 0.16, "outer": 0.01, "inner": 0.5,
-		"E": 5.0e4, "nu": 0.45, "rho": 1050.0, "damp": 45.0, "n": Vector3i(2, 3, 2)},
+		"E": 1.0e5, "nu": 0.45, "rho": 1050.0, "damp": 150.0, "n": Vector3i(2, 3, 2)},
 }
 
 

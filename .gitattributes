@@ -7,3 +7,4 @@ data/i18n/pt_BR.po text eol=crlf
 *.gdshader text eol=lf
 *.tscn text eol=lf
 *.tres text eol=lf
+tests/*_golden.txt text eol=lf

@@ -639,6 +639,8 @@ var ui_bp: PanelContainer   # the bottom panel (the scene)
 var ui_card_row: ScrollContainer
 var ui_play_row: HBoxContainer
 var _band_sig := ""   # YY7: what the curve editor's people band was measured on (part + the scene's cards and keys)
+var detach: PanelDetach   # L37: timeline / graph editor / second view in their own OS windows (scripts/panel_detach.gd)
+var view2: SecondView     # L37: the second 3D view, made on first use
 var ui_curve: CurveEditor   # CURVE EDITOR (XX2): the picked part's part keys as curves, made on first use
 var ui_graph: Control       # SPEED GRAPH: tip / hips / head speed over the scene, cards marked, click to scrub
 var ui_tools: MenuButton
@@ -672,6 +674,8 @@ const LIBRARY := "user://library"
 var library := LIBRARY        # a test's own: user://zz_lib_<pid>, removed on exit
 var ui_props_root: Node3D
 var sel_prop := -1
+var sel_obj_part := ""   # m.sel when sel_obj was picked: a part picked since lets go of the object
+var sel_obj := ""   # L36 OUTLINER: the picked object that is not a prop ("light:key", "cam:0", "body:hero"...); a prop is sel_prop
 var _prop_drag := {}
 var ui_prop_btns := {}
 var ui_use_btns := {}         # TT3: Sit here / Step up (greyed by the picked prop's kind)
@@ -859,6 +863,7 @@ var _drag_locks := {}
 ## Overlays.split_parts), its capsule and dot are not drawn and a click goes through it. View state only, like a lock:
 ## no undo step, never in a pose or scene file
 var pieces := {}         # part -> its piece of the mannequin
+var simc := SimCacheLive.new()   # L35: the sim point caches (scripts/sim_cache_live.gd); empty until Bake sim
 var soft_live := SoftLive.new()   # L22: the soft-body flesh in the viewport (scripts/soft_live.gd); idle unless the scene has a region
 var skp := SkinPick.new()  # PRECISE PICK: the ray against the posed skin, and the part's own skin lit (scripts/skin_pick.gd)
 var pick_us := 0           # how long the last _pick took (microseconds): the hover's cost, read by precise_pick_test
@@ -879,6 +884,7 @@ var wp_bone_pick: OptionButton
 var wp_mode_pick: OptionButton
 var corr := Corrective.new()   # ROADMAP 71: the elbow / knee corrective on the body's pieces (View > Display)
 var dummy_corr := Corrective.new()   # the same on the dummy
+var stretch_skin := StretchSkin.new()   # L33: the skin follows Body.stretch / stretch_cross (scripts/stretch_skin.gd); inert without a stretch
 var dq_skin_pass := DqSkin.new()   # H04: dual-quaternion skinning on the body's pieces (the scene's dq_skin, 0 = plain LBS)
 var hidden_parts := {}
 
@@ -3620,6 +3626,10 @@ func _exit_tree() -> void:
 			(sc as Scene).baker.stop()   # ROADMAP 99: the bake tasks end before the scenes they read go
 	PoseBake.stop_all()   # ... and those of scenes already swapped out (a baker outlives its scene's turn on stage)
 	_imp_stop()   # R13: a video import's worker ends (and is waited for) before the scene it was given goes
+	if _simc_clean.is_valid():
+		_simc_clean.call()   # L42: a half-written Bake sim leaves no file behind
+	for jb in _throw_jobs:
+		WorkerThreadPool.wait_for_task_completion(jb["task"])   # L42: the throw judge's worker ends before the scenes go
 	Children.kill_all()   # the separate programs (video tracker, AI video maker, Save video's ffmpeg, webcam and multicam readers...) end with the app
 	if not _pv_job.is_empty():   # a fix preview still being worked out on a worker thread
 		WorkerThreadPool.wait_for_task_completion(_pv_job["task"])
@@ -3780,6 +3790,7 @@ func _process_body(dt: float) -> void:
 	PerfDoc.add("p_sj", _p0)
 	_p1 = PerfDoc.t()
 	_dm_poll()
+	_throw_poll()
 	PerfDoc.add("p_dm", _p1)
 	_p1 = PerfDoc.t()
 	_hit_ui_tick()
@@ -3965,6 +3976,7 @@ func _body() -> void:
 	_wp_setup()   # the skin weights, and the sidecar's if the character was painted before (ROADMAP 72)
 	BootProfile.mark("body: skin weights")
 	corr.attach(pieces.values(), skel)
+	stretch_skin.attach(pieces.values(), skel, bone_idx, corr)
 	BootProfile.mark("body: corrective attach")
 	dq_skin_pass.attach(pieces.values(), skel)
 	BootProfile.mark("body: dq skin attach")
@@ -4213,6 +4225,111 @@ func _bx_pick(i: int) -> void:
 	hitbox_ui.pick(i)
 
 
+# ---------------------------------------------------------------- THROW CHECK (INNOVATIONS N040 wired, L34; scripts/throw_panel.gd, throw_serve.gd)
+var throw_on := false                  # the Throw check panel is showing
+var throw_panel: ThrowPanel = null
+var throw_key := 0                     # what the panel's result was judged for (cards + the partner's cards and place + fps)
+var throw_done := false
+var throw_judge_runs := 0              # how many times the judge was started (a hidden panel must not run it)
+## L42: the judge runs on a WorkerThreadPool task on a clone of the scene, after THROW_DEBOUNCE_MS without a further edit. Every job carries the
+## generation (throw_gen, bumped by each edit that changes throw_key); a result of an older generation is dropped (_throw_land).
+const THROW_DEBOUNCE_MS := 150
+var throw_gen := 0
+var _throw_due := 0                    # msec tick at which the next judge starts (0 = none waiting)
+var _throw_jobs: Array = []            # {gen, task, out} in flight
+
+
+## called at every refresh: nothing at all while the panel is off; while on, the judge runs only when the scene (cards, partner, place) changed
+func _throw_refresh() -> void:
+	if not throw_on:
+		if throw_panel != null and throw_panel.visible:
+			throw_panel.visible = false
+		return
+	if throw_panel == null:
+		throw_panel = ThrowPanel.new()
+		throw_panel.z_index = 40
+		throw_panel.frame_picked.connect(_throw_pick)
+		ui_root.add_child(throw_panel)
+		throw_done = false
+	throw_panel.visible = true
+	_throw_place()
+	var key: int = -1 if S.actors.is_empty() else hash([S.cards, S.actors.map(func(a): return [a["xf"], (a["scene"] as Scene).cards])])
+	if throw_done and key == throw_key:
+		return
+	throw_done = true
+	throw_key = key
+	throw_gen += 1
+	if key == -1:
+		_throw_due = 0
+		throw_panel.show_result({"ok": false})
+		return
+	throw_panel.show_pending()
+	_throw_due = Time.get_ticks_msec() + THROW_DEBOUNCE_MS
+
+
+func _throw_busy() -> bool:
+	return _throw_due > 0 or not _throw_jobs.is_empty()
+
+
+## forget what the panel was judged for: the next refresh judges again
+func _throw_key_reset() -> void:
+	throw_done = false
+
+
+## every frame: starts the debounced judge, lands the finished ones
+func _throw_poll() -> void:
+	if _throw_due == 0 and _throw_jobs.is_empty():
+		return
+	if _throw_due > 0 and Time.get_ticks_msec() >= _throw_due:
+		_throw_due = 0
+		if throw_on:
+			throw_judge_runs += 1
+			var sc := S.clone()   # the worker reads its own copy; the scene goes on being edited
+			var job := {"gen": throw_gen, "out": {}}
+			job["task"] = WorkerThreadPool.add_task(func(): job["out"] = ThrowTruth.judge(sc, ThrowFixtures.FPS))
+			_throw_jobs.append(job)
+		else:
+			throw_done = false   # the panel was switched off while waiting: judge when it is back
+	for job in _throw_jobs.duplicate():
+		if WorkerThreadPool.is_task_completed(job["task"]):
+			WorkerThreadPool.wait_for_task_completion(job["task"])
+			_throw_jobs.erase(job)
+			_throw_land(int(job["gen"]), job["out"])
+
+
+## a result lands only if it is for the newest generation; false = dropped
+func _throw_land(gen: int, r: Dictionary) -> bool:
+	if gen != throw_gen or throw_panel == null:
+		return false
+	throw_panel.show_result(r)
+	return true
+
+
+func _throw_place() -> void:
+	if throw_panel == null:
+		return
+	throw_panel.anchor_top = 1.0
+	throw_panel.anchor_bottom = 1.0
+	throw_panel.offset_left = LEFT_W + 12
+	throw_panel.offset_right = LEFT_W + 12 + ThrowPanel.W
+	throw_panel.offset_bottom = -bottom_h - 8
+	throw_panel.offset_top = -bottom_h - 8 - ThrowPanel.H
+
+
+## a click on a cell of the panel: the playhead goes to that frame (what a scrub does: no undo step)
+func _throw_pick(f: int) -> void:
+	playing = false
+	playhead = float(f) / float(ThrowFixtures.FPS)
+	_ps().apply(B, playhead)
+	_audio_scrub()
+	_refresh()
+
+
+func _throw_toggle() -> void:
+	throw_on = not throw_on
+	_refresh()
+
+
 func _fd_toggle() -> void:
 	fd_on = not fd_on
 	_refresh()
@@ -4273,7 +4390,9 @@ func _fd_start(key: String) -> void:
 			Dm.place(dm["dist"], dm["yaw"])
 			Dm.xf = dm["xf"]
 			Dm.D.set_state(dm["st"])
-		box.append(FrameData.analyze(C, Bc, fps, Dm)))
+		var fdw := FrameData.analyze(C, Bc, fps, Dm)
+		CancelWindows.attach(fdw, C, Bc)   # N081: the cancel windows ride with the frame data
+		box.append(fdw))
 	_bg_live.append(thr)   # waited for if the app quits first
 	while thr.is_alive():
 		await get_tree().process_frame
@@ -4299,6 +4418,7 @@ func _fd_data() -> Dictionary:
 		Bc.ground()
 		var fdx := {} if dummy_on else FrameAdvantage.app_fd(self, Bc, fd_fps)   # N080: two fighters: hitstun / advantage as well
 		fd_cache = {"key": key, "fd": fdx if not fdx.is_empty() else FrameData.analyze(S, Bc, fd_fps, T if dummy_on else null)}
+		CancelWindows.attach(fd_cache["fd"], S, Bc)   # N081
 	return fd_cache["fd"]
 
 
@@ -5405,7 +5525,12 @@ func _refresh() -> void:
 	CharImportApp.update(self)   # L9: an imported rigged character stands on the pose (scripts/char_import_app.gd)
 	PerfDoc.add("skinning", _pk)
 	corr.update(B)
-	dq_skin_pass.update(S.dq_skin)   # H04: after the corrective (its mesh is the rest DQ corrects)
+	var spl_dq: bool = B.has_meta("spline_body")   # L33: a back driven by a spline chain
+	if spl_dq and B.has_stretch():
+		dq_skin_pass.update(0.0)   # the stretch pass builds on the rest mesh, not on the DQ one
+	stretch_skin.update(B)   # L33: after the corrective (its mesh is the rest this corrects); nothing without a stretch
+	dq_skin_pass.update(1.0 if (spl_dq and not B.has_stretch()) else S.dq_skin)   # L33: a back driven by a spline chain is skinned by DQ (a plain blend caves in at its bends; with a stretch the stretch pass owns the mesh)
+	# H04: after the corrective (its mesh is the rest DQ corrects)
 	_face_draw()   # ROADMAP 31 + 74: the jaw, the mouth shape, the brows and the eyes at the playhead (scripts/face.gd)
 	for tg in ui_toggles:
 		(tg[0] as Button).set_pressed_no_signal(tg[1].call())
@@ -5413,6 +5538,7 @@ func _refresh() -> void:
 	_next_sync()
 	_insp_fit.call_deferred()   # RR2: rows shown / hidden change the box's height
 	_sync_weapon()
+	_throw_refresh()   # THROW CHECK (N040, L34)
 	_fd_refresh()   # FRAME DATA (ROADMAP 12): the strip and the boxes on active frames
 	if ui_browser != null and ui_browser.visible:
 		ui_browser.follow()
@@ -6635,6 +6761,7 @@ func _after_edit() -> void:
 	if symmetry:
 		_mirror_changed()
 	B.apply_grip()
+	simc.edited()
 	_refresh()
 
 
@@ -6751,11 +6878,12 @@ func _snapshot() -> Dictionary:
 	# remove is undone by putting the list back), so _restore never puts one actor's body onto another
 	return {"actor": actor_on, "hero": H, "spath": scene_path, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
 		"body": B.state(), "playhead": playhead, "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps, "bcol": body_colour, "bsm": Overlays.smooth,
-		"props": S.props.map(func(p): return Props.to_dict(p)), "building": _bld_file(), "part": _part_file(), "vehicle": _vehicle_file(), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
+		"props": S.props.map(func(p): return Props.to_dict(p)), "pxf": S.props.map(func(p): return p["xf"]), "outl": S.outl.duplicate(true), "building": _bld_file(), "part": _part_file(), "vehicle": _vehicle_file(), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
 		"soft": S.soft.duplicate(true),   # L22: the soft-body regions, undone like a card
+		"simc": simc.meta.duplicate(true),   # L35: the sim point caches (their files follow), undone like a card
 		"cape": S.cape.duplicate(true),   # the cape (ROADMAP 86), undone like a card
 		"rigx": S.rigx.duplicate(true),   # the words-made rig (rig_words.gd), undone like a card
 		"bones": S.bones.duplicate(true),   # J01: the user's extra bones (bone_editor.gd), undone like a card
@@ -6929,8 +7057,16 @@ func _restore(u: Dictionary) -> void:
 		_hero_scene().beats = u["beats"].duplicate(true)   # ROADMAP 13: the beats, undone like a card
 		if ui_choreo != null and is_instance_valid(ui_choreo.win):
 			ui_choreo.refresh()
+	if u["scene"] == S and u.has("outl") and var_to_str(u["outl"]) != var_to_str(S.outl):
+		S.outl = u["outl"].duplicate(true)   # L36: parents, hide and lock, undone like a card
+		_props_show()
+		if ui_browser != null:
+			ui_browser.refresh()
 	if u["scene"] == S and u.has("props") and JSON.stringify(u["props"]) != JSON.stringify(S.props.map(func(p): return Props.to_dict(p))):
 		S.props = u["props"].map(func(q): return Props.from_dict(q))   # the set, undone like a card (SS5)
+		if u.has("pxf") and (u["pxf"] as Array).size() == S.props.size():
+			for k in S.props.size():
+				S.props[k]["xf"] = u["pxf"][k]   # L36: the exact places (the file form keeps 1e-4), so a parent's children undo exactly
 		if sel_prop >= S.props.size():
 			sel_prop = -1
 		_props_show()
@@ -6964,6 +7100,8 @@ func _restore(u: Dictionary) -> void:
 		S.secondary = u["secondary"].duplicate(true)   # SECONDARY MOTION (ROADMAP 26), undone like a card
 	if u["scene"] == S and u.has("soft") and var_to_str(u["soft"]) != var_to_str(S.soft):
 		S.soft = u["soft"].duplicate(true)   # L22: the soft-body regions, undone like a card
+	if u["scene"] == S and u.has("simc") and var_to_str(u["simc"]) != var_to_str(simc.meta):
+		simc.apply_meta(u["simc"])   # L35: the sim point caches, undone like a card
 	if u["scene"] == S and u.has("cape") and var_to_str(u["cape"]) != var_to_str(S.cape):
 		S.cape = u["cape"].duplicate(true)   # the cape (ROADMAP 86), undone like a card
 	if u["scene"] == S and u.has("rigx") and var_to_str(u["rigx"]) != var_to_str(S.rigx):
@@ -7069,6 +7207,7 @@ func _restore(u: Dictionary) -> void:
 ## next undo step). Every edit goes through _push_undo (and every undo/redo through _restore), so both drop the bakers
 ## first; _bake_poll starts fresh ones from the new content.
 func _bake_drop(extra: Scene = null) -> void:
+	simc.edited()   # L42: an edit / undo / redo: the sim cache's memoized scene keys are dropped
 	var seen := _bake_scenes()
 	if extra != null:
 		seen.append(extra)
@@ -10256,6 +10395,94 @@ func _cape_export() -> void:
 	_say("exported the cape's vertices for every frame to %s (one list of 192 points per frame)" % p)
 
 
+## L35 SIM CACHE (scripts/sim_cache.gd, sim_cache_live.gd): Bake sim writes the cape's and the soft regions' vertex positions for every
+## frame to a file each; the timeline then scrubs the file. One undo step. Any edit marks it stale; Free bake removes it.
+func _simc_bake() -> Dictionary:
+	var r := SimCacheLive.compute(S)
+	var objs: Dictionary = r["objs"]
+	if objs.is_empty():
+		_say("nothing to bake: 'Cape: add to the back' or a soft-body region on the BODY page first")
+		return {"objects": []}
+	var done := []
+	_do(func():
+		done.append_array(simc.commit(S, objs))
+		if not (r["cape"] as Dictionary).is_empty():
+			S.cape = r["cape"])
+	var fr := 0
+	for n in done:
+		fr = maxi(fr, int(simc.meta[n]["frames"]))
+	_say("baked %s to a point cache: %d frames each, the timeline scrubs the file (Ctrl+Z takes it back; an edit makes it stale; 'Bake sim: free' removes it)" % [", ".join(done), fr])
+	return {"objects": done, "frames": fr}
+
+
+var _simc_clean := Callable()   # removes the pending files of the bake in flight
+
+
+## L42: Bake sim in the BACKGROUND (the menu action): the sims and the file writes run on a worker (progress bar and Cancel of the import panel);
+## the files are written as <file>.pending and renamed into place on the main thread when the bake completed AND the scene is still the one it read
+## (the keys are hashed again at landing), inside ONE undo step. Cancel, a scene edited meanwhile or a failed write leave no file and no undo step.
+func _simc_bake_bg() -> Dictionary:
+	if _imp_busy():
+		_say("still working on %s: one background job at a time; press Cancel on the bar, or wait for it" % _imp["label"])
+		return {"objects": []}
+	var names: Array = []
+	if not S.cape.is_empty():
+		names.append("cape")
+	for n in SoftBody.regions_of(S):
+		names.append("soft:" + String(n))
+	if names.is_empty():
+		_say("nothing to bake: 'Cape: add to the back' or a soft-body region on the BODY page first")
+		return {"objects": []}
+	var keys := {}
+	for n in names:
+		keys[n] = SimCacheLive.key_for(S, n)
+	var src := S
+	var sc := S.clone()   # on this thread; the worker never reads the open scene
+	var d: String = simc.dir
+	var sname: String = S.name
+	_simc_clean = func(): SimCacheLive.clear_pending(d, sname, names)
+	var work := func() -> Dictionary:
+		var r := SimCacheLive.compute(sc, true)
+		if r.is_empty():
+			return {}
+		var pend := SimCacheLive.write_pending(d, sname, r["objs"], keys)
+		if pend.is_empty():
+			return {}
+		return {"pend": pend, "cape": r["cape"]}
+	var land := func(out: Dictionary) -> void:
+		_simc_clean = Callable()
+		var same := S == src
+		if same:
+			for n in names:
+				same = same and SimCacheLive.key_for(S, n) == String(keys[n])
+		if not same:
+			SimCacheLive.clear_pending(d, sname, names)
+			_say("the scene changed while the sim baked: that result was dropped (no file written); run Bake sim again")
+			return
+		var done := []
+		_do(func():
+			done.append_array(simc.commit_pending(S, out["pend"]))
+			if not (out["cape"] as Dictionary).is_empty():
+				S.cape = out["cape"])
+		var fr := 0
+		for n in done:
+			fr = maxi(fr, int(simc.meta[n]["frames"]))
+		_say("baked %s to a point cache: %d frames each, the timeline scrubs the file (Ctrl+Z takes it back; an edit makes it stale; 'Bake sim: free' removes it)" % [", ".join(done), fr])
+	var fail := func() -> void:
+		_simc_clean = Callable()
+		SimCacheLive.clear_pending(d, sname, names)
+	_imp_begin("Bake sim", work, land, fail)
+	return {"objects": names, "background": true}
+
+
+func _simc_free() -> void:
+	if simc.meta.is_empty():
+		_say("no baked sim to free: 'Bake sim (cache cloth and soft body)' first")
+		return
+	_do(func(): simc.free_all())
+	_say("freed the baked sim: the cape and the flesh simulate live again (Ctrl+Z brings the bake back)")
+
+
 func _cape_draw() -> void:
 	if _cape_mi == null:
 		_cape_mat = StandardMaterial3D.new()
@@ -10272,7 +10499,11 @@ func _cape_draw() -> void:
 		_cape_mi.visible = false
 		return
 	_cape_mi.visible = true
-	var v := Cloth.verts_at(S.cape, clampf(playhead, 0.0, S.length()))
+	var v := PackedVector3Array()
+	if not simc.meta.is_empty():
+		v = simc.frame_at(S, "cape", clampf(playhead, 0.0, S.length()))   # L35: a fresh point cache answers; the sim is not read
+	if v.is_empty():
+		v = Cloth.verts_at(S.cape, clampf(playhead, 0.0, S.length()))
 	var f := Cloth.faces()
 	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _cape_mat)
 	for k in f.size():
@@ -10610,6 +10841,8 @@ func _kr_text(r: Dictionary) -> String:
 ## CURVE EDITOR (round 42, XX2, UPGRADES_300 #240): opens / closes the panel (scripts/curve_editor.gd) that draws the
 ## picked part's part keys as curves; dragging a key there is one undo step
 func _curve_toggle() -> void:
+	if detach != null and detach.is_detached("graph"):
+		detach.redock("graph")   # closing a detached graph editor brings it home first
 	if ui_curve == null:
 		ui_curve = GraphEditor.new()   # GE: the curve editor plus channels, pivot scale, normalize, cycles (graph_editor.gd)
 		ui_curve.anchor_top = 1.0
@@ -10623,11 +10856,65 @@ func _curve_toggle() -> void:
 		ui_curve.changed = func(): S.apply(B, playhead); _refresh()
 		ui_curve.say = func(t): _say(t)
 		ui_root.add_child(ui_curve)
+		ui_curve.add_child(_detach_button("graph"))
 	ui_curve.visible = not ui_curve.visible
 	_curve_sync()
 	if ui_curve.visible:
 		ui_curve.frame_all()
 	_say("curve editor open: drag a key to change its angle and time (Ctrl+Z takes a drag back)" if ui_curve.visible else "curve editor closed")
+
+
+## L37: the small Detach button a floating panel carries in its top-right corner (hidden while it is detached; the window has Re-dock)
+func _detach_button(id: String) -> Button:
+	var b := Button.new()
+	b.name = "detach_" + id
+	b.text = "Detach"
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", 11)
+	b.tooltip_text = "move this panel into its own window (for a second monitor); Re-dock or closing the window brings it back"
+	b.anchor_left = 1.0
+	b.anchor_right = 1.0
+	b.offset_left = -64.0
+	b.offset_right = -4.0
+	b.offset_top = 3.0
+	b.offset_bottom = 23.0
+	b.pressed.connect(func(): detach.detach(id))
+	return b
+
+
+func _curve_for_detach() -> Control:
+	if ui_curve == null or not ui_curve.visible:
+		_curve_toggle()
+	return ui_curve
+
+
+## SECOND VIEW (L37): a second camera on the same world, opened / closed here, detachable like the timeline
+func _view2_make() -> Control:
+	if view2 == null:
+		view2 = SecondView.new()
+		view2.setup(self)
+		view2.anchor_left = 1.0
+		view2.anchor_right = 1.0
+		view2.anchor_top = 1.0
+		view2.anchor_bottom = 1.0
+		view2.offset_right = -12.0
+		view2.offset_left = -372.0
+		view2.offset_bottom = -float(BOTTOM_H) - 110.0
+		view2.offset_top = view2.offset_bottom - 240.0
+		ui_root.add_child(view2)
+		view2.add_child(_detach_button("view2"))
+	view2.visible = true
+	return view2
+
+
+func _view2_toggle() -> void:
+	if view2 != null and detach.is_detached("view2"):
+		detach.redock("view2")
+		view2.visible = false
+	elif view2 != null and view2.visible:
+		view2.visible = false
+	else:
+		_view2_make()
 
 
 ## GRAPH EDITOR (round 51, GE1-GE4; scripts/graph_editor.gd): the channels view, the normalized view, the Cycles modifier
@@ -10670,8 +10957,9 @@ func _curve_sync() -> void:
 	ui_curve.playhead = playhead
 	ui_curve.fps = S.fps
 	ui_curve.card_times = S.times().map(func(x): return float(x[1]))   # DD0: Ctrl-snap to the cards
-	ui_curve.offset_left = lw() + 12
-	ui_curve.offset_right = -rw() - 12
+	if not PanelDetach.in_window(ui_curve):   # in its own window the panel fills it
+		ui_curve.offset_left = lw() + 12
+		ui_curve.offset_right = -rw() - 12
 	var sig := "%s|%d" % [sel, hash(var_to_str([S.cards, S.part_keys]))]
 	if sig != _band_sig and not ui_curve._dragging:   # YY7: the people's band, measured again only when the scene changed
 		_band_sig = sig   # (never mid-drag, and the view is refitted only for a new part: a refit under the mouse moved the key)
@@ -13243,6 +13531,9 @@ func _ui() -> void:
 	_build_page_bar()
 	for t in RIBBON_ALL:
 		tb.add_child(ui_ribbon[t])
+	detach = PanelDetach.new()
+	detach.name = "detach"
+	add_child(detach)
 	bld = BuildUI.new()
 	add_child(bld)
 	touch_in = TouchInput.new()   # Friday 173 + 174: touch, pen and gamepad drive the camera and the draw tools (scripts/touch_input.gd)
@@ -13443,6 +13734,7 @@ func _ui() -> void:
 	ui_ribbon["CHECK"].add_child(_button("Frame it my way", mc_ui.frame_it, "a shot for the open scene placed with your habits (your lens, distance, angle, thirds), cut before the contact the way you cut it, on one side of the line; no shots in your scenes yet: Auto camera instead; one undo step"))
 	tog.call("CHECK", "Dummy (H)", _dummy_toggle, func(): return dummy_on, "a second mannequin out front: red where the weapon is in it")
 	tog.call("CHECK", "Frame data", _fd_toggle, func(): return fd_on, "frame data: startup (green) / active (red) / recovery (blue) on the timeline, with the counts (ROADMAP 12)")
+	tog.call("CHECK", "Throw check", _throw_toggle, func(): return throw_on, "throw check (N040): for a scene with two bodies, whether the throw works frame by frame (throw works / no kuzushi / thrower falls / no contact), the key frame, how far the partner's balance is outside his feet and the thrower's own margin; click a frame to jump to it")
 	tog.call("CHECK", "Frame boxes", _fd_boxes_toggle, func(): return fd_boxes, "hitboxes (red) on active frames and hurtboxes (grey) on every frame, in the view")
 	fd_btn = _button("Frame rate", _fd_cycle_fps, "the frame rate the frame data counts in (24, 30, 60, 120 fps): now %d fps" % fd_fps)
 	ui_ribbon["CHECK"].add_child(fd_btn)
@@ -14082,6 +14374,14 @@ func _ui() -> void:
 	ui_timeline.custom_minimum_size = Vector2(0, 34)
 	ui_timeline.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	ph.add_child(ui_timeline)
+	detach.register("timeline", func(): return ui_timeline, "Timeline")   # L37
+	detach.register("graph", _curve_for_detach, "Graph editor")
+	detach.register("view2", _view2_make, "Second view")
+	var tdb := _button("Detach", func(): detach.toggle("timeline"), "move the timeline into its own window (for a second monitor); the same button, or closing that window, brings it back")
+	tdb.name = "detach_timeline"
+	tdb.add_theme_font_size_override("font_size", 12)
+	ph.add_child(tdb)
+	detach.changed.connect(func(): tdb.text = "Re-dock" if detach.is_detached("timeline") else "Detach")
 	var ob := _button("Clips", _fold.bind("bottom", false), "open the scene panel again: the clips and the scene's buttons")
 	ob.name = "open_bottom"
 	ob.visible = false
@@ -16943,6 +17243,8 @@ func _commands() -> Array:
 	add.call("Cape: add to the back (bakes the cloth)", "", _cape_add, "cape cloth back cloak robe sim bake drape", true, "a cape hangs from the shoulders on the back and swings in a turn: a cloth grid that collides with the body, baked over the scene; Ctrl+Z takes it back")
 	add.call("Cape: cancel the bake", "", _cape_cancel, "cape cloth bake cancel stop abort background", false, "stops a cape bake that is running in the background; the scene keeps its last cape")
 	add.call("Cape: folds onto itself (slower)", "", _cape_fold_toggle, "cape cloth fold self collision layers pass through itself slower", false, "makes the next cape bake keep its folds from passing through each other: about 0.5 s of baking a frame instead of 0.03 s, so it is off until you switch it on (the toggle says which way it is)")
+	add.call("Bake sim (cache cloth and soft body)", "", _simc_bake_bg, "bake sim simulation cache point cache cloth cape soft body flesh scrub timeline", true, "writes the cape's and the soft-body regions' vertex positions for every frame to a file each; the timeline then shows the saved frame and never re-simulates; an edit makes it stale; Ctrl+Z takes it back")
+	add.call("Bake sim: free", "", _simc_free, "bake sim free remove delete cache point cache simulation", true, "removes the baked sim files; the cape and the flesh simulate live again; Ctrl+Z brings them back")
 	add.call("Cape: take off", "", _cape_clear, "cape cloth remove clear off delete", true, "takes the cape off the scene (Ctrl+Z puts it back)")
 	add.call("Cape: export its vertices (JSON)", "", _cape_export, "cape cloth export mesh json vertices", false, "writes the cape's vertex positions for every frame to a JSON file in the user folder")
 	add.call("Secondary: bake", "", _sec_bake, "secondary bake keys rebake update animation", true, "bake every secondary item again over the scene (after the animation changed)")
@@ -16952,6 +17254,14 @@ func _commands() -> Array:
 	_shot_commands(add)   # THE SHOT CAMERA (shot_camera.gd)
 	if clips_ui == null:
 		clips_ui = ClipsUI.new(self)
+	add.call("Window: detach the timeline", "", func(): detach.toggle("timeline"), "window detach timeline second monitor screen float re-dock",
+		false, "the timeline into its own window, or back")
+	add.call("Window: detach the graph editor", "", func(): detach.toggle("graph"), "window detach graph curve editor second monitor screen float re-dock",
+		false, "the graph editor into its own window, or back")
+	add.call("Window: second 3D view", "", _view2_toggle, "window second view camera viewport extra 3d open close",
+		false, "a second camera on the same scene, in a panel you can detach to another monitor")
+	add.call("Window: re-dock all windows", "", detach.redock_all, "window re-dock all detach bring back",
+		false, "every detached panel back in the main window")
 	clips_ui.commands(add)   # CLIPS placed as strips (GAP row 12; scripts/clips_ui.gd)
 	if face_ui == null:
 		face_ui = FaceUI.new(self)
@@ -21903,8 +22213,8 @@ func _props_show() -> void:
 		for i in g:
 			in_shared[i] = true
 	for i in S.props.size():
-		if in_shared.has(i):
-			continue
+		if in_shared.has(i) or Outliner.hidden(S, "prop:%d" % i):
+			continue   # L36: a hidden prop is not drawn (a shared copy is dropped below)
 		var n := Props.mesh(S.props[i])
 		if Props.model_missing(S.props[i]) and not _gone_said.has(S.props[i]["kind"]):
 			_gone_said[S.props[i]["kind"]] = true
@@ -21914,7 +22224,10 @@ func _props_show() -> void:
 			for mi in n.find_children("*", "MeshInstance3D", true, false):
 				(mi as MeshInstance3D).material_overlay = tint
 		ui_props_root.add_child(n)
-	for g in shared:   # M3: one MultiMeshInstance3D per mesh of the kind, one instance per copy (scripts/prop_instances.gd)
+	for g0 in shared:   # M3: one MultiMeshInstance3D per mesh of the kind, one instance per copy (scripts/prop_instances.gd)
+		var g: Array = g0.filter(func(i): return not Outliner.hidden(S, "prop:%d" % i))   # L36: hidden copies are left out
+		if g.is_empty():
+			continue
 		var parts_mm := PropInstances.build(S.props, g)
 		for j in parts_mm.size():
 			parts_mm[j].name = "shared_%d_%d" % [g[0], j]
@@ -21943,6 +22256,8 @@ func _pick_prop(mp: Vector2) -> Array:
 	var best := -1
 	var bt := INF
 	for i in S.props.size():
+		if Outliner.hidden(S, "prop:%d" % i):
+			continue   # L36: a hidden object is clicked through
 		for sw in Props.solids(S.props[i]):
 			var inv: Transform3D = (sw["xf"] as Transform3D).affine_inverse()
 			var lo := inv * o
@@ -21967,6 +22282,65 @@ func _pick_prop(mp: Vector2) -> Array:
 	return [best, bt]
 
 
+## ---- OUTLINER (L36, scripts/outliner.gd): each change is ONE undo step; a refusal is said and changes nothing
+func _outl_locked_say(i: int) -> bool:
+	if i >= 0 and Outliner.locked(S, "prop:%d" % i):
+		_say_plain("the %s is locked: unlock it in the Outliner first" % _prop_name(i))
+		return true
+	return false
+
+
+## `child` dropped on `parent` ("" = the top level), its world transform kept. Returns "" or the reason it was refused
+func _outl_reparent(child: String, parent: String) -> String:
+	var why := Outliner.can_reparent(S, child, parent)
+	if why != "":
+		_say(why)
+		return why
+	_step_hint = "Reparent"
+	_push_undo()
+	Outliner.reparent(S, child, parent)
+	_outl_changed()
+	_say_plain("%s is now %s; it stayed where it was in the view. Ctrl+Z takes it back" % [Outliner._name(S, child), ("under " + Outliner._name(S, parent)) if parent != "" else "at the top level"])
+	return ""
+
+
+func _outl_hide(id: String, on: bool) -> void:
+	if not Outliner.has(S, id) or S.outl.get("hide", {}).has(id) == on:
+		return
+	_step_hint = "Hide" if on else "Show"
+	_push_undo()
+	Outliner.set_hidden(S, id, on)
+	_outl_changed()
+
+
+func _outl_lock(id: String, on: bool) -> void:
+	if not Outliner.has(S, id) or Outliner.locked(S, id) == on:
+		return
+	_step_hint = "Lock" if on else "Unlock"
+	_push_undo()
+	Outliner.set_locked(S, id, on)
+	_outl_changed()
+
+
+func _outl_changed() -> void:
+	_props_show()
+	if ui_browser != null:
+		ui_browser.refresh()
+
+
+## a row picked in the Outliner: a prop is picked as in the view, anything else is the picked object
+func _outl_select(id: String) -> void:
+	var i := Outliner.prop_index(id)
+	if i >= 0:
+		_prop_select(i)
+		return
+	sel_prop = -1
+	sel_obj = id
+	sel_obj_part = sel
+	_props_show()
+	_say_plain("%s selected (from the Outliner)" % Outliner._name(S, id))
+
+
 func _prop_name(i: int) -> String:
 	if i >= 0 and i < S.props.size() and String(S.props[i]["kind"]).begins_with("part:"):
 		return PartScene.name_of(String(S.props[i]["kind"]))   # F146: a built part shows by its own name
@@ -21975,9 +22349,16 @@ func _prop_name(i: int) -> String:
 
 ## a press on a prop: picked, and a drag moves it over the floor (snapped onto what it stands over); one undo step
 func _prop_press(i: int, mp: Vector2, t: float) -> void:
+	if Outliner.locked(S, "prop:%d" % i):   # L36: a locked object is picked, never grabbed: no drag, no undo step
+		sel_prop = i
+		sel_obj = "prop:%d" % i
+		_props_show()
+		_say_plain("the %s is locked: unlock it in the Outliner (the lock on its row) to move it" % _prop_name(i))
+		return
 	_step_hint = "Move prop"
 	_push_undo()
 	sel_prop = i
+	sel_obj = "prop:%d" % i
 	playing = false
 	_prop_live(i)
 	var hp := cam.project_ray_origin(mp) + cam.project_ray_normal(mp) * t
@@ -22027,6 +22408,7 @@ func _prop_release() -> void:
 		_history_rows()
 	else:
 		_prop_autokey(_prop_drag["i"])   # row 22: a keyed prop moved = a key at the playhead
+		Outliner.moved(S, "prop:%d" % int(_prop_drag["i"]))   # L36: what is under it in the Outliner goes with it
 		_props_show()   # UU1: what stood on it settles
 		var y: float = (S.props[_prop_drag["i"]]["xf"] as Transform3D).origin.y
 		_say("moved the %s%s" % [_prop_name(_prop_drag["i"]), "" if y < 0.001 else ": it stands on what is under it, %.0f cm up" % (y * 100.0)])
@@ -22118,11 +22500,14 @@ func _prop_add(kind: String, at: Variant = null) -> void:   # at: a floor point 
 func _prop_turn(deg: float) -> void:
 	if sel_prop < 0 or sel_prop >= S.props.size():
 		return
+	if _outl_locked_say(sel_prop):
+		return
 	_push_undo()
 	_prop_live(sel_prop)
 	var d := Props.to_dict(S.props[sel_prop])
 	d["yaw"] = wrapf(float(d["yaw"]) + deg, -180.0, 180.0)
 	S.props[sel_prop] = Props.from_dict(d)
+	Outliner.moved(S, "prop:%d" % sel_prop)   # L36: its children turn / grow with it
 	_prop_autokey(sel_prop)
 	_props_show()
 	_doc_line()
@@ -22139,11 +22524,14 @@ func _prop_resize(f: float) -> void:
 	if absf(new_s - old) < 0.0005:
 		_say("the %s is as %s as it goes" % [_prop_name(sel_prop), "big" if f > 1.0 else "small"])
 		return
+	if _outl_locked_say(sel_prop):
+		return
 	_push_undo()
 	_prop_live(sel_prop)
 	var d := Props.to_dict(S.props[sel_prop])
 	d["scale"] = snappedf(new_s, 0.0001)
 	S.props[sel_prop] = Props.from_dict(d)
+	Outliner.moved(S, "prop:%d" % sel_prop)   # L36: its children turn / grow with it
 	_prop_autokey(sel_prop)
 	_props_show()
 	_doc_line()
@@ -22165,6 +22553,7 @@ func _prop_colour() -> void:
 	else:
 		d["colour"] = nxt
 	S.props[sel_prop] = Props.from_dict(d)
+	Outliner.moved(S, "prop:%d" % sel_prop)   # L36: its children turn / grow with it
 	_prop_autokey(sel_prop)
 	_props_show()
 	_doc_line()
@@ -22238,6 +22627,7 @@ func _body_smooth_set(on: bool) -> void:
 	wp_bind = -1
 	_wp_setup()
 	corr.attach(pieces.values(), skel)
+	stretch_skin.attach(pieces.values(), skel, bone_idx, corr)
 	dq_skin_pass.skin = null   # (DqSkin keeps the first skin it saw)
 	dq_skin_pass.attach(pieces.values(), skel)
 	_skp_build()
@@ -22306,9 +22696,12 @@ func _prop_copies_row() -> void:
 func _prop_del() -> void:
 	if sel_prop < 0 or sel_prop >= S.props.size():
 		return
+	if _outl_locked_say(sel_prop):
+		return
 	_push_undo()
 	var nm := _prop_name(sel_prop)
 	S.props.remove_at(sel_prop)
+	Outliner.prop_removed(S, sel_prop)   # L36: the parents / hide / lock follow the new numbers
 	for c in S.cards:   # UU2: the cards' take / drop marks follow the props' new numbers
 		if c.has("take"):
 			if int(c["take"]["prop"]) == sel_prop:
@@ -22744,6 +23137,7 @@ func _prop_select(i: int) -> void:
 	if i < 0 or i >= S.props.size():
 		return
 	sel_prop = i
+	sel_obj = "prop:%d" % i
 	_props_show()
 	_say_plain(("the %s: drag it in the view to move it" % _prop_name(i)) if easy.on else ("the %s: drag it in the view to move it; Turn and Delete are in SET" % _prop_name(i)))
 
@@ -23069,6 +23463,7 @@ var face_geo_mask: MeshInstance3D
 var face_geo_eye_nodes: Array = []
 var face_geo_head0: Mesh           # the head piece's own mesh, put back when the geometry goes off
 var face_geo_key := ""
+var face_geo_viseme := ""          # L23: a viseme name (rest A E I O U MBP FV L TH, or a lip-sync letter) that overrides the lip-sync shape; "" = follow the lip sync
 
 
 func _face_make() -> void:
@@ -23223,6 +23618,16 @@ func _face_geo_set(on: bool) -> void:
 						mi.mesh = FaceGeo.nose_mesh(face_geo_data, FaceGeo.SKIN)
 						mi.material_override = FaceGeo.mask_material(hp.material_override)
 				face_geo_root.add_child(mi)
+			for pd in FaceGeo.head_parts(face_geo_data, FaceGeo.SKIN):   # L23: the ears
+				var ei := MeshInstance3D.new()
+				ei.name = String(pd["name"])
+				ei.mesh = pd["mesh"]
+				ei.material_override = FaceGeo.mask_material(hp.material_override)
+				face_geo_root.add_child(ei)
+			var chn := MeshInstance3D.new()   # L23: the chin and the jaw line under the mask, riding the jaw (no hollow under the chin)
+			chn.name = "chin"
+			chn.material_override = FaceGeo.mask_material(hp.material_override)
+			face_geo_root.add_child(chn)
 		face_geo_key = ""
 		face_geo_on = true
 	else:
@@ -23243,12 +23648,18 @@ func _face_geo_draw(P: Dictionary) -> void:
 	face_geo_root.transform = Transform3D(Basis(g), face_at(Vector3.ZERO))
 	var bv := (float(P["brow_l"]) + float(P["brow_r"])) * 0.5
 	var au := {"AU1": maxf(bv, 0.0), "AU4": maxf(-bv, 0.0), "AU45": float(P["blink"]), "AU6": float(P["squint"])}
-	var vz := FaceGeo.viseme_au(String(P.get("mouth", "")))   # the viseme shape drives the mouth AUs (E = wide = AU12)
+	# the viseme shape drives the mouth AUs (L23: the full set; the lip sync's own jaw channel keeps the jaw, an override brings its own)
+	# The lip sync's own letters (P["mouth"]) keep the six-AU shape (FaceGeo.viseme_au) the USD face export can write (UsdWire / usdwire
+	# bars: six BlendShapes); the full ten-viseme set (the 14 AUs) is the explicit override face_geo_viseme.
+	var vp := FaceGeo.viseme_pose(face_geo_viseme) if face_geo_viseme != "" else {}
+	var vz: Dictionary = vp.get("au", {}) if face_geo_viseme != "" else FaceGeo.viseme_au(String(P.get("mouth", "")))
 	for k in vz:
 		au[k] = float(au.get(k, 0.0)) + float(vz[k])
 	for k in face_geo_au:
 		au[k] = float(au.get(k, 0.0)) + float(face_geo_au[k])
-	var st := {"au": au, "jaw_deg": float(P["jaw_deg"]), "eye_pitch_deg": float(P["eye_pitch_deg"]), "eye_yaw_deg": float(P["eye_yaw_deg"])}
+	var st := {"au": au, "jaw_deg": float(P["jaw_deg"]), "eye_pitch_deg": float(P["eye_pitch_deg"]), "eye_yaw_deg": float(P["eye_yaw_deg"]), "viseme": String(vp.get("viseme", ""))}
+	if face_geo_viseme != "":
+		st["jaw_deg"] = float(vp.get("jaw_deg", 0.0))
 	var key := str(st)
 	if key != face_geo_key:
 		face_geo_key = key
@@ -23262,7 +23673,8 @@ func _face_geo_draw(P: Dictionary) -> void:
 			(face_geo_eye_nodes[i] as Node3D).transform = tf[i]
 		var jx := FaceGeo.jaw_transform(d, st)   # the lower teeth and the tongue ride the jaw bone
 		(face_geo_root.get_node("teeth_lo") as Node3D).transform = jx
-		(face_geo_root.get_node("tongue") as Node3D).transform = jx
+		(face_geo_root.get_node("tongue") as Node3D).transform = FaceGeo.tongue_transform(d, st)
+		(face_geo_root.get_node("chin") as MeshInstance3D).mesh = FaceGeo.chin_mesh(d, st, skin)
 		var nose_mi := face_geo_root.get_node("nose") as MeshInstance3D
 		var nsk := FaceGeo.SKIN
 		if hm is StandardMaterial3D:

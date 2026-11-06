@@ -58,9 +58,15 @@ TOOLS = {
                     "(pieces: names or col* patterns; camera {pos, target, fov}; w, h; part {record} frames a given part). Also `light`: per piece emission, "
                     "peak_luminance, glow_px, which edges it touches, the brightest_piece, and touching_frame_edge (and _with_glow).",
                     {"type": "object", "properties": {"pieces": {"type": "array", "items": S}, "camera": {"type": "object"}, "w": N, "h": N, "part": {"type": "object"}}, "additionalProperties": False}),
+    "cancel_windows": ("cancel_windows", "Where can the next move start? Cancel windows from the body: the frame runs (f0 to f1, at least min_run long) where the body is balanced (COM inside the feet), slow (COM velocity and whole-body angular momentum under thresholds) and no foot is off the floor. "
+                       "clip = a scene file (else the live scene); frame adds whether that frame is cancelable; v_max (m/s), h_max (m^2/s per unit mass), margin_min (m) override the thresholds.",
+                       {"type": "object", "properties": {"clip": S, "frame": {"type": "integer"}, "fps": N, "v_max": N, "h_max": N, "margin_min": N}, "additionalProperties": False}),
     "reactable": ("reactable", "Is each strike reactable? Per strike: the frame a viewer can first SEE it coming (the tell), its first active frame, the window between them and the frames a human needs "
                   "(plus latency_ms), status reactable / not reactable and the margin. clip = a scene file (else the live scene); frame adds what that frame is (tell / active / idle).",
                   {"type": "object", "properties": {"clip": S, "frame": {"type": "integer"}, "latency_ms": N, "fps": N}, "additionalProperties": False}),
+    "throw_check": ("throw_check", "Does the throw work? Two bodies judged frame by frame: verdict (throw works / no kuzushi / thrower falls / no contact), the key frame, and per frame the partner's "
+                    "extrapolated centre of mass outside his feet (out_m) and the thrower's own balance margin (margin_m). clip = a scene file with a partner (else the live scene); thrower 0 = hero, 1 = partner.",
+                    {"type": "object", "properties": {"clip": S, "fps": N, "thrower": {"type": "integer"}}, "additionalProperties": False}),
     "look_facts": ("look_facts", "Numbers for how the final picture LOOKS per piece / kind / nature item (colour, contrast, neon, ring, share), from an id render. "
                    "Needs a part view or nature items showing: give piece, kind, nature or targets; camera, w, h optional.",
                    {"type": "object", "properties": {"piece": S, "kind": S, "nature": S, "targets": {"type": "array"}, "camera": {"type": "object"}, "w": N, "h": N}, "additionalProperties": True}),
@@ -89,7 +95,7 @@ TOOLS = {
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["reactable", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits"]
+MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:

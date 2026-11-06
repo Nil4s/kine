@@ -90,11 +90,13 @@ var _plant_out := {}      # FootPlant.out_frames cache: {plant index: {"sig", "n
 var free_memo = null   # R2 (VideoCleanup.reachable): the plants-off reads of one reachable() call (PoseCache.plant_ref), null outside it, where the cards are fixed
 var drivers := []      # USER DRIVERS (GAP_ANALYSIS row 15): [{"driven", "axis", "source", "src_axis", "factor", "offset", "from"?}]; scripts/drivers.gd
 var cape := {}        # CAPE (ROADMAP 86; scripts/cloth.gd): the baked cloth frames; in the file as "cape" only when baked
+var outl := {}   # OUTLINER (L36; scripts/outliner.gd): parents, hide and lock of the scene's objects; in the file as "outliner" only when it holds something
 var soft := {}   # SOFT-BODY FLESH (L17; scripts/soft_body.gd): {"regions": ["belly", "thigh_l", ...]}; in the file as "soft" only when a region is on
 var secondary := {}   # SECONDARY MOTION (ROADMAP 26): {"items": [chains / rods], "keys": {"<name>_<i>": [[t, deg]]}, "fps"}; scripts/secondary_motion.gd; in the file as "secondary" only when there is an item
 var hair := {}         # HAIR STRANDS (ROADMAP 87): the ponytail's parameters (hair.gd); in the file as "hair" only when set; the frames are baked again on bake
 var rigx := []         # RIG FROM WORDS (J24; scripts/rig_words.gd): extra bone chains (tail, ears, cape); in the file as "rigx" only when there is one
 var spline_chains := []   # SPLINE IK (L28; scripts/spline_chain.gd): bone chains that follow a curve; in the file as "spline_chains" only when there is one
+var spline_body := []   # SPLINE IK ON THE BODY (L33; scripts/spline_chain.gd drive_body): chains of Kine joints (the back) that follow a curve; in the file as "spline_body" only when there is one
 var bones := []        # BONE EDITOR (J01; scripts/bone_editor.gd): the user's extra bones; in the file as "bones" only when there is one
 var cons := []         # USER CONSTRAINTS (round 51, CN): the stack, played in order after IK; scripts/constraints.gd
 var cons_last := []    # what the last apply()'s constraint pass did (Constraints.play's reports); [] = nothing
@@ -920,6 +922,14 @@ func apply(B: Body, t: float) -> void:
 		ik_last = LimbIK.play(ik, B, t) if not PerfStub.skip("ik_plants") else {}
 		if not ik_last.is_empty() and B.wep_on and B.grip and B.wep_hand != "" and not ik_last.has("hand_l" if B.wep_hand == "hand_r" else "hand_r"):
 			B.apply_grip()   # the weapon hand moved: the other hand follows it onto the bat (unless it is pinned itself)
+	if spline_body.is_empty() and B.has_meta("spline_body"):
+		B.remove_meta("spline_body")
+	# L33: a spline chain on the body's joints (the back): after the IK pass (which clears a stretch), before the plants. Nothing without one
+	if not spline_body.is_empty():
+		if ik.is_empty() and B.has_stretch():
+			B.set_stretch({}, {})
+		for sc in spline_body:
+			SplineChain.drive_body(B, sc)
 	# FOOT PLANTS (ROADMAP 8, scripts/foot_plant.gd): after the IK pass, before the constraints. A planted foot holds the
 	# place it had at its t0; the pelvis is not touched. Nothing live (no plants, or none in range): the body is not touched
 	if not plant_refs.is_empty():
@@ -1747,10 +1757,12 @@ func clone() -> Scene:
 	c.drivers = drivers.duplicate(true)   # user drivers (drivers.gd)
 	c.secondary = secondary.duplicate(true)   # secondary motion (secondary_motion.gd)
 	c.soft = soft.duplicate(true)   # soft-body flesh regions (soft_body.gd)
+	c.outl = outl.duplicate(true)   # outliner record (outliner.gd)
 	c.hair = hair.duplicate(true)   # hair strands (hair.gd)
 	c.rigx = rigx.duplicate(true)   # the words-made rig (rig_words.gd)
 	c.bones = bones.duplicate(true)   # the user's extra bones (bone_editor.gd)
 	c.spline_chains = spline_chains.duplicate(true)   # their spline-IK chains (spline_chain.gd)
+	c.spline_body = spline_body.duplicate(true)   # L33: the body's spline chains
 	c.cape = cape.duplicate(true)   # the cape (cloth.gd)
 	c.shots = shots.duplicate(true)   # the shots and their cameras (shot_camera.gd)
 	c.sets = sets.duplicate(true)   # selection / keying sets (part_sets.gd)
@@ -2381,6 +2393,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["drivers"] = Drivers.to_file(drivers)   # user drivers: the same, only when there is one
 	if not cape.is_empty():
 		out["cape"] = Cloth.to_file(cape)   # the cape: the baked frames, only when there is one
+	if not outl.is_empty():
+		out["outliner"] = Outliner.to_file(self)   # L36: parents, hide, lock; only when any
 	if not (soft.get("regions", []) as Array).is_empty():
 		out["soft"] = {"regions": (soft["regions"] as Array).duplicate()}   # soft-body flesh: only when a region is on
 		if absf(float(soft.get("strength", 1.0)) - 1.0) > 1e-9:
@@ -2393,6 +2407,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["rigx"] = rigx.duplicate(true)   # the words-made rig: only when there is one
 	if not bones.is_empty():
 		out["bones"] = BoneEdit.to_file(bones)   # J01: the user's extra bones, only when there is one
+	if not spline_body.is_empty():
+		out["spline_body"] = SplineChain.body_to_file(spline_body)   # L33: only when there is one
 	if not spline_chains.is_empty():
 		out["spline_chains"] = SplineChain.to_file(spline_chains)   # L28: the spline-IK chains (with a version key), only when there is one
 	if not cons.is_empty():
@@ -2593,6 +2609,7 @@ func from_dict(d: Dictionary) -> void:
 	plants = FootPlant.from_file(d.get("plants", []))   # foot plants: absent = none
 	asserts = BodyAssert.from_file(d.get("asserts", []))   # N002 body assertions: absent = none
 	drivers = Drivers.from_file(d.get("drivers", []))   # user drivers: absent = none
+	outl = Outliner.from_file(d.get("outliner", {}))   # L36: absent = none
 	soft = {}
 	if d.get("soft") is Dictionary and d["soft"].get("regions") is Array:
 		var rg := []
@@ -2607,6 +2624,7 @@ func from_dict(d: Dictionary) -> void:
 	hair = Hair.from_file(d.get("hair", {}))   # hair strands: absent = none
 	rigx = RigWords.from_file(d.get("rigx", []))   # the words-made rig: absent = none
 	bones = BoneEdit.from_file(d.get("bones", []))   # J01: the user's extra bones: absent = none
+	spline_body = SplineChain.body_from_file(d.get("spline_body", {}))   # L33: absent = none
 	spline_chains = SplineChain.from_file(d.get("spline_chains", {}))   # L28: absent = none
 	cape = Cloth.from_file(d.get("cape", {}))   # the cape: absent = none
 	cons = Constraints.from_file(d.get("constraints", []))   # round 51: absent = none

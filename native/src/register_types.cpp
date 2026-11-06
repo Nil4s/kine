@@ -7,11 +7,13 @@
 #include "kine_cloth_native.h"
 #include "kine_cloth_self_native.h"
 #include "kine_soft_native.h"
+#include "kine_softskin_native.h"
 #include "kine_meshcheck_native.h"
 #include "kine_meshops_native.h"
 #include "kine_parkour_native.h"
 #include "kine_retopo_native.h"
 #include "kine_solve_native.h"
+#include "kine_autorig_native.h"
 #include "kine_spline_native.h"
 #include "kine_skin_native.h"
 #include "kine_clock_native.h"
@@ -35,11 +37,13 @@ void kine_native_initialize(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(KineClothNative);
 	GDREGISTER_CLASS(KineClothSelfNative);
 	GDREGISTER_ABSTRACT_CLASS(KineSoftNative);
+	GDREGISTER_ABSTRACT_CLASS(KineSoftSkinNative);
 	GDREGISTER_ABSTRACT_CLASS(KineMeshCheckNative);
 	GDREGISTER_ABSTRACT_CLASS(KineMeshOpsNative);
 	GDREGISTER_ABSTRACT_CLASS(KineParkourNative);
 	GDREGISTER_CLASS(KineRetopoNative);
 	GDREGISTER_ABSTRACT_CLASS(KineSolveNative);
+	GDREGISTER_ABSTRACT_CLASS(KineAutoRigNative);
 	GDREGISTER_ABSTRACT_CLASS(KineSplineNative);
 	GDREGISTER_ABSTRACT_CLASS(KineSkinNative);
 	GDREGISTER_ABSTRACT_CLASS(KineClockNative);
