@@ -1,6 +1,6 @@
 # LOOK4D design: pre-registered format comparison for scene reading
 
-Status: DESIGN ONLY, nothing built, nothing run. Bars below are fixed before any run; changing one after seeing a number needs a dated amendment at the bottom. Background and sources: `docs/LOOK4D_RESEARCH.md`.
+Status: v2 (coordinator review 2026-11-05). Bars below are fixed before any reader runs; changing one after seeing a number needs a dated amendment at the bottom. Background and sources: `docs/LOOK4D_RESEARCH.md`.
 
 ## 1. What Kine can produce cheaply (file:line, worktree w4-look4d @ origin/poser-ui-rounds 268414bd)
 
@@ -32,71 +32,74 @@ Not in the app today: any "falling stack" (rigid_drop is a single rod; hit_physi
 The digest (D) needs no new physics: it is a join of the rows above. The annotated image (C) needs: id render (exists) + projected centre/velocity (frame_facts projection) + ghost positions (pose_at at past times) + outline for occluded ids (from the id/solo passes). Estimated new code is a renderer-side overlay and a join script, not a new buffer. This lane does not write it.
 
 ## 2. Formats (fixed)
-Same camera, same size for all images: 768x432 (≈442 image tokens by w*h/750).
+Same camera, same size for all images: 768x432 (about 442 image tokens by w*h/750).
 - A: one screenshot at time t0.
-- B: 4 screenshots at t0-3h, t0-2h, t0-h, t0 (h = 0.1 s unless the scene's fps makes it 3 frames), each 384x216 tiled 2x2 into ONE 768x432 image so image cost matches A (tests encoding, not pixel budget). A second variant B-big = four separate 768x432 images, reported but not in the bars.
-- C: one annotated image at t0: per-object id label + view depth in m as text, 3D velocity arrow projected to screen with speed in m/s as text on the arrow, white ghost dots at the 3 previous positions, occluded objects drawn as dashed outline with their label. No colour-coded numbers (pilot lesson).
-- D: text only, one row per object: id, pos (m), vel (m/s, 3-vector), ang vel (rad/s), momentum (kg m/s, mass from the BOM or body table), contacts (ids), penetration (mm3, per pair), occluded (bool + occluder id), view depth (m), camera pose and fov once at top.
+- B: 4 screenshots at t0-3h, t0-2h, t0-h, t0 (h = the scene's ghost step, 0.05-0.1 s), each 384x216, tiled 2x2 into ONE 768x432 image, so B has the same pixel budget as A and C (the P1 comparison is at equal pixel budget). B-big (four 768x432 images) is NOT built.
+- C: one annotated image at t0 (768x432): id label + view depth (m) per visible part; yellow arrow = the part's 3D velocity projected to the screen (tail at the part centre, tip at centre + v*0.25 s), with a text label "speed m/s" and "toward"/"away" when the depth rate is over 10% of speed; 3 white ghost dots at t0-h, -2h, -3h; hidden parts (visible share under 25%) drawn as a dashed outline of their solo silhouette box with "(hidden)". No colour encodes a quantity.
+- D: text only, JSON rounded to 3 significant figures, one row per object: id, pos (m, world, y up), vel (m/s), speed, angvel (rad/s), mass_kg (NOMINAL, see scenes), momentum (kg m/s), view depth (m), visible_frac, occluded (bool, visible_frac < 0.25 with a non-empty silhouette) and occluded_by, contacts (ids), penetration_mm3 (per pair). Camera pose, fov and image size once. D has NO screen pixel positions and NO out-of-view flag: left/right/above/below on screen, 0.5 s collision and out-of-view must be worked out from world pose + camera + velocity.
 - C+D: C and D together.
-- Z (control): question text only, no scene.
-- D-scr (control): D with rows shuffled across objects (values stay attached to wrong ids; the table is still well-formed).
+- Z (control): question text only.
+- D-scr (control): D with each object's value block moved to a different object's id (still well formed).
+All arms get the same object list (ids and plain names) in the header, and the same question text.
 
-## 3. Scenes (5 motion + 1 null), all from existing content
-1. S1 engine mid-stroke: `scripts/build/ch13_scene.gd` (build `:8`, `pose :43`), keyed 0 to 720 deg over 2 s as in `tests/g7time_test.gd:16` (parts: piston, rod, crank). t0 = 0.6 s.
-2. S2 syringe arm moving a can: `scripts/build/ch14_scene.gd` (build `:28`, `pose(sc,t) :119`) with `ch14_anim.gd`; t0 chosen mid-carry, with the arm occluding a placed can from the camera.
-3. S3 character walk with foot contacts: `scenes/walk_bat.json` through `EventQuery`/`explain_motion` (`explain_motion.gd:383`). t0 at a heel strike +- 2 frames.
-4. S4 falling rod bounce: `RigidDrop.simulate` (`scripts/rigid_drop.gd:60`) with a floor; t0 just after first impact. Substitute for "falling stack", which does not exist; if a stack is wanted, that is a new lane.
-5. S5 camera assembly with interpenetration: `scripts/build/ch16_parts.gd` with the planted 2 mm main-PCB shift from `tests/ch16_test.gd` bar 4; static, with inner parts occluded by the shell. Motion questions on S5 are not asked.
-6. S6 NULL: S1 with every drive held at the t0 value (same geometry, same camera, zero motion). Used only for the planted motion-advantage control.
-Camera per scene: fixed, off-axis, chosen BEFORE seeing any format output, saved to the run folder; one camera per scene, not tuned per format.
+## 3. Scenes (5 motion + 1 null), all from existing content or built from it
+1. S1 engine: `ch13_parts.loop_assembly()` keyed Crank 0 to 720 deg over 2 s, linear (as `tests/g7time_test.gd:engine_keyed`), poses from `AssemblyAnim.pose_at`. t0 = 0.6 s. Contacts and penetration from the kernel (`AssemblyMotion.place`, `KCad.distance`, `KCad.overlap_volume`).
+2. S2 syringe arm moving a can: `ch14_scene.build/pose(sc,t)`. t0 chosen mid-carry. Contacts: world-box gap only (no kernel solids at the node level); touch questions are not asked on S2.
+3. S3 walk with foot contacts: `scenes/walk_bat.json` through `Scene.from_dict` + `Scene.apply(Body, t)`; every Body part drawn as its capsule (`Body.cap`, `Body.rad`). Mass nominal (capsule volume x 1000 kg/m3). Contact = capsule within 1 cm of the floor.
+4. S4 falling rod: `RigidDrop.simulate` (sword body, bounces on the floor), plus two scripted ballistic balls and a wall box (a ball partly behind the wall) so there is more than one mover and real occlusion. Substitute for the "falling stack", which does not exist in the repo. Analytic contacts.
+5. S5 camera assembly with planted interpenetration: `ch16_parts.assembly({"pcb_into_shell": true})`; static, penetration from `ch16_parts.clashes`. Motion questions are not asked.
+6. S6 NULL: S1 with the pose frozen at t0 (identical geometry, camera, labels, zero motion; ghosts coincide). Asked the S1 motion questions with a "none" option.
+Cameras are chosen per scene by hand BEFORE any reader runs, saved with the stimuli, identical across formats. A camera may crop the scene so that some parts are fully out of view (needed for the out-of-view type).
 
-## 4. Questions and ground truth
-8 per scene (S5: 8 non-motion), 48 in all; written and frozen with truth before any reader runs. Truth is computed from the scene, never from a reader or a format.
-Types and truth sources:
-- fastest: argmax of |v| over parts, from pose at t0+-dt. 4-way pick among named parts. Chance 25%.
-- toward/away: sign of d(depth)/dt of part X (camera-space z). Yes/no, chance 50%. Include only pairs where |d depth/dt| exceeds 5% of |v| so the sign is not a rounding artefact.
-- hidden: is X hidden behind Y at t0 (solo-pass visible share under 25%, from look_facts)? Yes/no.
-- touch/penetrate: which pairs have KCad.distance <= 0.1 mm or overlap_volume > 1 mm3 at t0? Multiple choice with 4 sets (one true).
-- predict: position of X at t0+0.5 s, only on segments keyed "linear" or constant-speed so a constant-velocity guess is the right answer; answer = nearest of 4 positions in a named region, or a number within +-15%. Truth = `pose_at(t0+0.5)`. Where the true motion is eased, the question is excluded (documented), not kept.
-- ordering: which of two parts is nearer the camera (depth). Yes/no.
-Numeric answers use stated tolerance; free-text is not allowed (grading by exact match to option letter or tolerance). Per scene: 2 fastest/ordering, 2 toward/away, 1 hidden, 1 touch/penetrate, 1 predict, 1 angular (which rotates fastest).
-Chance is not assumed: arm Z and D-scr measure it.
+## 4. Questions, types and ground truth
+Generated by `tools/look4d_truth.py` from `truth_data.json` written by the Godot module (poses sampled every 1/30 s from t0-0.3 to t0+0.5, projections, silhouette and visibility counts, contact table). Truth comes from the scene, not from any rendered format. Frozen (questions.json + truth.json) before any packet is built.
+Lookup types (answer is a field or a comparison of fields in D):
+- fastest (4-way, top speed >= 1.25x the second), toward (yes/no on depth rate, |vz| >= 0.3 |v|), hidden (yes/no), ordering (nearer to camera, depth gap >= 15%), touch (which pair touches/overlaps; 4 pairs, one true).
+Non-lookup types (need reasoning beyond reading a field of D):
+- collide: will A and B come within 0 mm (box/analytic gap) in the next 0.5 s (needs extrapolation; gap at t0 >= 30 mm, min gap either <= 0 or >= 30 mm).
+- screen_lr / screen_ud: is A left of / above B in the picture (needs projection; margin >= 40 / 30 px).
+- out_of_view: which of 4 parts is fully out of the picture (silhouette empty in the frame; D shows only world pose).
+- predict: in which 3x3 screen cell will A be at t0+0.5 s (4 options; true position >= 25 px from a cell edge; the constant-velocity prediction must agree with truth or the target is skipped).
+Target: at least 40% of questions non-lookup; the generator reports the share and refuses to emit a set under 40%.
+Answers are an option letter (yes/no questions have options A=yes, B=no); scripted grading only. Chance is measured by Z and D-scr, not assumed. S6 uses the S1 motion templates with a fifth option "none/not moving"; truth there is "none" or "no".
 
-## 5. Protocol
-- Reader = a fresh subagent per (scene, arm, repetition), same model for all arms (pin the model id in the run log), same system text, temperature default. It receives only the format artefact and that scene's 8 questions in a fixed order. It never gets truth, scene file paths, tool access, or the other arms. Images supplied by file read through the image path with a NEW filename per run (known reader cache by path, API doc line 50 of `docs/API_FOR_AGENTS.md`).
-- Arms: A, B, C, D, C+D, Z, D-scr = 7. Repetitions: 3. Scenes 6. Readers = 6 x 7 x 3 = 126 (S5 and S6 shorter). Answers = 48 questions x 3 reps = 144 per arm.
-- Grader is a script on option letters/tolerance; no model grades.
-- Order of arm runs randomised; seed logged. Digest and annotated image are produced once per scene and reused across reps (rep variance = reader variance only).
-- Cost measured per artefact: image tokens = sum(w*h/750); text tokens = utf-8 bytes/4 (estimate; confirm one sample against the API usage field); wall time = median of 5 producer runs per format, producer cold-start excluded and reported separately. Also report tokens per correct answer.
-- Analysis: per-question accuracy averaged over reps; paired comparison over the 48 (or 40) questions with a cluster bootstrap over questions, 10,000 resamples, seed fixed. Report per-type and per-scene breakdowns as exploratory only.
-- Power note: with 40 motion questions as the unit, a 20-point difference has a bootstrap standard error of roughly 8-10 points. The bar uses the lower CI bound, so a real 20-point gain passes about half the time at best; a real 30-point gain passes mostly. This is deliberately conservative; a pass at this size is meaningful, a fail at 20 is not proof of absence. If A already scores above 85% on motion questions the experiment is ceiling-limited and I will say so rather than claim equivalence.
+## 5. Protocol (v2)
+- One fresh reader per (arm, rep): 7 arms x 3 reps = 21 readers. Each reader gets all 6 scenes in that arm's format, in a fixed per-reader shuffled scene order (seeded). It sees only its packet (`out/look4d/packets/<arm>_r<k>/`): instructions, object lists, images under fresh filenames, D text inline, the questions. Never truth, scene paths or other arms. It answers in a JSON object `{"<scene>.<qid>": "<letter>"}`.
+- The launcher (not the author of this lane) starts the readers.
+- Grader: `tools/look4d_truth.py grade` on option letters. No model grades.
+- Cost per artefact: image tokens w*h/750; text tokens utf-8 bytes/4; production time recorded per format per scene in `timing.json` (render awaits included, process start excluded).
+- Analysis: per-question accuracy averaged over reps; paired comparisons use a cluster bootstrap over questions (10,000 resamples, fixed seed). Per-type and per-scene numbers are exploratory.
+- Power: about 45 motion questions give a standard error near 6-8 points on a 10-point contrast. The bars use point estimate AND the lower bound. A fail is not proof of absence; if A scores above 85% the experiment is ceiling-limited and I say so.
 
-## 6. Pre-registered predictions (if the "encoding, not a new sense" account is right)
-Ordering of motion-question accuracy: D ~ C+D > C > B > A ~ Z. Image adds little on top of D. If instead C+D > D by over 10 points, the image carries information the digest lacks (probably occlusion/overlap layout) and the account is incomplete.
+## 6. Predictions (if "encoding, not a new sense" holds)
+Motion-question accuracy: D ~ C+D > C > B > A ~ Z. Spatial-reasoning types (projection, out of view) are where an image could still help D.
 
 ## 7. Bars (fixed)
-Motion questions = S1-S4 (32 questions), unless stated.
-1. ACCURACY: accuracy(C+D) - accuracy(A) >= +20 points AND 95% cluster-bootstrap lower bound > +5 points.
-2. TOKENS: tokens(D) < tokens(A) = 442 at 768x432, in the median scene. Also reported at 640x360 (307): fail there is reported, not a bar failure. tokens(C+D) reported against A; no bar.
-3. NULL CONTROL (S6, motion questions): |accuracy(C+D) - accuracy(A)| <= 10 points. A larger gap means the advantage is a question/text artefact, and bar 1 is void.
-4. SCRAMBLED CONTROL (D-scr, motion and touch questions on S1-S5): accuracy within 10 points of arm Z (the chance level). If D-scr beats Z by more than 10 points, the questions leak through text or priors and bar 1 is void. Arm D must also beat D-scr by >= +20 points or D carries no information (D is the reader's source of truth).
-5. PRODUCTION TIME: reported; soft ceiling 5 s per scene per format on the dev machine; exceeding it is a finding, not a failure.
-6. NO-HARM: accuracy(C+D) - accuracy(D) >= -5 points; otherwise the image distracts and C+D should not ship.
+Motion questions = S1-S4 (not S5, not S6).
+- P1 (primary): acc(C) - acc(B) >= +10 points on motion questions, with the 95% bootstrap lower bound > 0. C and B have equal pixel budget.
+- P2 (primary): acc(C+D) is not below acc(D) by more than 5 points on any question type (my operationalisation of "at least D on every type", with a 5-point noise allowance; stated so the coordinator can veto it), AND acc(C+D) - acc(D) >= +5 points on the spatial-reasoning types (screen_lr, screen_ud, out_of_view pooled). If the second part fails: report "ship D-only".
+- Reported only: acc(C+D) - acc(A) (a single frame cannot show motion, so this is trivially passed), acc(D) - acc(A), token cost of every arm against A.
+- TOKENS: tokens(D) < tokens(A) = 442 (768x432), median scene. Also reported at 640x360 (307), where a fail is reported, not a bar failure.
+- NULL control (S6, motion templates): |acc(C+D) - acc(A)| <= 10 points, else any motion advantage is a text/question artefact and P1/P2 are void.
+- SCRAMBLED control: acc(D-scr) within 10 points of acc(Z) on motion and touch questions, else the questions leak and P1/P2 are void. acc(D) - acc(D-scr) >= +20 points, else D carries no information.
+- NO-HARM: acc(C+D) - acc(D) >= -5 points overall.
+- PRODUCTION TIME: reported; soft ceiling 5 s per format per scene (also a bar in `tests/look4d_test.gd`).
+- INSTRUMENT bars (`tests/look4d_test.gd`, committed before the first reader): D velocities equal finite differences of the posed transforms (planted wrong dt must fail); occluded flags equal an independent id-pass count built on LookFacts primitives (and hand truth on a planted fixture); C's arrows project from the true velocity, read by pixel position (planted reversed arrow must fail); every format renders 768x432 inside 5 s.
 
 ## 8. What falsifies it
-- Bar 1 fails with A below 85% (not ceiling): the encodings do not help this reader on these scenes, and the pilot was luck.
-- D >= C+D within 5 points and C <= A + 5: the value is all in the digest and image annotation is wasted work; ship D, drop C. This does NOT falsify the "encoding" hypothesis, it sharpens it.
-- C >= C+D - 5 and D low: the digest was unusable (format problem); fix the table and rerun with an amendment.
-- Bar 3 or 4 fails: the instrument is broken; no conclusion about formats.
-- B > C by 10 or more: the filmstrip beats annotation, and annotation work should stop.
-- Anything that only holds on one scene is reported as that scene's result, not as the effect.
+- P1 fails: annotation (arrows/labels/ghosts) in one frame is not better than the same pixels spent on four frames; stop annotation work, B is the cheap format.
+- P2 second part fails: the image adds nothing over D on projection questions; ship D-only.
+- acc(D) - acc(D-scr) < 20: the digest is not what readers use; the experiment says nothing about D until the format is fixed.
+- NULL or SCRAMBLED fails: the instrument is broken; no conclusion.
+- A above 85% on motion questions: ceiling-limited.
+- Anything that holds on one scene only is reported as that scene's result.
 
-## 9. Known limitations, stated now
-- One model family, one reader prompt, synthetic clean scenes, 5 scenes: the result is about this reader on these scenes, not VLMs in general.
-- Grader sees option letters; question wording was written by the same person as the formats (battery inherits my blind spot): freeze questions before building C/D and have a second agent sanity-check each for answerability from truth alone.
-- Truth for "toward camera" and "hidden" depends on thresholds set here; sensitivity is checked by re-scoring with thresholds +-50%.
-- The ghost-trail and arrow conventions are one design among many; a null on C is a null on this C.
-- Costs: 126 readers; image readers dominate. Run S1 with all 7 arms first (18 readers) as a smoke test of the harness and the planted controls; fix harness bugs with an amendment, not the bars.
+## 9. Known limitations
+- One model family, one reader prompt, 5 synthetic/CAD scenes. S3 is capsules, not the skinned mesh; S4 is built for this test.
+- Questions and formats share an author (battery blind spot). The generator is deterministic and its truth tables are saved; each type's threshold is a stated constant.
+- Contact/penetration truth uses different machinery per scene (kernel, capsule, box); S2 has none.
+- D's nominal masses are a rule, not a BOM.
+- The module hands D to the experiment as JSON; no MCP tool is added (see `docs/LOOK4D_WIRING.md`).
 
 ## Amendments
-(none)
+- v2 2026-11-05: readers per (arm, rep) over all scenes (21 readers); bars P1/P2; reasoning types; D without screen pixels.
