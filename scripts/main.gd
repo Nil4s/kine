@@ -22607,6 +22607,15 @@ var face_brow: Array = []       # [brow_l, brow_r] MeshInstance3D (BoxMesh)
 var face_eye: Array = []        # [eye_l, eye_r] (sclera, SphereMesh)
 var face_pupil: Array = []      # [pupil_l, pupil_r]
 var face_ui: FaceUI
+## I01-I04 (scripts/face_geo.gd): the face as REAL GEOMETRY, opt-in (default off: the painted face above is untouched)
+var face_geo_on := false
+var face_geo_au := {}              # extra AU weights {"AU12": 1.0} added to what the face channels give (presets, the test)
+var face_geo_data := {}
+var face_geo_root: Node3D
+var face_geo_mask: MeshInstance3D
+var face_geo_eye_nodes: Array = []
+var face_geo_head0: Mesh           # the head piece's own mesh, put back when the geometry goes off
+var face_geo_key := ""
 
 
 func _face_make() -> void:
@@ -22643,8 +22652,10 @@ func _face_draw() -> void:
 	var live := face_ui != null and face_ui.live()
 	var ex: Dictionary = S.expr_at(playhead)
 	var elp := el_ui != null and el_ui.pv   # I08: the living eyes preview shows its track
-	var on := live or elp or not S.lip.is_empty() or not S.face.is_empty() or not ex.is_empty()
+	var on := live or elp or not S.lip.is_empty() or not S.face.is_empty() or not ex.is_empty() or face_geo_on
 	if not on:
+		if face_geo_root != null:
+			face_geo_root.visible = false
 		if mouth_mi != null:
 			mouth_mi.visible = false
 		if face_root != null:
@@ -22662,6 +22673,11 @@ func _face_draw() -> void:
 	if face_root == null:
 		_face_make()
 	var P: Dictionary = Face.pose(face_ui.values(), {}, playhead) if live else (el_ui.pose_now() if elp else Face.at(S.face, S.lip, playhead, ex))
+	if face_geo_on and face_geo_root != null:
+		_face_geo_draw(P)
+		face_root.visible = false
+		mouth_mi.visible = false
+		return
 	var geo := _face_geo()
 	if geo.is_empty():
 		return   # no head mesh to anchor on
@@ -22700,6 +22716,79 @@ func _face_draw() -> void:
 	var pr := float(P["press"])   # AU23/24: the lips tighten into a thin line (R22)
 	sz = Vector3(sz.x * (1.0 - 0.25 * pr), sz.y * (1.0 - 0.5 * pr), sz.z)
 	mouth_mi.transform = Transform3D(Basis(g) * Basis.from_scale(Vector3(sz.x * Face.MOUTH_W_K, sz.y, sz.z)), face_at(geo["mouth"]) + front * 0.002 - up * sz.y * 0.25)
+
+
+## the face geometry on or off. On: the mask, two eyes and the mouth cavity are built (once), the head piece loses its lower-face
+## triangles (restored when off). One undo-free view switch, like the shading modes.
+func _face_geo_set(on: bool) -> void:
+	if on == face_geo_on or not pieces.has("head"):
+		return
+	var hp: MeshInstance3D = pieces["head"]
+	if on:
+		if face_geo_data.is_empty():
+			face_geo_data = FaceGeo.build(_head_pts())
+		face_geo_head0 = hp.mesh
+		hp.mesh = FaceGeo.cut_head(hp.mesh as ArrayMesh, face_geo_data)
+		if face_geo_root == null:
+			face_geo_root = Node3D.new()
+			face_geo_root.name = "face_geometry"
+			add_child(face_geo_root)
+			face_geo_mask = MeshInstance3D.new()
+			var mm := StandardMaterial3D.new()
+			mm.vertex_color_use_as_albedo = true
+			mm.roughness = 0.8
+			face_geo_mask.material_override = mm
+			face_geo_root.add_child(face_geo_mask)
+			for e in face_geo_data["eyes"]:
+				var en := MeshInstance3D.new()
+				en.mesh = FaceGeo.eye_mesh(float(e["r"]))
+				var em := StandardMaterial3D.new()
+				em.vertex_color_use_as_albedo = true
+				em.roughness = 0.25
+				en.material_override = em
+				face_geo_root.add_child(en)
+				face_geo_eye_nodes.append(en)
+			var cav := MeshInstance3D.new()
+			cav.mesh = FaceGeo.cavity_mesh(face_geo_data)
+			var cm := StandardMaterial3D.new()
+			cm.albedo_color = Color(0.08, 0.03, 0.03)
+			cm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			cav.material_override = cm
+			face_geo_root.add_child(cav)
+		face_geo_key = ""
+		face_geo_on = true
+	else:
+		face_geo_on = false
+		if face_geo_head0 != null:
+			hp.mesh = face_geo_head0
+		if face_geo_root != null:
+			face_geo_root.visible = false
+	_refresh()
+
+
+## draw the geometry for the face pose P (Face.pose): the channels map to AUs (brows +: AU1, -: AU4; blink: AU45; squint: AU6),
+## the jaw channel to the jaw bone, the eye angles to the eye bones; face_geo_au adds more AU weights
+func _face_geo_draw(P: Dictionary) -> void:
+	var d: Dictionary = face_geo_data
+	face_geo_root.visible = true
+	var g: Quaternion = B.G["head"]
+	face_geo_root.transform = Transform3D(Basis(g), face_at(Vector3.ZERO))
+	var bv := (float(P["brow_l"]) + float(P["brow_r"])) * 0.5
+	var au := {"AU1": maxf(bv, 0.0), "AU4": maxf(-bv, 0.0), "AU45": float(P["blink"]), "AU6": float(P["squint"])}
+	for k in face_geo_au:
+		au[k] = float(au.get(k, 0.0)) + float(face_geo_au[k])
+	var st := {"au": au, "jaw_deg": float(P["jaw_deg"]), "eye_pitch_deg": float(P["eye_pitch_deg"]), "eye_yaw_deg": float(P["eye_yaw_deg"])}
+	var key := str(st)
+	if key != face_geo_key:
+		face_geo_key = key
+		var skin := FaceGeo.SKIN
+		var hm: Material = (pieces["head"] as MeshInstance3D).material_override
+		if hm is StandardMaterial3D:
+			skin = (hm as StandardMaterial3D).albedo_color
+		face_geo_mask.mesh = FaceGeo.mask_mesh(d, FaceGeo.posed(d, st), skin)
+		var tf := FaceGeo.eye_transforms(d, st)
+		for i in 2:
+			(face_geo_eye_nodes[i] as Node3D).transform = tf[i]
 
 
 var face_geo: Dictionary = {}   # the anchors on the head mesh in rest space (Face.anchors), read once from the head piece

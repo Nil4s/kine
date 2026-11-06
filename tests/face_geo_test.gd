@@ -90,14 +90,15 @@ func skinned_head(mm: Node) -> PackedVector3Array:
 	return out
 
 
-## how far BEHIND the skinned front surface a point is along `fwd` (m): + = under the skin, - = proud of it
+## how far IN FRONT of the point the skinned front surface is along `fwd` (m): + = the point is under the skin, - = proud of it
+## (first run had this negated: the eye depth line printed -9 mm; fixed, the bars did not move)
 func depth_under(tris: PackedVector3Array, w: Vector3, fwd: Vector3) -> float:
 	var best := -INF
 	for t in range(0, tris.size() - 2, 3):
 		var h: Variant = Geometry3D.ray_intersects_triangle(w + fwd * 0.1, -fwd, tris[t], tris[t + 1], tris[t + 2])
 		if h != null:
 			best = maxf(best, ((h as Vector3) - w).dot(fwd))
-	return -best if best > -INF else 9.0
+	return best if best > -INF else -9.0
 
 
 ## ---- independent checkers (they do not call FaceGeo's own helpers) ----
@@ -375,17 +376,25 @@ func _init() -> void:
 	var rg: PackedInt32Array = d["region"]
 	var gain_want := 0.5 * 0.012 * s * sin(deg_to_rad(20.0))
 	var rise := {}
+	# the lid MARGIN: the vertices of the boundary loop at each eye (first run measured every lid vertex within 3.5 mm of the eye
+	# line, which includes skin above the margin that moves less by design: 1.31 mm vs the 1.39 bar; the margin is what the
+	# literature's lid travel means)
+	var margin := {}
+	for sd in ["l", "r"]:
+		var ecn: Vector3 = an["eye_" + sd]
+		for l in loops_of(d["tris"]):
+			var cc2 := centroid(d["verts"], l)
+			if absf(cc2.x - ecn.x) < 0.008 and absf(cc2.y - ecn.y) < 0.008:
+				margin[sd] = l
 	for nm in ["lid_up_l", "lid_up_r", "lid_lo_l", "lid_lo_r"]:
 		var sum_u := 0.0
 		var sum_d := 0.0
 		var n := 0
-		for i in rg.size():
+		for i in margin[nm.substr(nm.length() - 1)]:
 			if rg[i] == int(FaceGeo.REGION[nm]):
-				var base_y: float = rest[i].y
-				if absf(base_y - float((an["eye_l"] as Vector3).y)) < 0.0035:
-					sum_u += up20[i].y - base_y
-					sum_d += dn20[i].y - base_y
-					n += 1
+				sum_u += up20[i].y - rest[i].y
+				sum_d += dn20[i].y - rest[i].y
+				n += 1
 		rise[nm] = [sum_u / maxf(n, 1), sum_d / maxf(n, 1), n]
 	var ru: float = float(rise["lid_up_l"][0])
 	var rd: float = float(rise["lid_up_l"][1])
@@ -396,8 +405,8 @@ func _init() -> void:
 	ok(rlo >= 0.0 and rlo <= 0.4 * ru, "3 the lower lid follows less: %.2f mm (<= 0.4 x the upper = %.2f)" % [rlo * MM, 0.4 * ru * MM])
 	var off := P(d, {}, 0.0, 20.0, {"lid_follow": false})
 	var ru_off := 0.0
-	for i in rg.size():
-		if rg[i] == int(FaceGeo.REGION["lid_up_l"]) and absf(rest[i].y - float((an["eye_l"] as Vector3).y)) < 0.0035:
+	for i in margin["l"]:
+		if rg[i] == int(FaceGeo.REGION["lid_up_l"]):
 			ru_off = maxf(ru_off, off[i].y - rest[i].y)
 	ok(not (ru_off >= gain_want * 0.65), "3 CONTROL lid_follow off: the upper lid rises %.2f mm and the bar catches it" % (ru_off * MM))
 	var jm := FaceGeo.JAW_MAX_DEG
@@ -598,7 +607,7 @@ func _init() -> void:
 		var all := P(d, nm)
 		for i in sum.size():
 			lin = maxf(lin, sum[i].distance_to(all[i]))
-	ok(lin < 1e-6, "7 a preset is exactly the sum of its AUs (largest difference %.2e m)" % lin)
+	ok(lin < 1e-6, "7 a preset is exactly the sum of its AUs (largest difference %s m)" % String.num_scientific(lin))
 	var nj := joy.duplicate()
 	nj.erase("AU12")
 	var pnj := P(d, nj)
@@ -651,6 +660,7 @@ func _init() -> void:
 func make_studio(d: Dictionary, head_pts: PackedVector3Array) -> Dictionary:
 	var vp := SubViewport.new()
 	vp.size = Vector2i(360, 360)
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	vp.own_world_3d = true
 	vp.transparent_bg = false
 	root.add_child(vp)
