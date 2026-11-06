@@ -89,7 +89,54 @@ static func _hinge_for(B: Body, mid: String, u0: Vector3, f0: Vector3, d: float,
 ## put the limb's tip on `target` with its elbow / knee toward `pole` (world points). rot: the tip's world rotation, or
 ## null to keep its FK angles. Writes B.ang for the chain and runs B.fk(). Returns {"miss": m (tip to target),
 ## "clamped": [joints a limit changed], "inline": the pole lies on the root-target line (no plane: the elbow kept its side)}
-static func solve(B: Body, tip: String, target: Vector3, pole: Vector3, rot = null) -> Dictionary:
+static func solve(B: Body, tip: String, target: Vector3, pole: Vector3, rot = null, stretch := 0.0, volume := false) -> Dictionary:
+	if B.has_stretch():   # this limb's own stretch from an earlier solve goes; another limb's stays
+		var left := B.stretch.duplicate()
+		var left_c := B.stretch_cross.duplicate()
+		for j in chain(B, tip):
+			left.erase(j)
+			left_c.erase(j)
+		B.set_stretch(left, left_c)
+		B.fk()
+	var pole_use := pole
+	if stretch > 1.0:
+		# a limb that has to stretch is straight: the pole then only picks the roll about the arm, and a roll the shoulder cannot give is
+		# clamped and drags the tip off the target. So the roll stays where the FK pose has it (the pole of the pose as it is).
+		var cc := chain(B, tip)
+		var nat: float = (B.p0[cc[1]] - B.p0[cc[0]]).length() + (B.p0[tip] - B.p0[cc[1]]).length()
+		if (target - (B.P[cc[0]] as Vector3)).length() > nat:
+			pole_use = pole_from_pose(B, tip)
+	var r := _solve_core(B, tip, target, pole_use, rot)
+	if stretch > 1.0 and float(r["miss"]) > 1e-6:
+		r.merge(_stretch_to(B, tip, target, stretch, volume), true)
+	return r
+
+
+## STRETCHY LIMB (L28): the limb is already as straight as its limits let it and points at the target (the closest pose, _solve_core);
+## the upper and lower bone are now both made s times longer, s = (distance to the target) / (the straight limb's reach), up to `max_s`.
+## The tip lands on the target unless max_s stops it (the miss is then reported). volume: the cross scale 1/sqrt(s) is recorded
+## (Body.stretch_cross) for the bones' drawing, s * c * c = 1. Nothing here runs unless the caller passed a stretch above 1.
+static func _stretch_to(B: Body, tip: String, target: Vector3, max_s: float, volume: bool) -> Dictionary:
+	var ch := chain(B, tip)
+	var reach: float = ((B.P[tip] as Vector3) - (B.P[ch[0]] as Vector3)).length()
+	var d: float = (target - (B.P[ch[0]] as Vector3)).length()
+	if reach < 1e-6 or d <= reach:
+		return {}
+	var v: Vector3 = (B.P[tip] as Vector3) - (B.P[ch[0]] as Vector3)
+	var w: Vector3 = target - (B.P[ch[0]] as Vector3)
+	var sc := minf(maxf(v.dot(w) / v.length_squared(), 1.0), max_s)   # the scale that puts the tip nearest the target (exactly on it when the limb points at it)
+	var st := B.stretch.duplicate()
+	var cr := B.stretch_cross.duplicate()
+	for j in [ch[1], ch[2]]:
+		st[j] = sc
+		if volume:
+			cr[j] = 1.0 / sqrt(sc)
+	B.set_stretch(st, cr)
+	B.fk()
+	return {"miss": ((B.P[tip] - target) as Vector3).length(), "stretch": sc}
+
+
+static func _solve_core(B: Body, tip: String, target: Vector3, pole: Vector3, rot = null) -> Dictionary:
 	var ch := chain(B, tip)
 	var root: String = ch[0]
 	var mid: String = ch[1]
@@ -381,6 +428,9 @@ static func off_at(keys: Array, t: float) -> Dictionary:
 ## weight. Returns {tip: solve()'s report + "w"} for the limbs that ran ({} = the body was not touched)
 static func play(ik: Dictionary, B: Body, t: float) -> Dictionary:
 	var out := {}
+	if B.has_stretch():
+		B.set_stretch({}, {})   # a stretch from the last frame is not kept: it is solved again below, or it is gone
+		B.fk()
 	if ik.is_empty():
 		return out
 	if ik.has(SpineIK.KEY):   # the back first: a pinned hand stays pinned over a moving chest
@@ -413,15 +463,35 @@ static func play(ik: Dictionary, B: Body, t: float) -> Dictionary:
 		var was := {}
 		for j in ch:
 			was[j] = B.ang[j]
-		var r := solve(B, tip, k["target"], k["pole"], k.get("rot", null))
+		var sf := stretch_at(keys, t)
+		var r := solve(B, tip, k["target"], k["pole"], k.get("rot", null), float(sf["stretch"]), bool(sf["vol"]))
 		if w < 1.0:
 			for j in ch:
 				B.ang[j] = (was[j] as Vector3).lerp(B.ang[j], w)
+			if r.has("stretch"):   # a faded limb stretches only by the same fade
+				var s2 := 1.0 + (float(r["stretch"]) - 1.0) * w
+				var st := B.stretch.duplicate()
+				var cr := B.stretch_cross.duplicate()
+				for j in [ch[1], ch[2]]:
+					st[j] = s2
+					if cr.has(j):
+						cr[j] = 1.0 / sqrt(s2)
+				B.set_stretch(st, cr)
 			B.fk()
 			r["miss"] = ((B.P[tip] - (k["target"] as Vector3)) as Vector3).length()
 		r["w"] = w
 		out[tip] = r
 	return out
+
+
+## STRETCH (L28, opt-in): a key may carry "stretch": the largest length factor (> 1) the limb may grow to reach its target, and "vol": true
+## to keep the volume (cross scale 1/sqrt(s)). The key at or before t decides (the first key before any); no key with "stretch" = off.
+static func stretch_at(keys: Array, t: float) -> Dictionary:
+	var k: Dictionary = keys[0]
+	for kk in keys:
+		if float(kk["t"]) <= t:
+			k = kk
+	return {"stretch": float(k.get("stretch", 0.0)), "vol": bool(k.get("vol", false))}
 
 
 ## key the limb at t (replacing a key within SAME_T); keeps the list sorted. Returns the key's index
@@ -718,6 +788,10 @@ static func to_file(ik: Dictionary) -> Dictionary:
 			if k.has("twist"):
 				var tw := SpineIK._tw(k)
 				d["twist"] = [snappedf(tw.x, 0.0001), snappedf(tw.y, 0.0001)]
+			if float(k.get("stretch", 0.0)) > 1.0:
+				d["stretch"] = snappedf(float(k["stretch"]), 0.0001)   # stretchy limb: the largest length factor; only when on
+				if bool(k.get("vol", false)):
+					d["vol"] = true
 			return d)
 	return out
 
@@ -747,6 +821,10 @@ static func from_file(d: Variant) -> Dictionary:
 				key["space"] = sp
 			if k.has("twist") and k["twist"] is Array and (k["twist"] as Array).size() == 2:
 				key["twist"] = [float(k["twist"][0]), float(k["twist"][1])]   # the back's hip / chest twist (spine_ik.gd)
+			if float(k.get("stretch", 0.0)) > 1.0:
+				key["stretch"] = float(k["stretch"])
+				if bool(k.get("vol", false)):
+					key["vol"] = true
 			ks.append(key)
 		ks.sort_custom(func(a, b): return float(a["t"]) < float(b["t"]))
 		if not ks.is_empty():

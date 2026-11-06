@@ -78,6 +78,34 @@ func build(main) -> void:
 	rb.name = "body_reset"
 	v.add_child(rb)
 	v.add_child(HSeparator.new())
+	# L22: SOFT FLESH (scripts/soft_body.gd, soft_live.gd): off by default; a clip with every toggle off is not touched at all
+	v.add_child(m._label("Soft flesh (jiggle)", 12, "heading"))
+	for g in SoftBody.GROUPS:
+		var cb := CheckButton.new()
+		cb.name = "soft_" + g
+		cb.text = String(g).capitalize()
+		cb.tooltip_text = "the %s as soft tissue: a simulated volume under the skin that lags and settles when the body moves (baked on a thread when the clip changes). Ctrl+Z undoes. Off = the clip exactly as before" % g
+		cb.toggled.connect(func(on): if not _soft_sync: m.soft_set(g, on))
+		v.add_child(cb)
+	var sl_lab: Label = m._label("Strength 100 %", 12, "text:0.8")
+	sl_lab.name = "soft_strength_label"
+	v.add_child(sl_lab)
+	var ss := HSlider.new()
+	ss.name = "soft_strength"
+	ss.min_value = 0.0
+	ss.max_value = SoftBody.STRENGTH_MAX * 100.0
+	ss.step = 5.0
+	ss.value = 100.0
+	ss.focus_mode = Control.FOCUS_CLICK
+	ss.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ss.custom_minimum_size = Vector2(0, 18)
+	ss.tooltip_text = "how far the flesh moves: 100 % as simulated (a few millimetres at the thigh), up to 400 % to make it read at full-body scale"
+	ss.value_changed.connect(func(x):
+		sl_lab.text = "Strength %d %%" % int(x)
+		if not _soft_sync:
+			m.soft_strength_set(x / 100.0))
+	v.add_child(ss)
+	v.add_child(HSeparator.new())
 	v.add_child(m._label("Saved characters", 12, "heading"))
 	var sr := HBoxContainer.new()
 	name_edit = LineEdit.new()
@@ -100,6 +128,31 @@ func build(main) -> void:
 	v.add_child(meas_lab)
 	v.add_child(m._label("Scene only: data/skeleton.json is never changed. Percentiles: ANSUR II 2012 (Gordon et al.).", 11, "text:0.5", true))
 	_show()
+
+
+var soft_shown := {}           # the scene's soft state the toggles show
+var _soft_sync := false
+
+
+## the toggles and the slider show the scene's soft state (a load, an undo)
+func soft_sync(S: Scene) -> void:
+	soft_shown = S.soft.duplicate(true)
+	_soft_sync = true
+	var on: Array = S.soft.get("regions", [])
+	for g in SoftBody.GROUPS:
+		var cb := find_child("soft_" + g, true, false) as CheckButton
+		if cb != null:
+			var all := true
+			for n in SoftBody.GROUPS[g]:
+				all = all and on.has(n)
+			cb.set_pressed_no_signal(all)
+	var ss := find_child("soft_strength", true, false) as HSlider
+	if ss != null:
+		ss.set_value_no_signal(SoftBody.strength_of(S) * 100.0)
+	var lab := find_child("soft_strength_label", true, false) as Label
+	if lab != null:
+		lab.text = "Strength %d %%" % int(SoftBody.strength_of(S) * 100.0)
+	_soft_sync = false
 
 
 func _slider(key: String, lo: float, hi: float, step: float) -> HSlider:

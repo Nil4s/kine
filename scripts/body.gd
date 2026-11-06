@@ -196,6 +196,7 @@ static func json_file(path: String) -> Variant:
 
 
 func load_files(skel_path: String, limits_path: String) -> void:
+	_ik_stat = {}   # L21: the native leg data is made again
 	_fk_a = {}   # the rest points change: fk() recomputes every joint
 	_files = [skel_path, limits_path]
 	pairs = []   # PR1: loaded again by set_proportions, so nothing may pile up from the last load
@@ -1464,13 +1465,32 @@ func search(js: Array, cost: Callable, pen0 := -1.0) -> float:
 
 
 ## FK for a few joints only (an arm), parents first: the same math as fk(), for fast sweeps
+## STRETCHY LIMBS (L28; LimbIK.solve with a stretch): {joint: s} makes the bone that ENDS at that joint s times longer (its offset from the
+## parent joint is scaled); stretch_cross {joint: c} is the volume-keeping cross scale (s * c * c = 1) for whoever draws the bone. Both empty
+## (the default) = the body as before, byte for byte: the branches below are not taken.
+var stretch := {}
+var stretch_cross := {}
+var _has_stretch := false
+
+
+func has_stretch() -> bool:
+	return _has_stretch
+
+
+func set_stretch(s: Dictionary, cross := {}) -> void:
+	stretch = s
+	stretch_cross = cross
+	_has_stretch = not s.is_empty()
+	_fk_a.clear()   # every joint is recomputed by the next fk()
+
+
 func fk_some(js: Array) -> void:
 	for j in js:
 		_fk_a.erase(j)
 		var A := compose(j, ang[j])
 		var pj: String = parent[j]
 		G[j] = G[pj] * A
-		P[j] = P[pj] + G[pj] * (p0[j] - p0[pj])
+		P[j] = P[pj] + G[pj] * (p0[j] - p0[pj]) if not _has_stretch else P[pj] + G[pj] * ((p0[j] - p0[pj]) * float(stretch.get(j, 1.0)))
 		E[j] = P[j] + G[j] * (e0[j] - p0[j])
 
 
@@ -2244,7 +2264,111 @@ func foot_state(sd: String) -> Array:
 ##   step  dtwist = -err / (d err / d twist)  so the foot points where it pointed (flat feet only; a heel-up foot
 ##   pivots on its ball). Returns the miss (m).
 ## knee: the heading the knee should point along (NAN = the rule: the foot's heading if flat, else the hips' facing)
+## L21 I16-SPEED: the leg solve of plant() in C++ (native/src/kine_ik_native.cpp, door scripts/body_ik_native.gd). Playback only
+## (fast, no legacy_ik, no coupled clamp); anything else, or no DLL, runs the GDScript below. tests/i16fast_test.gd compares the two.
+static var native_ik := true
+static var _ik_door = null
+static var _ik_tried := false
+var _ik_stat := {}   # "_l" / "_r" -> the leg's rest data as the native call wants it (made once per load_files)
+var _ik_dyn := PackedFloat32Array()
+const _LEG := ["thigh", "calf", "foot", "ball"]
+
+
+static func ik_door():
+	if not native_ik or OS.get_environment("KINE_NO_NATIVE") == "1":
+		return null
+	if not _ik_tried:
+		_ik_tried = true
+		if NativeExt.ensure("kine_native", "KineIKNative"):
+			_ik_door = load("res://scripts/body_ik_native.gd")
+	return _ik_door
+
+
+func _ik_static(sd: String) -> PackedFloat32Array:
+	var a := PackedFloat32Array()
+	a.resize(79)
+	var n := 0
+	for nm in _LEG:
+		var j: String = nm + sd
+		for v in [p0[j], e0[j], b_ax[j], a_ax[j], w_ax[j], t_ax[j]]:
+			a[n] = v.x
+			a[n + 1] = v.y
+			a[n + 2] = v.z
+			n += 3
+	var pp: Vector3 = p0[parent["thigh" + sd]]
+	a[72] = pp.x
+	a[73] = pp.y
+	a[74] = pp.z
+	for i in 4:
+		var j: String = _LEG[i] + sd
+		a[75 + i] = 1.0 if w_ax[j] == t_ax[j] else 0.0
+	return a
+
+
+func _plant_native(door, sd: String, ball_at: Vector3, head: float, flat: bool, knee: float) -> float:
+	var st = _ik_stat.get(sd)
+	if st == null:
+		st = _ik_static(sd)
+		_ik_stat[sd] = st
+	if _ik_dyn.size() != 71:
+		_ik_dyn.resize(71)
+	var d := _ik_dyn
+	var pel: String = parent["thigh" + sd]
+	for i in 4:
+		var j: String = _LEG[i] + sd
+		var v: Vector3 = ang[j]
+		d[i * 3] = v.x
+		d[i * 3 + 1] = v.y
+		d[i * 3 + 2] = v.z
+		var g: Quaternion = G[j]
+		d[12 + i * 4] = g.x
+		d[13 + i * 4] = g.y
+		d[14 + i * 4] = g.z
+		d[15 + i * 4] = g.w
+		var p: Vector3 = P[j]
+		d[28 + i * 3] = p.x
+		d[29 + i * 3] = p.y
+		d[30 + i * 3] = p.z
+		var L: Dictionary = lim[j]
+		var r: Vector2 = L["bend"]
+		d[47 + i * 6] = r.x
+		d[48 + i * 6] = r.y
+		r = L["side"]
+		d[49 + i * 6] = r.x
+		d[50 + i * 6] = r.y
+		r = L["twist"]
+		d[51 + i * 6] = r.x
+		d[52 + i * 6] = r.y
+	var pg: Quaternion = G[pel]
+	d[40] = pg.x
+	d[41] = pg.y
+	d[42] = pg.z
+	d[43] = pg.w
+	var pp: Vector3 = P[pel]
+	d[44] = pp.x
+	d[45] = pp.y
+	d[46] = pp.z
+	var o: PackedFloat32Array = door.plant_leg(st, d, ball_at, head, flat, knee)
+	for i in 4:
+		var j: String = _LEG[i] + sd
+		var k := i * 13
+		ang[j] = Vector3(o[k], o[k + 1], o[k + 2])
+		G[j] = Quaternion(o[k + 3], o[k + 4], o[k + 5], o[k + 6])
+		P[j] = Vector3(o[k + 7], o[k + 8], o[k + 9])
+		E[j] = Vector3(o[k + 10], o[k + 11], o[k + 12])
+		_fk_a.erase(j)
+	return o[52]
+
+
 func plant(sd: String, ball_at: Vector3, head: float, flat: bool, knee := NAN) -> float:
+	if fast and not legacy_ik and coupled_clamp == 0:
+		var door = ik_door()
+		if door != null:
+			return _plant_native(door, sd, ball_at, head, flat, knee)
+	return _plant_gd(sd, ball_at, head, flat, knee)
+
+
+func _plant_gd(sd: String, ball_at: Vector3, head: float, flat: bool, knee := NAN) -> float:
 	var th := "thigh" + sd
 	for it in 5:
 		if flat:
@@ -2318,7 +2442,7 @@ func fk_sub(j: String) -> void:
 			P[k] = p0[k] + offset
 		else:
 			G[k] = G[pk] * A
-			P[k] = P[pk] + G[pk] * (p0[k] - p0[pk])
+			P[k] = P[pk] + G[pk] * (p0[k] - p0[pk]) if not _has_stretch else P[pk] + G[pk] * ((p0[k] - p0[pk]) * float(stretch.get(k, 1.0)))
 		E[k] = P[k] + G[k] * (e0[k] - p0[k])
 
 
@@ -2347,7 +2471,7 @@ func fk() -> void:
 			P[j] = p0[j] + offset
 		else:
 			G[j] = G[pj] * A
-			P[j] = P[pj] + G[pj] * (p0[j] - p0[pj])
+			P[j] = P[pj] + G[pj] * (p0[j] - p0[pj]) if not _has_stretch else P[pj] + G[pj] * ((p0[j] - p0[pj]) * float(stretch.get(j, 1.0)))
 		E[j] = P[j] + G[j] * (e0[j] - p0[j])
 	_fk_off = offset
 

@@ -29,7 +29,7 @@ func commands(add: Callable) -> void:
 		"judge the motion with a 75 kg body in a physics engine: red on the timeline where no human body can do it (a jump with no push, a fall, a joint over its strength, a slipping foot), with the reason; the physical version stands as a ghost you can scrub")
 	add.call("Accept span", "", accept, "accept span physical replace cards red", false,
 		"replace the cards inside the picked red span (click it on the timeline) with the physical version, keyed as densely as your cards; one undo step")
-	add.call("Keep this pose", "", keep_toggle, "keep this pose priority card protect freeze physical accept span", false,
+	add.call("Keep this pose", "", keep_toggle, "keep this pose priority card protect freeze physical accept span", true,
 		"the picked card becomes a priority card: Make it physical never changes it and Accept span keeps it as it is; press again to clear it")
 	add.call("Physical ghost off", "", clear, "physical ghost off clear red spans make it physical", false, "remove the red lane and the ghost body")
 

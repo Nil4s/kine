@@ -205,6 +205,12 @@ var sf_ui: SafetyUI   # SAFETY SHEET (ROADMAP I28): scripts/safety_ui.gd
 var ml_ui: MomentumUI   # MOMENTUM LEDGER (ROADMAP I36): scripts/momentum_ui.gd + momentum.gd
 var rmc_ui: MocapCheckUI   # REAL-MOCAP POSE CHECK (ROADMAP I48): scripts/mocap_check_ui.gd + mocap_check.gd
 var sp_ui: SpinCheckUI   # AIRBORNE SPIN CHECK (ROADMAP I43): scripts/spin_check_ui.gd + spin_check.gd
+var lr_ui: LightRigUI   # LIGHT RIG PANEL (L25): scripts/light_rig_ui.gd
+var lr_hdri_id := ""   # L25: the sky map behind the figure ("" = none); a VIEW setting like the shading, not saved in the scene
+var lr_rot := 0.0
+var lr_int := 1.0
+var lr_link := {"key": false, "fill": false, "rim": false}   # L25: true = that light lights the character only (not the floor)
+var _lr_sky_on := false
 var fp_ui: FloorPlanUI   # FLOOR PLAN (ROADMAP I42): scripts/floor_plan_ui.gd
 var fa_ui: ExertionUI   # FATIGUE (ROADMAP I34): scripts/exertion_ui.gd + exertion.gd
 var rh_ui: FightRhythmUI   # FIGHT RHYTHM (ROADMAP I19): scripts/fight_rhythm_ui.gd
@@ -853,6 +859,7 @@ var _drag_locks := {}
 ## Overlays.split_parts), its capsule and dot are not drawn and a click goes through it. View state only, like a lock:
 ## no undo step, never in a pose or scene file
 var pieces := {}         # part -> its piece of the mannequin
+var soft_live := SoftLive.new()   # L22: the soft-body flesh in the viewport (scripts/soft_live.gd); idle unless the scene has a region
 var skp := SkinPick.new()  # PRECISE PICK: the ray against the posed skin, and the part's own skin lit (scripts/skin_pick.gd)
 var pick_us := 0           # how long the last _pick took (microseconds): the hover's cost, read by precise_pick_test
 var wp := {}             # WEIGHT PAINT (ROADMAP 72): the mannequin's skin weights, scripts/skin_paint.gd
@@ -2384,6 +2391,34 @@ func _export_usd(dir := "res://exports") -> String:
 	return path
 
 
+## EXPORT .USDA, SKINNED (L19): the fighter as a UsdSkel with its skinned mesh, joint weights and, with the face geometry on, the six AU
+## BlendShapes (UsdWire.character: the imported CharImport character when one stands, else the mannequin). exports/<scene>_skinned.usda.
+func _export_usd_skinned(dir := "res://exports") -> String:
+	dir = UserPaths.w(dir)   # an exported build: the user's folder
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
+		return ""
+	if not _export_actors().is_empty():
+		_say_plain("NOT NOW: the skinned .usda is one fighter; with several fighters, Export animation (.usda) puts each one in its file")
+		return ""
+	var nm := S.name if S.name != "" else "scene"
+	var path := "%s/%s_skinned.usda" % [dir, nm]
+	var keep := B.state()
+	var ch := UsdWire.character(S, B, self)
+	if ch.is_empty():
+		B.set_state(keep)
+		_say_plain("NOT DONE: there is no skinned body to write (the imported character could not be fitted)")
+		return ""
+	var r := UsdExport.write_skinned(S, B, ch, path)
+	B.set_state(keep)
+	_refresh()
+	if r[0] != OK:
+		_say_plain("NOT DONE: the .usda could not be written (%s)" % error_string(r[0]))
+		return ""
+	_say_plain("exported %s_skinned.usda: %d vertices, %d joints, %d blend shape%s, %d frames at %d fps (UsdSkel mesh with joint weights, Y up, metres; the weapons are not in it)" % [nm, r[1]["verts"], r[1]["joints"], r[1]["shapes"], "" if r[1]["shapes"] == 1 else "s", r[1]["frames"], S.fps])
+	return path
+
+
 ## EXPORT USD LAYERS (ROADMAP 79, GATES USDL): the scene as exports/<name>_usd/ (UsdExport.write_layers): a root <name>.usda
 ## whose sublayers are the props and camera, the joint point cache (Points, not Alembic), one override per animation layer,
 ## the base animation and the skeleton. Returns the root's path ("" when not written). One fighter only: with several, the
@@ -3629,6 +3664,8 @@ func _process_body(dt: float) -> void:
 	var _pre := PerfDoc.t()
 	_mesh_hint_sync()
 	PerfDoc.add("p_hint", _pre)
+	if soft_live.busy() and soft_live.poll(self):
+		_soft_draw()   # L22: the bake landed while nothing else redrew
 	var _p0 := PerfDoc.t()
 	_hands_dock_tick()   # C66
 	PerfDoc.add("p_dock", _p0)
@@ -3881,6 +3918,7 @@ func _world() -> void:
 	floor_mat = fm
 	floor.material_override = fm
 	floor.position.y = -0.002
+	floor.layers = LightRig.WORLD_BIT   # L25 light linking: the floor is "the world", on its own layer (a light linked to the character skips it)
 	stage_root.add_child(floor)
 	stage_marks.append(floor)
 	for lab in [["X  his left", Vector3(0.72, 0.01, 0), AXES[0][1]], ["Y  up", Vector3(0, AXIS_Y + 0.05, 0), AXES[1][1]], ["Z  he faces this way", Vector3(0, 0.01, 0.74), AXES[2][1]]]:
@@ -5545,6 +5583,9 @@ func _refresh() -> void:
 	_cape_draw()   # ROADMAP 86: the baked cape at the playhead
 	PerfDoc.add("cloth", _pk)
 	_pk = PerfDoc.t()
+	_soft_draw()   # L22: the soft-body flesh on the skin (nothing unless a region is on)
+	PerfDoc.add("soft", _pk)
+	_pk = PerfDoc.t()
 	_rigx_draw()   # J24: the words-made rig (tail, ears, cape) on the body
 	if bed != null or not S.bones.is_empty():
 		_bone_ui().draw()   # J01: your extra bones (scripts/bone_editor_ui.gd)
@@ -6714,9 +6755,11 @@ func _snapshot() -> Dictionary:
 		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
+		"soft": S.soft.duplicate(true),   # L22: the soft-body regions, undone like a card
 		"cape": S.cape.duplicate(true),   # the cape (ROADMAP 86), undone like a card
 		"rigx": S.rigx.duplicate(true),   # the words-made rig (rig_words.gd), undone like a card
 		"bones": S.bones.duplicate(true),   # J01: the user's extra bones (bone_editor.gd), undone like a card
+		"spline": S.spline_chains.duplicate(true),   # L28: their spline-IK chains (spline_chain.gd), undone like a card
 		"hair": S.hair.duplicate(true),   # the hair strands' parameters (ROADMAP 87): undone like a card, the frames baked again
 		"skin_w": SkinPaint.snapshot(wp),   # WEIGHT PAINT (ROADMAP 72): every stroke is one step, undone with the weights
 		"body_gen": BaseBody.gen(self),   # G01: the body mesh applied from the model preview (scripts/base_body.gd)
@@ -6919,6 +6962,8 @@ func _restore(u: Dictionary) -> void:
 		_attr_refresh()   # the rows of an undone add go, and come back on redo, without waiting for the next refresh
 	if u["scene"] == S and u.has("secondary") and var_to_str(u["secondary"]) != var_to_str(S.secondary):
 		S.secondary = u["secondary"].duplicate(true)   # SECONDARY MOTION (ROADMAP 26), undone like a card
+	if u["scene"] == S and u.has("soft") and var_to_str(u["soft"]) != var_to_str(S.soft):
+		S.soft = u["soft"].duplicate(true)   # L22: the soft-body regions, undone like a card
 	if u["scene"] == S and u.has("cape") and var_to_str(u["cape"]) != var_to_str(S.cape):
 		S.cape = u["cape"].duplicate(true)   # the cape (ROADMAP 86), undone like a card
 	if u["scene"] == S and u.has("rigx") and var_to_str(u["rigx"]) != var_to_str(S.rigx):
@@ -6926,6 +6971,8 @@ func _restore(u: Dictionary) -> void:
 		ov.mark_dirty()
 	if u["scene"] == S and u.has("bones") and var_to_str(u["bones"]) != var_to_str(S.bones):
 		S.bones = u["bones"].duplicate(true)   # BONE EDITOR (J01), undone like a card
+	if u["scene"] == S and u.has("spline") and var_to_str(u["spline"]) != var_to_str(S.spline_chains):
+		S.spline_chains = u["spline"].duplicate(true)   # SPLINE IK on bone chains (L28), undone like a card
 	if u["scene"] == S and u.has("hair") and var_to_str(u["hair"]) != var_to_str(S.hair):
 		S.hair = u["hair"].duplicate(true)   # HAIR STRANDS (ROADMAP 87), undone like a card: the strands are baked again
 		_hair_bake()
@@ -9149,6 +9196,110 @@ func _spine_pin() -> void:
 	_say("spline IK on the back at %.2f s: drag the hip, mid-back and chest handles to bend it along the curve (it matches the pose within %.1f mm now; Ctrl+Z takes it back)" % [t, float(r["err"]) * 1000.0])
 
 
+## SPLINE IK ON A BONE CHAIN (L28; scripts/spline_chain.gd): the picked bone of the bone editor and the chain below it follow a curve through
+## 4 handles. Each command is one undo step. Handles live in the rest space of the root bone's parent, so the chain rides with the body.
+func _spline_make(first := "") -> void:
+	var b := first if first != "" else (bed.cur if bed != null else "")
+	if b == "" or BoneEdit.find(S.bones, b) < 0:
+		_say("spline IK needs one of your bones: open Rig: bone editor, pick the first bone of the chain (a tail, a tentacle), then Spline IK")
+		return
+	var names := SplineChain.chain_from(S.bones, b)
+	if names.size() < 2:
+		_say("spline IK needs a chain of at least 2 bones: E in the bone editor grows the next one")
+		return
+	for n in names:
+		if SplineChain.index_of(S.spline_chains, n) >= 0:
+			_say("%s is already on a spline: turn that one off first" % n)
+			return
+	_step_hint = "Spline IK on a bone chain"
+	_do(func(): S.spline_chains.append(SplineChain.make(B, S.bones, names, SplineChain.free_name(S.spline_chains))))
+	if bed != null:
+		bed._sig = ""
+		bed.draw()
+	_say("spline IK on %d bones from %s: drag the handle balls in the bone editor; Stretch lets the bones grow to fit the curve (one undo step; Ctrl+Z takes it back)" % [names.size(), b])
+
+
+## move handle `hi` of chain `ci` to the posed-world point `pos`, WITHOUT an undo step (a drag does one step around many of these)
+func _spline_put(ci: int, hi: int, pos: Vector3) -> void:
+	if ci < 0 or ci >= S.spline_chains.size() or hi < 1 or hi >= (S.spline_chains[ci]["ctrl"] as Array).size():
+		return
+	var K := SplineChain.carry(B, S.bones, S.spline_chains[ci])
+	S.spline_chains[ci]["ctrl"][hi] = K.affine_inverse() * pos
+
+
+func _spline_handle(ci: int, hi: int, pos: Vector3) -> void:
+	if ci < 0 or ci >= S.spline_chains.size() or hi < 1 or hi >= (S.spline_chains[ci]["ctrl"] as Array).size():
+		_say("that spline handle cannot move (the first one is the root bone's head)")
+		return
+	_step_hint = "Move spline handle"
+	_do(func(): _spline_put(ci, hi, pos))
+	if bed != null:
+		bed.draw()
+
+
+func _spline_set(ci: int, field: String, v: Variant) -> void:
+	if ci < 0 or ci >= S.spline_chains.size() or not field in ["mode", "kind", "volume", "tw0", "tw1"]:
+		return
+	if field == "mode" and not v in SplineChain.MODES:
+		return
+	if field == "kind" and not v in SplineChain.KINDS:
+		return
+	_step_hint = "Spline IK " + field
+	_do(func(): S.spline_chains[ci][field] = v)
+	if bed != null:
+		bed.draw()
+
+
+func _spline_off(ci: int) -> void:
+	if ci < 0 or ci >= S.spline_chains.size():
+		_say("spline IK off: pick a bone of the chain first")
+		return
+	_step_hint = "Spline IK off"
+	_do(func(): S.spline_chains.remove_at(ci))
+	if bed != null:
+		bed._sig = ""
+		bed.draw()
+	_say("spline IK off: the bones are plain bones again (Ctrl+Z takes it back)")
+
+
+func _spline_pick_index() -> int:
+	return SplineChain.index_of(S.spline_chains, bed.cur) if bed != null and bed.cur != "" else -1
+
+
+func _spline_toggle(field: String) -> void:
+	var ci := _spline_pick_index()
+	if ci < 0:
+		_say("pick a bone of a spline chain in the bone editor first")
+		return
+	if field == "mode":
+		_spline_set(ci, "mode", "keep" if S.spline_chains[ci]["mode"] == "stretch" else "stretch")
+	else:
+		_spline_set(ci, field, not bool(S.spline_chains[ci][field]))
+
+
+## STRETCHY LIMB (L28): the picked hand / foot may reach past its length: bones grow up to x1.5 (and keep their volume when asked).
+## Needs the limb pinned (an IK key); written on its keys, off by default
+func _ik_stretch(vol := false) -> void:
+	var tip := _ik_tip()
+	if tip == "" or not S.ik.has(tip):
+		_say("a stretchy limb needs the limb pinned first: click a hand or a foot, use IK pin, then this")
+		return
+	var on_now: bool = float((S.ik[tip] as Array)[0].get("stretch", 0.0)) > 1.0
+	var turn_off := on_now and not vol
+	_step_hint = "Stretchy limb"
+	_do(func():
+		for k in S.ik[tip]:
+			if turn_off:
+				k.erase("stretch")
+				k.erase("vol")
+			else:
+				k["stretch"] = 1.5
+				if vol:
+					k["vol"] = not bool(k.get("vol", false))
+	)
+	_say("stretchy %s: %s (Ctrl+Z takes it back)" % [_ik_words(tip), "off, the limb stops at full reach again" if turn_off else "on, up to 1.5x its length%s" % (", keeping its volume" if vol else "")])
+
+
 func _spine_off() -> void:
 	if not SpineIK.is_spine_part(sel):
 		_say("spline IK bends the back: click the lower back, middle back or chest first, then turn it off")
@@ -10130,6 +10281,48 @@ func _cape_draw() -> void:
 
 
 ## the overlay: each item's chain at the playhead, from its baked keys (at rest when not baked yet)
+## L22 SOFT-WIRE (scripts/soft_live.gd): the BODY page's flesh toggles and strength slider. Default OFF: nothing below runs.
+func soft_set(group: String, on: bool) -> void:
+	if not SoftBody.GROUPS.has(group):
+		return
+	var cur: Array = S.soft.get("regions", []).duplicate()
+	var gset: Array = SoftBody.GROUPS[group]
+	var ns := []
+	for n in SoftBody.REGIONS.keys():
+		if (cur.has(n) and not gset.has(n)) or (on and gset.has(n)):
+			ns.append(n)
+	if ns == cur:
+		return
+	var strength := SoftBody.strength_of(S)
+	_do(func():
+		var d := {}
+		if not ns.is_empty():
+			d["regions"] = ns
+		if absf(strength - 1.0) > 1e-9:
+			d["strength"] = strength
+		S.soft = d)
+
+
+## the strength slider (1 = as simulated, up to SoftBody.STRENGTH_MAX): drawn at once, no undo step, no new bake
+func soft_strength_set(x: float) -> void:
+	x = clampf(x, 0.0, SoftBody.STRENGTH_MAX)
+	var d := S.soft.duplicate()
+	if absf(x - 1.0) < 1e-9:
+		d.erase("strength")
+	else:
+		d["strength"] = x
+	S.soft = d
+	_soft_draw()
+
+
+func _soft_draw() -> void:
+	if ui_body != null and ui_body.soft_shown != S.soft:
+		ui_body.soft_sync(S)
+	if S.soft.is_empty() and not soft_live.engaged:
+		return
+	soft_live.tick(self)
+
+
 func _sec_draw() -> void:
 	if _sec_line == null:
 		_sec_line = MeshInstance3D.new()
@@ -13273,6 +13466,9 @@ func _ui() -> void:
 	ui_ribbon["SET"].add_child(_button("Library", _library_toggle, "Open the object library: weapons, furniture, sports, everyday things, armour and your own models. Click one to place it"))
 	for lid in LightRig.IDS:   # ROADMAP R1: the lighting presets on the shot camera (light_rig.gd), one click each
 		ui_ribbon["SET"].add_child(_button(LightRig.NAMES[lid], _light_preset.bind(lid), LightRig.tip(lid)))
+	if lr_ui == null:
+		lr_ui = LightRigUI.new(self)
+	ui_ribbon["SET"].add_child(_button("Light rig", lr_ui.show, "the light rig panel: studio, dramatic, overcast, sunset and night looks, a sky map with rotation and intensity, and a per-light switch for lighting the character only"))
 	ui_ribbon["SET"].add_child(_button("Crowd: make 20 copies of this fighter", _crowd_make, "20 copies of this fighter's clip around it: each its own time, speed, slight joint noise, mirror and stature (ANSUR II). Ctrl+Z undoes"))
 	if tcat_ui == null:
 		tcat_ui = ThrowCatchUI.new(self)
@@ -16689,6 +16885,12 @@ func _commands() -> Array:
 	add.call("Snap to floor: all cards", "", _floor_snap.bind(true), "floor ground snap all cards every range sole foot knee lift sink", true, "every card moves straight up or down so its lowest point is on the floor; the joints stay; one undo step")
 	add.call("Key the part here", "K", _press.bind(KEY_K), "part key keyframe channel", true, "a part key: the picked part's 3 angles at the playhead, over the cards' blend (WW1)")
 	add.call("Spine IK: spline the back here", "", _spine_pin, "spine ik spline curve bezier back bend chest hip mid vertebrae twist", true, "the picked back part's spine becomes a curve through a hip, a mid-back and a chest handle: drag the handles and the back bends along it, bones keeping their length, twist spread from hip to chest, every joint inside its limits")
+	add.call("Rig: spline IK on the picked bone chain", "", _spline_make, "spline ik curve bezier catmull tail tentacle chain bones handles follow path rig", true, "the picked bone and the bones below it follow a curve through 4 handles you drag (Blender / Maya spline IK); keep length or stretch to fit; one undo step")
+	add.call("Rig: spline IK off (picked chain)", "", func(): _spline_off(_spline_pick_index()), "spline ik off remove chain curve tail tentacle", true, "the picked chain is plain bones again")
+	add.call("Rig: spline IK stretch to fit / keep length", "", func(): _spline_toggle("mode"), "spline ik stretch fit keep length squash tail tentacle", true, "toggle the picked spline chain between keeping every bone length and stretching to fit the curve")
+	add.call("Rig: spline IK volume (stretch keeps thickness)", "", func(): _spline_toggle("volume"), "spline ik volume preserve thickness squash stretch", true, "a stretched spline bone gets thinner across so its volume stays (opt-in)")
+	add.call("IK: stretchy limb on / off (picked limb)", "", _ik_stretch, "ik stretch stretchy limb arm leg reach elastic rubber long extend squash", true, "the pinned hand / foot may reach a target beyond its length: the bones grow up to 1.5x (off by default; the old solver is used when off)")
+	add.call("IK: stretchy limb keeps volume (picked limb)", "", _ik_stretch.bind(true), "ik stretch stretchy limb volume thickness preserve", true, "a stretched limb's cross-scale goes as 1/sqrt(stretch) so its volume stays")
 	add.call("Spine IK: spline off here", "", _spine_off, "spine ik spline off release curve back unlock", true, "the back follows the cards again from the playhead (over the last frame)")
 	add.call("Prop: attach on this card (move the pick-up here)", "", PropAttach.attach_here.bind(self), "prop attach pick up grab hold frame time timeline hand early late carry", true, "the picked prop is taken by the hand(s) from the selected card's arrival instead of the card it is attached on now (one undo step; the status line names the frames)")
 	add.call("Prop: let go on this card (move the let-go here)", "", PropAttach.detach_here.bind(self), "prop detach let go drop release frame time timeline hand carry", true, "the picked prop is let go at the selected card's arrival instead of the card it is let go on now (one undo step)")
@@ -16973,6 +17175,9 @@ func _commands() -> Array:
 	add.call("Crowd: re-roll (new seed)", "", _crowd_reroll, "crowd reroll seed random new variation", true, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures; one Ctrl+Z")
 	for lid in LightRig.IDS:
 		add.call(LightRig.NAMES[lid], "", _light_preset.bind(lid), "light lighting lights preset shot camera key fill rim back " + lid.replace("_", " ") + " noir daylight three point", true, LightRig.tip(lid))
+	if lr_ui == null:
+		lr_ui = LightRigUI.new(self)
+	lr_ui.commands(add)   # L25: the new looks, the sky maps, the link switches, the panel
 	add.call("Light: back to the default lights", "", _light_preset.bind(""), "light lighting lights preset default off clear remove reset", true, "the shot on at the playhead goes back to the stage's two default lights (one undo step)")
 	add.call("Crowd: remove", "", _crowd_remove, "crowd remove delete clear copies", true, "the copies go and the fighter stays; one Ctrl+Z")
 	add.call("Actor: switch to the next fighter", "", _actor_next, "actor fighter character opponent other active swap", false, "the next fighter becomes the one you pose: its own cards, its own body, its own Ctrl+Z")
@@ -16980,7 +17185,7 @@ func _commands() -> Array:
 	add.call("Pose: copy to the other fighter, mirrored", "", _pose_to_other.bind(true), "copy pose fighter actor other mirror flip left right", true, "the same, reflected left <-> right: the app's own mirror of the pose; one Ctrl+Z")
 	add.call("Actor: remove this fighter", "", _actor_remove, "actor fighter character opponent delete", true, "the active fighter leaves the scene (not the hero: the hero is the scene itself); Ctrl+Z brings it back")
 	add.call("Ragdoll: fall from here (pins: picked parts)", "", _ragdoll_fall, "ragdoll fall limp knockout drop gravity collapse faint pin hang", false, "the body goes limp and falls from the current pose under gravity, the picked parts held in place; baked as editable cards into a NEW scene in scenes/_wip (ROADMAP 27)")
-	add.call("Ragdoll: hit, fall, get back up", "", _ragdoll_hit, "ragdoll hit knock down fall limp blend back get up recover animation physics hurt punch", false, "the body at the playhead is hit (pushed), falls limp for 2 s, then blends back onto its own pose over 1 s; baked as editable cards into a NEW scene in scenes/_wip (Friday plan 147)")
+	add.call("Ragdoll: hit, fall, get back up", "", _ragdoll_hit, "ragdoll hit knock down fall limp blend back get up recover animation physics hurt punch", true, "the body at the playhead is hit (pushed), falls limp for 2 s, then blends back onto its own pose over 1 s; baked as editable cards into a NEW scene in scenes/_wip (Friday plan 147)")
 	add.call("Hits: make the struck fighter react", "", _hit_react, "hit hits react reaction struck fighter impact knock momentum recoil shove", true, "the first hit in the fighters' report on a body part turns the struck fighter by its momentum (0.3-0.6 s), baked as editable cards on its scene; one undo step (ROADMAP 14)")
 	add.call("Hit reactions: physics default / my usual", "Alt+H", _hit_physics_key, "hit reaction physics default usual habit amplitude delay recovery learned my edits plain", false, "one key: the next hit reaction is the plain physics (not shaped by your usual amplitude, start and recovery learned from your edits of earlier ones); press again for your usual (ROADMAP I46)")
 	add.call("Add marker at the playhead", "", _marker_add, "cue event hit step swoosh note flag sound", true, "a named moment (m1, m2, ...) on the timeline at the playhead; the game export lists it as an event")
@@ -17158,6 +17363,7 @@ func _commands() -> Array:
 	add.call("Export for Unity...", "", _export_engine.bind("unity"), "unity engine export glb gltfast metres delivery", false, "the scene as exports/<scene>_unity.glb for Unity (glTFast): metres and Y up checked (the pre-flight report prints first; docs/research/ENGINES.md)")
 	add.call("Export for Godot...", "", _export_engine.bind("godot"), "godot engine export glb skeleton delivery", false, "the scene as exports/<scene>_godot.glb for Godot 4: metres and Y up checked (the pre-flight report prints first; docs/research/ENGINES.md)")
 	add.call("Export animation (.usda)", "", _export_usd, "usd usda usdskel openusd pixar omniverse houdini blender export", false, "the scene as exports/<scene>.usda, UsdSkel skeleton animation (no weapons)")
+	add.call("Export animation (.usda, skinned)", "", _export_usd_skinned, "usd usda usdskel skinned mesh skin weights blendshape blend shapes face au openusd pixar omniverse houdini blender export", false, "the fighter as exports/<scene>_skinned.usda: UsdSkel with the skinned mesh and its joint weights (the imported character when one stands; the face's six AU shapes with the face geometry on)")
 	add.call("Playblast: motion blur on/off", "", _blast_blur_toggle, "playblast motion blur shutter smear sub-frame accumulation 180 deg export", false, "the playblast frames are the mean of 8 sub-frames over a 180 deg shutter (half the frame interval), so fast limbs and bats smear as on film; off by default; a render takes 8 times as long")
 	add.call("Deliver: turntable video of this pose", "", _export_turntable, "turntable deliver 360 orbit spin showcase presentation video avi mp4 character model render", false, "a 6 s, 30 fps, 1280x720 video of the camera orbiting the current pose once (body and held weapon framed with 15% margin, no panels), in user://turntables/")
 	add.call("Deliver: breakdown video (with the judges drawn)", "", _export_judge_render, "breakdown judge render overlay balance centre of mass support polygon force ground reaction hit boxes joint limit verdict caption side by side video avi mp4 coach review", false, "the scene as a video with the judges drawn: left clean, right with the centre of mass over its support, the ground-force arrow, the hit boxes and red joint-limit markers; under each frame a caption with the time, the card and the Check verdicts that fire on that frame (off balance, foot slides ...); in user://breakdowns/")
@@ -17175,7 +17381,7 @@ func _commands() -> Array:
 	add.call("Reset body", "", _do.bind(_reset_all), "t-pose", true, "every joint back to straight and the hips to the origin")
 	add.call("Arms down 25°", "", _do.bind(_arms_relaxed), "relax a-pose", true, "both arms relaxed: 25° out from straight down")
 	for tn in Templates.NAMES:   # R7: each starting scene is its own command (the picker above needs a mouse; a command needs only its name)
-		add.call("New from template: " + Templates.INFO[tn][0], "", _template_make.bind(tn), "template starting scene new example " + tn.replace("_", " "), false, "a NEW scene in scenes/_wip, opened: " + Templates.INFO[tn][1] + ("  Land it on the dummy's head with Next." if tn == "punch" else ""))
+		add.call("New from template: " + Templates.INFO[tn][0], "", _template_make.bind(tn), "template starting scene new example " + tn.replace("_", " "), true, "a NEW scene in scenes/_wip, opened: " + Templates.INFO[tn][1] + ("  Land it on the dummy's head with Next." if tn == "punch" else ""))
 	add.call("Strike: aim the fist at the dummy's head", "", _strike_aim, "punch land hit contact reach target jab cross fist dummy head aim", true, "the punch (the card the fist travels fastest into) now ends with its fist on the dummy's head: the arm is solved to touch it, the rest of the card stays; Dummy closer first if the arm cannot reach (one undo step)")
 	add.call("Dummy on/off", "H", _press.bind(KEY_H), "target enemy mannequin", false, "show or hide the target dummy")
 	add.call("Dummy solid / see-through", "", _dummy_solid, "target", false, "solid: the weapon stops on the dummy (impact + rebound); see-through: it passes")
@@ -17253,6 +17459,7 @@ func _commands() -> Array:
 	add.call("Help: Blender / Maya key helper off", "", kt.set_mode.bind(""), "blender maya keys shortcuts translate helper off stop hide", false, "turn the Coming-from-Blender/Maya toasts off (remembered)")
 	add.call("Help: Blender / Maya keys win on / off", "", func(): kt.set_wins(not kt.wins), "blender maya keys win override shortcuts priority", false, "with the helper on: a Blender/Maya key that Kine uses for something else runs the Kine command it maps to, instead of Kine's own action")
 	add.call("Help: edit hotkeys", "", hk.open_editor, "hotkeys keys key shortcut shortcuts rebind bind change remap", false, "change any command's key: search, click its key, press the new one (a key another command has is refused until pressed again)")
+	add.call("View: workspace layouts", "", func(): if bld != null and bld.shell != null: bld.shell.layouts_ui.open_dialog(), "workspace layouts layout dock panel panels left right bottom float save rename delete reset rail width expert engineering", false, "save, rename and delete named layouts of the Expert / Engineering screens; dock each panel left, right or bottom, or float it; set the rail width; reset to the factory layout")
 	add.call("Help: forget my command habits", "", _nt_forget, "next suggested tool chips habits learned forget reset clear history suggestions", false, "forget which commands you run after which (the grey chips after Next:); the default sequence comes back")
 	c.append_array(EasySearch.rows(self))   # p097searchboxf: the Easy Part actions (hole, round, screw) are S box rows too (scripts/easy_search.gd)
 	var rows: Array = Hotkeys.apply(c, hk.over)
@@ -18430,6 +18637,11 @@ func _template_build_now(nm: String, d: Dictionary) -> void:
 	var path := Templates.new_path(nm)
 	d["scene"] = path.get_file().get_basename()
 	d["plan"] = "from the %s template" % String(Templates.INFO[nm][0]).to_lower()
+	# L24: opening the template REPLACES the open scene, so it is ONE undo step (a whole-scene swap, as Easy's Copy a video):
+	# Ctrl+Z puts the scene that was open back (the new file in scenes/_wip stays on disk), Ctrl+Y the template scene
+	_step_hint = "New from template: " + String(Templates.INFO[nm][0])
+	_push_undo()
+	undo[-1]["swap"] = true
 	_write(path, d)
 	_load_scene(path, true)
 	_rebuild_cards()
@@ -24942,6 +25154,7 @@ func _light_apply() -> void:
 		world_env.adjustment_brightness = 1.0
 		world_env.adjustment_contrast = 1.0
 		shading.apply_lights(self)   # K02: back to the studio lights the view had chosen (none: the default above)
+		_lr_view_apply()
 		return
 	_body_outline_show(false)
 	var r := LightRig.rig(id, k["pos"], k["aim"])
@@ -24956,6 +25169,72 @@ func _light_apply() -> void:
 	world_env.adjustment_enabled = true
 	world_env.adjustment_brightness = r["adjust"]["brightness"]
 	world_env.adjustment_contrast = r["adjust"]["contrast"]
+	_lr_view_apply()
+
+
+## L25: the view-side half of the light rig: the link masks on the three lights and the sky map on the world environment
+func _lr_view_apply() -> void:
+	for pair in [[light_key, "key"], [light_fill, "fill"], [light_rim, "rim"]]:
+		LightRig.set_link(pair[0], bool(lr_link[pair[1]]))
+	if lr_hdri_id != "":
+		LightRig.apply_hdri(world_env, lr_hdri_id, lr_rot, lr_int)
+		_lr_sky_on = true
+	elif _lr_sky_on:
+		_lr_sky_on = false
+		LightRig.apply_hdri(world_env, "", 0.0, 1.0)
+		shading.apply_sky(self)   # the flat colour (or the View menu's sky / picture) as before
+	if lr_ui != null:
+		lr_ui.sync()
+
+
+## L25: a look from the panel or the palette. With no shot camera yet the view is keyed as one (the same step), because the rig is
+## placed relative to the shot camera. One undo step.
+func lr_preset(id: String) -> bool:
+	if not LightRig.PRESETS.has(id) or _hero_scene() == null:
+		return false
+	if _hero_scene().cards.is_empty():
+		_say("the lights follow the shot camera: add a pose card first (or open a scene), then pick a look")
+		return false
+	var had := not _shot_keys().is_empty()
+	if had and _light_id() == id:
+		_say("this shot already has %s" % LightRig.PANEL_NAMES.get(id, id))
+		return true
+	var t := clampf(playhead, 0.0, S.length())
+	var key := {} if had else _shot_view_key(t)
+	if not had:
+		key["t"] = t
+	_do(func():
+		if not had:
+			_shot_ensure()
+			ShotCam.put(_shot_keys(), key)
+		_shot_shots()[shot_now_index()]["light"] = id)
+	_light_apply()
+	_say("%s: %s%s (Ctrl+Z takes it back)" % [LightRig.PANEL_NAMES.get(id, id), LightRig.tip(id), "" if had else "; the view was keyed as the shot camera"])
+	return true
+
+
+func lr_hdri(id: String) -> void:
+	lr_hdri_id = id if LightRig.SKIES.has(id) else ""
+	_lr_view_apply()
+	_say("sky map: %s" % (LightRig.SKY_NAMES[lr_hdri_id] if lr_hdri_id != "" else "none (the flat world colour)"))
+
+
+func lr_hdri_rot(deg: float) -> void:
+	lr_rot = fposmod(deg, 360.0)
+	_lr_view_apply()
+
+
+func lr_hdri_int(x: float) -> void:
+	lr_int = clampf(x, 0.0, 4.0)
+	_lr_view_apply()
+
+
+func lr_set_link(role: String, on: bool) -> void:
+	if not lr_link.has(role):
+		return
+	lr_link[role] = on
+	_lr_view_apply()
+	_say("%s light: %s" % [role, "lights the character only" if on else "lights everything"])
 
 
 func _light_preset(id: String) -> void:
@@ -26197,6 +26476,8 @@ const HIT_BLEND_S := 1.0    # s, from the fall's pose back onto the animation's 
 func _ragdoll_hit() -> void:
 	_say("hit: falling, then back up...")
 	await get_tree().process_frame
+	_step_hint = "Ragdoll: hit, fall, get back up"
+	_push_undo()   # the step is taken BEFORE the solver touches the body: the snapshot is the body as the user left it, to the byte
 	var keep := B.state()
 	var keep_ang: Dictionary = B.ang.duplicate()
 	var keep_off: Vector3 = B.offset
@@ -26219,6 +26500,9 @@ func _ragdoll_hit() -> void:
 	while FileAccess.file_exists(out):   # never over an earlier hit: _hit_2, _hit_3 ...
 		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
+	# opening the hit scene REPLACES the open one, so it is ONE undo step (a whole-scene swap, as New from template): Ctrl+Z puts the
+	# scene that was open back whole (the new file in scenes/_wip stays on disk), Ctrl+Y the hit scene
+	undo[-1]["swap"] = true
 	_write(out, d)
 	_load_scene(out, true)
 	_rebuild_cards()
