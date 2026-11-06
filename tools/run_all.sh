@@ -941,6 +941,8 @@ EXTRA="$EXTRA c56:w"   # c56: English ANIMATE/SURFACE tabs fit their cell at 128
 
 
 EXTRA="$EXTRA c57:w"   # c57: slicer-like print estimate (walls + infill, time from flow, bigger-than-bed scale models, 5 kg sanity) against Bambu Studio on a cube and Benchy (tests/c57_test.gd)
+
+EXTRA="$EXTRA ch8:w"   # ch8: APIC liquid in C++ (KineFluidNative) vs Martin and Moyce 1952, hydrostatic tank, mug fill and spill, C++ == GDScript (tests/ch8_test.gd)
 EXTRA="$EXTRA ch1a:w"   # ch1a: one-storey house from a real reference, tests/ch1a_test.gd
 EXTRA="$EXTRA ch1b:w"   # ch1b: house check, IRC spans/headers/studs/bracing/uplift/footing + first-principles cross-check (tests/ch1b_test.gd)
 
