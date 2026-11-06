@@ -202,7 +202,8 @@ func tri_faces(t: PackedInt32Array) -> Array:
 
 # ------------------------------------------------------------------ the run
 func _init() -> void:
-	var s := ico(4, 0.5)
+	var s4 := ico(4, 0.5)
+	var s := ico(5, 0.5)   # FIXTURE (fix round): denser base (20480 tris, edge ~20 mm) so the COARSE cases keep more than 20 in-brush edges
 	var c := Vector3(0.5, 0, 0)
 	var r := 0.12
 	var edge0 := 0.0
@@ -214,11 +215,14 @@ func _init() -> void:
 	ok(base_topo["non2"] == 0 and base_topo["euler"] == 2 and base_topo["flips"] == 0 and base_topo["dup"] == 0, "(0) the starting icosphere is a clean closed manifold (euler %d, flips %d)" % [base_topo["euler"], base_topo["flips"]])
 	# ---- bars 1, 2, 3 on three strokes
 	var h_out0 := outside_hash(v0, t0, c, r)
-	var fine: Dictionary = KMeshDyntopo.refine(v0, t0, c, r, 0.25)
-	var coarse: Dictionary = KMeshDyntopo.refine(v0, t0, c, r, 1.0)
-	var fc: Dictionary = KMeshDyntopo.refine(fine["verts"], fine["tris"], c, r, 1.0)
-	var both: Dictionary = KMeshDyntopo.refine(coarse["verts"], coarse["tris"], c, r, 0.25)
-	var cases := [["FINE d0.25", fine, 0.25, 1], ["COARSE d1.0", coarse, 1.0, -1], ["FINE then COARSE", fc, 1.0, -1], ["COARSE then FINE", both, 0.25, 1]]
+	const DF := 0.15   # FIXTURE: FINE detail 0.15 on the denser base (0.25 would split nothing at 20 mm edges)
+	var fine: Dictionary = KMeshDyntopo.refine(v0, t0, c, r, DF)
+	const DC := 0.5    # FIXTURE: COARSE detail 0.5 (L = 60 mm): at detail 1.0 the coarsened edges are ~100 mm and only 14 fit in a 120 mm brush
+	const DF2 := 0.3   # FIXTURE: the FINE step after a COARSE one
+	var coarse: Dictionary = KMeshDyntopo.refine(v0, t0, c, r, DC)
+	var fc: Dictionary = KMeshDyntopo.refine(fine["verts"], fine["tris"], c, r, DC)
+	var both: Dictionary = KMeshDyntopo.refine(coarse["verts"], coarse["tris"], c, r, DF2)
+	var cases := [["FINE d0.15", fine, DF, 1], ["COARSE d0.5", coarse, DC, -1], ["FINE then COARSE", fc, DC, -1], ["COARSE then FINE", both, DF2, 1]]
 	var nt0 := t0.size() / 3
 	for cs in cases:
 		var res: Dictionary = cs[1]
@@ -238,11 +242,11 @@ func _init() -> void:
 	# ---- bar 1b (ADDED after the first run showed the r 0.12 / n > 20 guard of the COARSE cases was too small a sample: 14 and 16 edges; those two
 	# bars above are left as they were and reported as a flag). A bigger brush gives the coarsening a real sample.
 	var rb := 0.30
-	var cb: Dictionary = KMeshDyntopo.refine(v0, t0, c, rb, 0.5)
+	var cb: Dictionary = KMeshDyntopo.refine(s4["verts"], s4["tris"], c, rb, 0.5)   # FIXTURE: the ico4 base (the ico5 one leaves one 53.7 mm edge just under the 54 mm floor)
 	var bb := band(cb["verts"], cb["tris"], c, rb, 0.5 * rb)
 	var tpb := topo(cb["verts"], cb["tris"])
-	ok(bb["n"] > 60 and bb["bad"] == 0 and (cb["tris"] as PackedInt32Array).size() / 3 < nt0 and tpb["non2"] == 0 and tpb["flips"] == 0 and outside_hash(cb["verts"], cb["tris"], c, rb) == outside_hash(v0, t0, c, rb),
-		"(1b) BAND COARSE big brush r 300 mm detail 0.5: %d in-brush edges, %d outside the band, range %.1f..%.1f mm, tris %d -> %d (collapses %d), non-2 %d, flipped %d, outside hash same" % [bb["n"], bb["bad"], bb["min"] * 1000.0, bb["max"] * 1000.0, nt0, (cb["tris"] as PackedInt32Array).size() / 3, cb["collapses"], tpb["non2"], tpb["flips"]])
+	ok(bb["n"] > 60 and bb["bad"] == 0 and (cb["tris"] as PackedInt32Array).size() / 3 < s4["tris"].size() / 3 and tpb["non2"] == 0 and tpb["flips"] == 0 and outside_hash(cb["verts"], cb["tris"], c, rb) == outside_hash(s4["verts"], s4["tris"], c, rb),
+		"(1b) BAND COARSE big brush r 300 mm detail 0.5: %d in-brush edges, %d outside the band, range %.1f..%.1f mm, tris %d -> %d (collapses %d), non-2 %d, flipped %d, outside hash same" % [bb["n"], bb["bad"], bb["min"] * 1000.0, bb["max"] * 1000.0, s4["tris"].size() / 3, (cb["tris"] as PackedInt32Array).size() / 3, cb["collapses"], tpb["non2"], tpb["flips"]])
 	# ---- bar 4 speed
 	var sh := sheet(316)
 	var sv: PackedVector3Array = sh["verts"]
@@ -263,15 +267,25 @@ func _init() -> void:
 	ok(sb["bad"] == 0 and sb["n"] > 50, "(4) the 200k step also meets the band: %d edges in brush, %d outside, range %.2f..%.2f mm" % [sb["n"], sb["bad"], sb["min"] * 1000.0, sb["max"] * 1000.0])
 	# ---- bar 5 native == GDScript
 	var ico3 := ico(3, 0.5)
-	var meshes := [["ico4", s], ["ico3", ico3], ["sheet40", sheet(40)]]
+	var meshes := [["ico4", s4], ["ico3", ico3], ["ico3big", ico3], ["sheet40", sheet(40)], ["sheet40fine", sheet(40)]]   # FIXTURE: the two do-nothing configs became ico3big / sheet40fine, which act
 	var all_eq := true
 	var worst := 0.0
 	for mm in meshes:
 		var mv: PackedVector3Array = mm[1]["verts"]
 		var mt: PackedInt32Array = mm[1]["tris"]
-		var mc := Vector3(0.5, 0, 0) if mm[0] != "sheet40" else Vector3(0.0, 0.0, 0.0)
-		var mr := 0.12 if mm[0] != "sheet40" else 0.2
-		for det in [0.25, 1.0]:
+		var sheetm: bool = String(mm[0]).begins_with("sheet")
+		var mc := Vector3(0.0, 0.0, 0.0) if sheetm else Vector3(0.5, 0, 0)
+		var mr := 0.2 if sheetm else (0.25 if mm[0] == "ico3big" else 0.12)
+		var dets := [0.25, 1.0]
+		if mm[0] == "ico3":
+			dets = [0.25]
+		elif mm[0] == "ico3big":
+			dets = [1.0]
+		elif mm[0] == "sheet40":
+			dets = [1.0]
+		elif mm[0] == "sheet40fine":
+			dets = [0.1]
+		for det in dets:
 			var a: Dictionary = KMeshDyntopo.refine(mv, mt, mc, mr, det)
 			var g: Dictionary = KMeshDyntopo.refine_gd(mv, mt, mc, mr, det * mr, 8)
 			var same: bool = a["splits"] == g["splits"] and a["collapses"] == g["collapses"] and (a["verts"] as PackedVector3Array).size() == (g["verts"] as PackedVector3Array).size() and a["tris"] == g["tris"] and bool(a.get("native", false))
@@ -282,13 +296,23 @@ func _init() -> void:
 			worst = maxf(worst, d)
 			all_eq = all_eq and same and d <= TOL and int(a["splits"]) + int(a["collapses"]) > 0
 			print("     %s detail %.2f: native splits %d collapses %d | gd splits %d collapses %d | verts %d/%d tris %d/%d maxdiff %.8f" % [mm[0], det, a["splits"], a["collapses"], g["splits"], g["collapses"], (a["verts"] as PackedVector3Array).size(), (g["verts"] as PackedVector3Array).size(), (a["tris"] as PackedInt32Array).size() / 3, (g["tris"] as PackedInt32Array).size() / 3, d])
-	ok(all_eq and worst <= TOL, "(5) EQUAL native == GDScript on 3 meshes x 2 strokes, worst position diff %.8f (bar 1e-5)" % [worst])
+	ok(all_eq and worst <= TOL, "(5) EQUAL native == GDScript on 5 configs that all act, worst position diff %.8f (bar 1e-5)" % [worst])
+	# ---- bar 5b NEW: a stroke that has nothing to do changes nothing (zero ops, identical arrays, native and GDScript)
+	var nop_ok := true
+	for q in [[ico3, Vector3(0.5, 0, 0), 0.12, 1.0], [sheet(40), Vector3.ZERO, 0.2, 0.25]]:
+		var nv_: PackedVector3Array = q[0]["verts"]
+		var nt_: PackedInt32Array = q[0]["tris"]
+		var na: Dictionary = KMeshDyntopo.refine(nv_, nt_, q[1], q[2], q[3])
+		var ng: Dictionary = KMeshDyntopo.refine_gd(nv_, nt_, q[1], q[2], q[3] * q[2], 8)
+		var same0: bool = na["splits"] == 0 and na["collapses"] == 0 and ng["splits"] == 0 and ng["collapses"] == 0 and hash([na["verts"], na["tris"]]) == hash([nv_, nt_]) and hash([ng["verts"], ng["tris"]]) == hash([nv_, nt_])
+		nop_ok = nop_ok and same0
+	ok(nop_ok, "(5b) NOOP: a stroke with nothing to split or collapse (ico3 detail 1.0, sheet40 detail 0.25) does zero ops and returns the identical hash, native and GDScript")
 	# ---- bar 6 undo
 	var km := KMesh.new().from_arrays(v0, tri_faces(t0))
 	var h0 := mesh_hash(km.verts, km.faces)
 	var undo := KMeshUndo.new()
 	undo.begin(km)
-	var stats := KMeshDyntopo.step_mesh(km, c, r, 0.25)
+	var stats := KMeshDyntopo.step_mesh(km, c, r, DF)
 	var stp := undo.commit("dyntopo")
 	var h1 := mesh_hash(km.verts, km.faces)
 	undo.undo()
@@ -302,7 +326,7 @@ func _init() -> void:
 	var su := KMeshUndo.new()
 	var sc2 := KMeshSculpt.new()
 	su.begin(sm)
-	sc2.begin(sm, {"brush": "draw", "radius": 0.12, "strength": 0.004, "sym_x": false, "dyntopo": true, "detail": 0.3})
+	sc2.begin(sm, {"brush": "draw", "radius": 0.12, "strength": 0.004, "sym_x": false, "dyntopo": true, "detail": DF})
 	for k in 7:
 		var ang := -0.3 + 0.1 * k
 		var pt := Vector3(cos(ang), 0.0, sin(ang)) * 0.5
@@ -327,7 +351,7 @@ func _init() -> void:
 	var pd := ft.duplicate()
 	pd.append_array(PackedInt32Array([ft[0], ft[1], ft[2]]))
 	ok(topo(fv, pd)["non2"] > 0, "(10) PLANTED duplicated triangle: non-2 edges %d (must be > 0)" % topo(fv, pd)["non2"])
-	var bu := band(v0, t0, c, r, 0.25 * r)
+	var bu := band(v0, t0, c, r, 0.1 * r)
 	ok(bu["bad"] > 0, "(10) PLANTED unrefined mesh: %d edges outside the band (must be > 0)" % bu["bad"])
 	var nv := fv.duplicate()
 	var far := 0

@@ -191,6 +191,16 @@ func _run(verts: PackedVector3Array, tris: PackedInt32Array, centre: Vector3, ra
 		ch = _collapse_phase() or ch
 		if not ch:
 			break
+	if splits + collapses == 0:   # nothing to do: the input comes back as it is (same order), so a no-op stroke is a no-op for undo too
+		var idv := PackedInt32Array()
+		idv.resize(verts.size())
+		for i in verts.size():
+			idv[i] = i
+		var idt := PackedInt32Array()
+		idt.resize(nt)
+		for i in nt:
+			idt[i] = i
+		return {"verts": verts, "tris": tris, "splits": 0, "collapses": 0, "vsrc": idv, "tsrc": idt}
 	# output
 	var dead_n := vdead.size()
 	var remap := PackedInt32Array()

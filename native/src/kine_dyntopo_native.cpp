@@ -340,6 +340,25 @@ Dictionary KineDyntopoNative::refine(const PackedVector3Array &p_verts, const Pa
 			break;
 		}
 	}
+	if (w.splits + w.collapses == 0) {
+		PackedInt32Array idv, idt;
+		idv.resize(nv);
+		idt.resize(nt);
+		for (int i = 0; i < nv; i++) {
+			idv.set(i, i);
+		}
+		for (int i = 0; i < nt; i++) {
+			idt.set(i, i);
+		}
+		Dictionary z;
+		z["verts"] = p_verts;
+		z["tris"] = p_tris;
+		z["splits"] = 0;
+		z["collapses"] = 0;
+		z["vsrc"] = idv;
+		z["tsrc"] = idt;
+		return z;
+	}
 	const int dead_n = (int)w.vdead.size();
 	std::vector<int> remap;
 	PackedVector3Array ov;
