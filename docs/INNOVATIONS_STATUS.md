@@ -32,6 +32,7 @@ game-delivery sections (N040-N051, N079-N090) and the sculpt and teaching sectio
 | N027 | who could do this | done | scripts/who_could.gd:32, tests/whocould_test.gd, acadfe10 | |
 | N028 | coupled limits | done | scripts/coupled_limits.gd:21, tests/coupled_test.gd, d8e37645 | |
 | N040 | throw truth | **done** | tests/n040_test.gd; scripts/throw_truth.gd (+ throw_fixtures, throw_truth_strip, throw_truth_pair). Pair judge per frame: partner extrapolated COM outside his feet + thrower COM margin + contact/grip points; verdict throw works / no kuzushi / thrower falls / no contact. Wired (L34): Throw check panel (CHECK ribbon, clickable frame cells), agent tool + CLI `throw_check` (scripts/throw_panel.gd, throw_serve.gd; tests/throwui_test.gd) |
+| N041 | lock truth | **done** | tests/n041_test.gd; scripts/lock_truth.gd (+ lock_fixtures, lock_panel, lock_serve). Per frame the partner's elbow / wrist / shoulder angles the clip asks, against body_limits.json, on the arm the locker touches: lock not on / at limit (5 deg) / past limit: injury (joint, degrees) / no contact. Wired: Lock check panel (CHECK ribbon), agent tool + CLI `lock_check` |
 | N065 | hit harder | done | scripts/hit_harder.gd:57, tests/hitharder_test.gd, a772a8b0 | |
 | N066 | never falls while posing | done | scripts/live_balance.gd:29, tests/livebal_test.gd, daa042ec | |
 | N080 | hitstun and frame advantage | done | scripts/frame_advantage.gd:28, tests/frameadv_test.gd, 374d0c4f | |

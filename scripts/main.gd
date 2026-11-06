@@ -4230,6 +4230,7 @@ var throw_on := false                  # the Throw check panel is showing
 var throw_panel: ThrowPanel = null
 var throw_key := 0                     # what the panel's result was judged for (cards + the partner's cards and place + fps)
 var throw_done := false
+var throw_band := false                # L45: the panel's band is in bottom_h (set with throw_on, by _throw_refresh)
 var throw_judge_runs := 0              # how many times the judge was started (a hidden panel must not run it)
 ## L42: the judge runs on a WorkerThreadPool task on a clone of the scene, after THROW_DEBOUNCE_MS without a further edit. Every job carries the
 ## generation (throw_gen, bumped by each edit that changes throw_key); a result of an older generation is dropped (_throw_land).
@@ -4241,6 +4242,9 @@ var _throw_jobs: Array = []            # {gen, task, out} in flight
 
 ## called at every refresh: nothing at all while the panel is off; while on, the judge runs only when the scene (cards, partner, place) changed
 func _throw_refresh() -> void:
+	if throw_on != throw_band:   # L45: the panel is a row of the bottom stack: the stack grows by its height while it shows
+		throw_band = throw_on
+		_layout_bottom()
 	if not throw_on:
 		if throw_panel != null and throw_panel.visible:
 			throw_panel.visible = false
@@ -4253,6 +4257,7 @@ func _throw_refresh() -> void:
 		throw_done = false
 	throw_panel.visible = true
 	_throw_place()
+	throw_panel.set_playhead(roundi(playhead * float(ThrowFixtures.FPS)))
 	var key: int = -1 if S.actors.is_empty() else hash([S.cards, S.actors.map(func(a): return [a["xf"], (a["scene"] as Scene).cards])])
 	if throw_done and key == throw_key:
 		return
@@ -4312,8 +4317,8 @@ func _throw_place() -> void:
 	throw_panel.anchor_bottom = 1.0
 	throw_panel.offset_left = LEFT_W + 12
 	throw_panel.offset_right = LEFT_W + 12 + ThrowPanel.W
-	throw_panel.offset_bottom = -bottom_h - 8
-	throw_panel.offset_top = -bottom_h - 8 - ThrowPanel.H
+	throw_panel.offset_top = -bottom_h   # L45: the band at the top of the bottom stack (_layout_bottom adds it), its bottom 8 px above the bar's panels
+	throw_panel.offset_bottom = -bottom_h + ThrowPanel.H
 
 
 ## a click on a cell of the panel: the playhead goes to that frame (what a scrub does: no undo step)
@@ -4327,6 +4332,63 @@ func _throw_pick(f: int) -> void:
 
 func _throw_toggle() -> void:
 	throw_on = not throw_on
+	_refresh()
+
+
+# ---------------------------------------------------------------- LOCK CHECK (INNOVATIONS N041 wired; scripts/lock_panel.gd, lock_serve.gd)
+var lock_on := false                  # the Lock check panel is showing
+var lock_panel: LockPanel = null
+var lock_key := 0                     # what the panel's result was judged for (cards + the partner's cards and place + fps)
+var lock_done := false
+var lock_judge_runs := 0              # how many times the judge ran (a hidden panel must not run it)
+
+
+## called at every refresh: nothing at all while the panel is off; while on, the judge runs only when the scene (cards, partner, place) changed
+func _lock_refresh() -> void:
+	if not lock_on:
+		if lock_panel != null and lock_panel.visible:
+			lock_panel.visible = false
+		return
+	if lock_panel == null:
+		lock_panel = LockPanel.new()
+		lock_panel.z_index = 40
+		lock_panel.frame_picked.connect(_lock_pick)
+		ui_root.add_child(lock_panel)
+		lock_done = false
+	lock_panel.visible = true
+	_lock_place()
+	var key: int = -1 if S.actors.is_empty() else hash([S.cards, S.actors.map(func(a): return [a["xf"], (a["scene"] as Scene).cards])])
+	if lock_done and key == lock_key:
+		return
+	lock_done = true
+	lock_key = key
+	lock_judge_runs += 1
+	lock_panel.show_result({"ok": false} if key == -1 else LockTruth.judge(S, LockFixtures.FPS))
+
+
+func _lock_place() -> void:
+	if lock_panel == null:
+		return
+	lock_panel.anchor_top = 1.0
+	lock_panel.anchor_bottom = 1.0
+	lock_panel.offset_left = LEFT_W + 12
+	lock_panel.offset_right = LEFT_W + 12 + LockPanel.W
+	var up := (ThrowPanel.H + 6.0) if throw_on else 0.0   # above the Throw check panel when both show
+	lock_panel.offset_bottom = -bottom_h - 8 - up
+	lock_panel.offset_top = -bottom_h - 8 - up - LockPanel.H
+
+
+## a click on a cell of the panel: the playhead goes to that frame (what a scrub does: no undo step)
+func _lock_pick(f: int) -> void:
+	playing = false
+	playhead = float(f) / float(LockFixtures.FPS)
+	_ps().apply(B, playhead)
+	_audio_scrub()
+	_refresh()
+
+
+func _lock_toggle() -> void:
+	lock_on = not lock_on
 	_refresh()
 
 
@@ -5540,6 +5602,7 @@ func _refresh() -> void:
 	_insp_fit.call_deferred()   # RR2: rows shown / hidden change the box's height
 	_sync_weapon()
 	_throw_refresh()   # THROW CHECK (N040, L34)
+	_lock_refresh()   # LOCK CHECK (N041)
 	_fd_refresh()   # FRAME DATA (ROADMAP 12): the strip and the boxes on active frames
 	if ui_browser != null and ui_browser.visible:
 		ui_browser.follow()
@@ -13754,6 +13817,7 @@ func _ui() -> void:
 	tog.call("CHECK", "Dummy (H)", _dummy_toggle, func(): return dummy_on, "a second mannequin out front: red where the weapon is in it")
 	tog.call("CHECK", "Frame data", _fd_toggle, func(): return fd_on, "frame data: startup (green) / active (red) / recovery (blue) on the timeline, with the counts (ROADMAP 12)")
 	tog.call("CHECK", "Throw check", _throw_toggle, func(): return throw_on, "throw check (N040): for a scene with two bodies, whether the throw works frame by frame (throw works / no kuzushi / thrower falls / no contact), the key frame, how far the partner's balance is outside his feet and the thrower's own margin; click a frame to jump to it")
+	tog.call("CHECK", "Lock check", _lock_toggle, func(): return lock_on, "lock check (N041): for a scene with two bodies, whether an armbar, wristlock or kimura reaches the partner's joint limit (at limit) or goes past it (past limit: injury), frame by frame, with the joint and the degrees; click a frame to jump to it")
 	tog.call("CHECK", "Frame boxes", _fd_boxes_toggle, func(): return fd_boxes, "hitboxes (red) on active frames and hurtboxes (grey) on every frame, in the view")
 	fd_btn = _button("Frame rate", _fd_cycle_fps, "the frame rate the frame data counts in (24, 30, 60, 120 fps): now %d fps" % fd_fps)
 	ui_ribbon["CHECK"].add_child(fd_btn)
@@ -16999,6 +17063,8 @@ func _layout_bottom() -> void:
 	if eempty:
 		bottom_h += EASY_ROW_H - 26
 	_easy_bottom_style(eo)
+	if throw_band:   # L45: the Throw check band (ThrowPanel.H + 8 px) stands on the bottom stack, like the clip rows
+		bottom_h += ThrowPanel.H + 8
 	ui_card_row.visible = not folded
 	if ui_fold_btn.has("bottom_open"):
 		ui_fold_btn["bottom_open"].visible = folded

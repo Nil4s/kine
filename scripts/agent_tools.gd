@@ -15,7 +15,7 @@ const POINTS := ["head", "pelvis", "spine_03", "upperarm_l", "upperarm_r", "lowe
 const METHODS := ["commands", "open", "new", "run", "pose", "state", "measure", "describe", "ask", "check", "diff", "validate", "save", "quit", "assert", "events", "where", "place", "facts", "brief", "dry", "text_view", "lint", "frame_data"]
 ## C06: the methods the MCP server advertises on top of METHODS. They are NOT in METHODS: its list is the "ready" line and the -32601 text of the
 ## byte-for-byte transcript (refs/agent/serve_transcript.jsonl), which tests/agent_tools_test.gd replays. tools/mcp/poser_mcp.py names each of these (advertised with --math / POSER_MCP_MATH=1)
-const MCP_EXTRA := ["cancel_windows", "reactable", "throw_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "fits"]
+const MCP_EXTRA := ["cancel_windows", "reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "fits"]
 ## MCPFAST: the CAD tools (scripts/build/mcp_cad.gd); advertised with --cad
 const MCP_CAD := ["cad_part", "cad_asm", "check_fit", "bom", "eval_gd", "cad_reset"]
 
@@ -478,6 +478,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"throw_check":   # N040 wired (L34): does the throw work? {clip?, fps?, thrower?} (scripts/throw_serve.gd). Not in METHODS
 			var tcr := ThrowServe.serve(m, p)
 			return _ok(id, tcr["result"]) if tcr["ok"] else _err(id, -32602, String(tcr["error"]))
+		"lock_check":   # N041 wired: does the lock reach his limit, or go past it? {clip?, fps?, locker?} (scripts/lock_serve.gd). Not in METHODS
+			var lcr := LockServe.serve(m, p)
+			return _ok(id, lcr["result"]) if lcr["ok"] else _err(id, -32602, String(lcr["error"]))
 		"lint":   # N018: a clip made anywhere, judged on Kine's body (scripts/clip_lint.gd); the live scene is put back
 			var lr := ClipLint.lint(m, String(p.get("path", "")))
 			return _ok(id, lr) if lr["ok"] else _err(id, -32602, String(lr["error"]), lr)

@@ -24,4 +24,13 @@ static func serve(m: Node, p: Dictionary) -> Dictionary:
 		S.from_dict(d)
 	if S.actors.is_empty():
 		return {"ok": false, "error": "throw_check needs a scene of two bodies: this scene has one fighter. Open one with a partner or give {clip}"}
-	return {"ok": true, "result": ThrowTruth.to_json(ThrowTruth.judge(S, fps, th))}
+	var full := ThrowTruth.to_json(ThrowTruth.judge(S, fps, th))
+	if bool(p.get("brief", false)):   # L45: the verdict, the key frame, and that frame's partner out and thrower margin (the same numbers as the full reply)
+		var out := {"ok": full["ok"], "verdict": full["verdict"], "frame": full["frame"]}
+		var kf := int(full["frame"])
+		if kf >= 0 and kf < (full["frames"] as Array).size():
+			var fk: Dictionary = full["frames"][kf]
+			out["partner_out_m"] = fk["partner"]["out_m"]
+			out["thrower_margin_m"] = fk["thrower"]["margin_m"]
+		return {"ok": true, "result": out}
+	return {"ok": true, "result": full}
