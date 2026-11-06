@@ -224,6 +224,7 @@ var rs_ui: RealismUI   # REALISM SCORE (ROADMAP I16): one 0-100 number from the 
 var pr_ui: WeaponReboundUI   # PARRY REBOUND (ROADMAP I40): the exchange of momentum when two weapons meet and the deflection keyed on both hands (scripts/weapon_rebound_ui.gd)
 var wt_ui: WeaponTorqueUI   # WEAPON WEIGHT (ROADMAP I30): torque of a weapon swing vs human strength (scripts/weapon_torque_ui.gd)
 var tc_ui: TimingCoachUI   # TIMING COACH (ROADMAP I4): the suggestions panel and its preview (scripts/timing_coach_ui.gd)
+var bm_ui: BlendMatrixUI   # BLEND MATRIX (N084): the command, the heat grid and the blend preview (scripts/blend_matrix_ui.gd)
 var mm_ui: MotionMatchUI   # MOTION MATCHING PREVIEW (ROADMAP 33): the commands and the preview (scripts/motion_match_ui.gd)
 var ui_help: PanelContainer
 var ui_why: PanelContainer   # WHAT WENT WRONG? (ROADMAP 43): the last refusal explained (scripts/whywrong.gd)
@@ -3715,6 +3716,8 @@ func _process_body(dt: float) -> void:
 	_p0 = PerfDoc.t()
 	if mm_ui != null:
 		mm_ui.tick(dt)   # MOTION MATCHING PREVIEW: steers and plays the matched frames while it is on (nothing otherwise)
+	if bm_ui != null:
+		bm_ui.tick(dt)   # BLEND MATRIX preview (N084): plays the clicked blend
 	if mp_ui != null:
 		mp_ui.tick(dt)
 	if ds_ui != null:
@@ -6900,6 +6903,8 @@ func _restore(u: Dictionary) -> void:
 	_bake_drop(u["scene"] if u.get("scene") is Scene else null)
 	if mm_ui != null:
 		mm_ui.halt()   # a motion matching preview ends with the step taken back: it would play over the restored pose
+	if bm_ui != null:
+		bm_ui.halt()
 	if sd_ui != null:
 		sd_ui.halt()
 	if wt_ui != null:
@@ -7161,6 +7166,8 @@ func _push_undo() -> void:
 	_bake_drop()
 	if mm_ui != null:
 		mm_ui.halt()   # an edit ends the motion matching preview: it would write its next frame over the edit (the toggle pushes its step first, then starts)
+	if bm_ui != null:
+		bm_ui.halt()
 	if _undo_merge:   # Easy's + Add pose after a drag: no new step; easy_mode.add_pose renames the drag's step and keeps its undo state
 		_step_hint = ""
 		_step_easy = ""
@@ -17268,6 +17275,9 @@ func _commands() -> Array:
 		tm_ui = TimingMatchUI.new(self)
 	tm_ui.commands(add)   # MATCH THE REFERENCE TIMING (ROADMAP I29)
 	mm_ui.commands(add)   # MOTION MATCHING PREVIEW + coverage report (ROADMAP 33; scripts/motion_match_ui.gd)
+	if bm_ui == null:
+		bm_ui = BlendMatrixUI.new(self)
+	bm_ui.commands(add)   # BLEND MATRIX (N084; scripts/blend_matrix_ui.gd)
 	add.call("Bake to cards", "", _bake, "bake flatten curves part keys modifiers export agent frames", true, "flatten the scene into one card per frame as it really plays (part keys, modifiers, floor, pins, layer, breathing baked in; those switches go off), one undo step (DD4)")
 	add.call("Reduce part keys (tolerance slider)", "", _keyreduce_popup, "reduce keys key reduction thin decimate simplify dense bake video import tolerance error curve slider", true, "drop the part keys the curve can lose within a tolerance in degrees (every angle channel); the readout shows keys kept and the worst error; one undo step (ROADMAP 68)")
 	add.call("Curve editor", "", _curve_toggle, "graph curves keys channel animation", false, "open or close the curve editor: the picked part's part keys drawn as curves; drag a key to change its angle and time (XX2)")

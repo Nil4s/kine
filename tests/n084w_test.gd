@@ -134,7 +134,7 @@ func _init() -> void:
 	P.queue_free()
 	# d
 	var found := false
-	for c in (await T.request(6, "commands", {"find": "blend matrix"})).get("result", {}).get("commands", []):
+	for c in (await T.request(6, "commands", {"find": "blend matrix"})).get("result", []):
 		if "Blend matrix" in String(c.get("name", "")):
 			found = true
 	ok(found, "d the command 'Blend matrix: check my clips...' is in the list")
@@ -165,6 +165,29 @@ func _init() -> void:
 		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://out"))
 		img.save_png(ProjectSettings.globalize_path("res://out/n084w_panel.png"))
 		print("SHOT out/n084w_panel.png %dx%d" % [img.get_width(), img.get_height()])
+		# PLACEMENT (numbers, not looking): every cell's box sits inside the grid control, the grid control inside the window, and the pixel at a cell's centre is that cell's colour
+		var pr: Rect2 = ui.panel.get_global_rect()
+		var wsz := root.get_visible_rect().size
+		var n_in := 0
+		var n_px := 0
+		var nn := int(ui.M.get("n", 0))
+		var sc: ScrollContainer = ui.panel.get_parent()
+		var vis: Rect2 = sc.get_global_rect()
+		var n_vis := 0
+		for ci in nn:
+			for cj in nn:
+				var cr: Rect2 = ui.panel.cell_rect(ci, cj)
+				if Rect2(Vector2.ZERO, ui.panel.size).encloses(cr):
+					n_in += 1
+				var gc: Vector2 = pr.position + cr.get_center()
+				if vis.has_point(gc) and Rect2(Vector2.ZERO, wsz).has_point(gc):
+					n_vis += 1
+					var px := img.get_pixel(int(gc.x), int(gc.y))
+					var want: Color = ui.panel.cell_color(ci, cj)
+					if absf(px.r - want.r) + absf(px.g - want.g) + absf(px.b - want.b) < 0.06:
+						n_px += 1
+		print("     PLACEMENT grid %s in window %s; %d of %d cell boxes inside the grid; %d visible cells, %d read back their colour from the screenshot" % [pr, wsz, n_in, nn * nn, n_vis, n_px])
+		ok(nn >= 2 and n_in == nn * nn and n_vis > 0 and n_px == n_vis and Rect2(Vector2.ZERO, wsz).encloses(vis), "e placement: all %d cell boxes inside the grid, %d of %d visible cells match their colour on screen" % [nn * nn, n_px, n_vis])
 		print(BlendMatrix.words(ui.M, 8))
 		ok(int(ui.M.get("n", 0)) >= 2, "e the real scenes: %d clips, %d bad pairs" % [int(ui.M.get("n", 0)), (ui.M.get("bad", []) as Array).size()])
 	print("N084W TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))

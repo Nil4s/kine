@@ -140,7 +140,7 @@ func fixtures() -> Dictionary:
 	out["idle"] = pose_clip("idle", {}, 3.0)
 	out["breath"] = pose_clip("breath", {"upperarm_l": Vector3(0, hi * 0.3, 0)}, 6.0)
 	out["crouch_deep"] = pose_clip("crouch_deep", {"thigh_l": Vector3(110, 0, 0), "thigh_r": Vector3(110, 0, 0), "calf_l": Vector3(130, 0, 0), "calf_r": Vector3(130, 0, 0)}, 0.0, true)
-	out["crouch_ok"] = pose_clip("crouch_ok", {"thigh_l": Vector3(60, 0, 0), "thigh_r": Vector3(60, 0, 0), "calf_l": Vector3(120, 0, 0), "calf_r": Vector3(120, 0, 0)}, 0.0, true)
+	out["crouch_ok"] = pose_clip("crouch_ok", {"thigh_l": Vector3(20, 0, 0), "thigh_r": Vector3(20, 0, 0), "calf_l": Vector3(40, 0, 0), "calf_r": Vector3(40, 0, 0)}, 0.0, true)
 	out["hyper"] = pose_clip("hyper", {"upperarm_l": Vector3(0, hi + 15.0, 0)})
 	out["edge"] = pose_clip("edge", {"upperarm_l": Vector3(0, hi - 1.0, 0)})
 	out["fold"] = pose_clip("fold", fold_pose())
@@ -294,8 +294,8 @@ func ref_cell(ca: Dictionary, cb: Dictionary, blend_s: float) -> Dictionary:
 	for sd in ["_l", "_r"]:
 		var lw: Array = low_d[sd]
 		var bl: Array = ball[sd]
-		var sp := pa[sd] < SOLE_V and lw[0] < SOLE_H
-		var ep := pbv[sd] < SOLE_V and lw[m] < SOLE_H
+		var sp: bool = float(pa[sd]) < SOLE_V and float(lw[0]) < SOLE_H
+		var ep: bool = float(pbv[sd]) < SOLE_V and float(lw[m]) < SOLE_H
 		var s := 0.0
 		if sp:
 			for k in range(1, m + 1):
@@ -459,7 +459,7 @@ func _init() -> void:
 	# 7 json, ranking
 	var js := BlendMatrix.to_json(M12)
 	var back := BlendMatrix.from_json(js)
-	var same := back.get("names", []) == M12["names"] and (back["cells"] as Array).size() == 12 and (back["bad"] as Array).size() == (M12["bad"] as Array).size()
+	var same: bool = back.get("names", []) == M12["names"] and (back["cells"] as Array).size() == 12 and (back["bad"] as Array).size() == (M12["bad"] as Array).size()
 	var worst_rt := 0.0
 	if same:
 		for i in 12:
@@ -471,7 +471,7 @@ func _init() -> void:
 						same = false
 				for k in ["limit_deg", "clash_mm", "skate_mm", "seam", "score"]:
 					worst_rt = maxf(worst_rt, absf(float(c1[k]) - float(c2[k])))
-	ok(same and worst_rt < 1e-3, "7 the JSON round-trips: %d bytes, cells, verdicts and the bad list equal, worst number difference %.2g" % [js.length(), worst_rt])
+	ok(same and worst_rt < 1e-3, "7 the JSON round-trips: %d bytes, cells, verdicts and the bad list equal, worst number difference %s" % [js.length(), str(worst_rt)])
 	var bad: Array = M12["bad"]
 	var sorted := true
 	for i in range(1, bad.size()):

@@ -15,7 +15,7 @@ const POINTS := ["head", "pelvis", "spine_03", "upperarm_l", "upperarm_r", "lowe
 const METHODS := ["commands", "open", "new", "run", "pose", "state", "measure", "describe", "ask", "check", "diff", "validate", "save", "quit", "assert", "events", "where", "place", "facts", "brief", "dry", "text_view", "lint", "frame_data"]
 ## C06: the methods the MCP server advertises on top of METHODS. They are NOT in METHODS: its list is the "ready" line and the -32601 text of the
 ## byte-for-byte transcript (refs/agent/serve_transcript.jsonl), which tests/agent_tools_test.gd replays. tools/mcp/poser_mcp.py names each of these (advertised with --math / POSER_MCP_MATH=1)
-const MCP_EXTRA := ["reactable", "throw_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "fits"]
+const MCP_EXTRA := ["blend_matrix", "reactable", "throw_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "fits"]
 ## MCPFAST: the CAD tools (scripts/build/mcp_cad.gd); advertised with --cad
 const MCP_CAD := ["cad_part", "cad_asm", "check_fit", "bom", "eval_gd", "cad_reset"]
 
@@ -469,6 +469,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# its -32601 message is in the byte-for-byte transcript (refs/agent/serve_transcript.jsonl)
 			var fa := FrameAdvantage.serve(m, p)
 			return _ok(id, fa["result"]) if fa["ok"] else _err(id, -32602, String(fa["error"]))
+		"blend_matrix":   # N084: every clip-to-clip crossfade of a moveset checked for limit breaks, self-clash and foot skate {clips?, blend_s?, a?, b?, full?, top?} (scripts/blend_matrix_serve.gd). Not in METHODS
+			var bmr := BlendMatrixServe.serve(m, p)
+			return _ok(id, bmr["result"]) if bmr["ok"] else _err(id, -32602, String(bmr["error"]))
 		"reactable":   # N082 wired (L11): can a viewer SEE each strike coming in time to react? {clip?, frame?, latency_ms?, fps?} (scripts/reactable_serve.gd). Not in METHODS
 			var rxr := ReactableServe.serve(m, p)
 			return _ok(id, rxr["result"]) if rxr["ok"] else _err(id, -32602, String(rxr["error"]))
