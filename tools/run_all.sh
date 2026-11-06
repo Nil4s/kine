@@ -1033,6 +1033,7 @@ EXTRA="$EXTRA ch16:w"   # ch16: Sony a7 / ILCE-7 class camera, separate Parts, m
 EXTRA="$EXTRA g30draw:w"   # G30DRAW: Assembly exact-solid plan/front/section drawing + rated power/signal schematic, SVG/PNG and UI export (gaps G30/G31)
 EXTRA="$EXTRA g21compare:w"   # g21compare: shared render-vs-reference stats and side-by-side (CompareShot)
 EXTRA="$EXTRA look4d:w"   # LOOK4D: A/B/C/D formats of a scene at time t (screenshot, filmstrip, annotated image, JSON digest): finite-difference velocity, occlusion, arrow pixels, 768x432 in 5 s (tests/look4d_test.gd)
+EXTRA="$EXTRA look4d2:w"   # LOOK4D2 / L1 AI-COST: zoomable digest (levels 0-3, delta, character, held), MCP look4d + sweep (tests/look4d2_test.gd)
 EXTRA="$EXTRA g16open:w"   # g16open (gap G16): stroke retopo across open edges, boundary as side / close the hole (tests/g16open_test.gd)
 EXTRA="$EXTRA g4dbl:w"   # G4DBL: CAD poses in doubles (Xform64, Assembly.xf64_of, place64): round trip 1e-12, CH13 pin height 1e-9 mm, display = float32 rounding, save/load bit-exact, tests/g4dbl_test.gd
 EXTRA="$EXTRA g3fits:w"   # G3FITS: ISO 286 fit classes on Part dimensions (iso_fits.gd, dim_fit.gd), mating-pair kind + clearance, stack-up panel (worst case, RSS, CSV), agent call fits, tests/g3fits_test.gd
