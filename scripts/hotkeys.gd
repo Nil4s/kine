@@ -136,7 +136,8 @@ func load_from(path: String) -> void:
 func save_to(path: String) -> void:
 	var cf := ConfigFile.new()
 	cf.load(path)   # keeps the poser's other sections (theme, scale, ...)
-	cf.erase_section(SECTION)
+	if cf.has_section(SECTION):
+		cf.erase_section(SECTION)
 	for key in over:
 		cf.set_value(SECTION, key, over[key])
 	cf.save(path)
@@ -202,6 +203,84 @@ func refresh() -> void:
 	save_to(m.settings)
 	if ui != null and ui.visible:
 		rebuild_rows()
+
+
+# ---- the keymap as a JSON profile (L20): every action with its shortcut, conflicts, save / load / reset ---------------------
+
+const SCHEMA := 1
+const PROFILE := "user://kine_keymap.json"
+
+
+## the profile text for a set of overrides: {"schema": 1, "keys": {command id: key}} (sorted, so the same map is the same bytes)
+static func to_json(overrides: Dictionary) -> String:
+	return JSON.stringify({"schema": SCHEMA, "keys": overrides}, "	", true)
+
+
+## {ok, over, msg}: not ok for text that is not JSON, not a dictionary, another schema, or keys that are not text -> key
+static func from_json(txt: String) -> Dictionary:
+	var j := JSON.new()
+	if txt.strip_edges() == "" or j.parse(txt) != OK or not (j.data is Dictionary):
+		return {"ok": false, "over": {}, "msg": "the keymap file is not readable"}
+	var D: Dictionary = j.data
+	if not D.has("schema") or int(D["schema"]) != SCHEMA or not (D.get("keys", null) is Dictionary):
+		return {"ok": false, "over": {}, "msg": "the keymap file is from another version"}
+	var over := {}
+	for k in D["keys"]:
+		if not (D["keys"][k] is String):
+			return {"ok": false, "over": {}, "msg": "the keymap file has a key that is not text"}
+		over[String(k)] = String(D["keys"][k])
+	return {"ok": true, "over": over, "msg": "keymap loaded"}
+
+
+## every key that more than one action holds: [{key, ids: [...]}], sorted by key
+static func conflicts(cmds: Array) -> Array:
+	var by := {}
+	for c in cmds:
+		var k := String(c["keys"])
+		if k != "":
+			if not by.has(k):
+				by[k] = []
+			(by[k] as Array).append(String(c["id"]))
+	var out := []
+	var ks := by.keys()
+	ks.sort()
+	for k in ks:
+		if (by[k] as Array).size() > 1:
+			out.append({"key": k, "ids": by[k]})
+	return out
+
+
+## every action with its current shortcut: [{id, name, area, key, default}]
+static func listing(cmds: Array) -> Array:
+	var out := []
+	for c in cmds:
+		out.append({"id": String(c["id"]), "name": String(c["name"]), "area": area_of(c), "key": String(c["keys"]), "default": String(c.get("default", c["keys"]))})
+	return out
+
+
+func save_json(path := PROFILE) -> bool:
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		return false
+	f.store_string(to_json(over))
+	f.close()
+	return true
+
+
+## load a profile; a file that cannot be used puts the built-in keys back (nothing crashes)
+func load_json(path := PROFILE) -> Dictionary:
+	var f := FileAccess.open(path, FileAccess.READ)
+	var r := from_json(f.get_as_text() if f != null else "")
+	if f != null:
+		f.close()
+	if not r["ok"]:
+		reset_all()
+		return r
+	over = r["over"]
+	pending = ""
+	capture = ""
+	refresh()
+	return r
 
 
 # ---- keys in the poser ----------------------------------------------------------------------------------------------
@@ -303,6 +382,16 @@ func open_editor() -> void:
 		reset_b.text = "Reset to defaults"
 		reset_b.pressed.connect(reset_all)
 		bar.add_child(reset_b)
+		var save_b := Button.new()
+		save_b.name = "hk_save"
+		save_b.text = "Save keymap"
+		save_b.pressed.connect(func(): status.text = "keymap saved" if save_json() else "could not save the keymap")
+		bar.add_child(save_b)
+		var load_b := Button.new()
+		load_b.name = "hk_load"
+		load_b.text = "Load keymap"
+		load_b.pressed.connect(func(): status.text = String(load_json()["msg"]))
+		bar.add_child(load_b)
 		var close_b := Button.new()
 		close_b.name = "hk_close"
 		close_b.text = "Close"
@@ -330,6 +419,9 @@ func begin_capture(id: String) -> void:
 
 
 func rebuild_rows() -> void:
+	var cf := conflicts(m.ui_cmd.commands)
+	if status != null and not cf.is_empty() and capture == "":
+		status.text = "%d key%s used by more than one action: %s" % [cf.size(), "" if cf.size() == 1 else "s", ", ".join(cf.map(func(c): return String(c["key"])))]
 	for ch in rows.get_children():
 		rows.remove_child(ch)
 		ch.queue_free()

@@ -74,7 +74,7 @@ static func text_actors(actors: Array, title: String, clean := true) -> Array:
 ##   entry per index). USD evaluates the shapes first (points += weight * offset), then the skinning.
 ## ch = {"name", "verts" (world rest, the body's rest space), "faces": [PackedInt32Array], "k" (stride of ids / w), "ids"
 ##   (PackedInt32Array V*k, index into Body.ORDER, -1 = none), "w" (PackedFloat32Array V*k), "bind_xf" (Transform3D, optional,
-##   identity default), "shapes": [{"name", "offsets": PackedVector3Array (V), "sparse": bool}], "shape_w": Callable(t) -> {name: weight}}
+##   identity default), "rest_p0" ({joint: Vector3}, optional: the joints' rest positions when not Kine's own), "shapes": [{"name", "offsets": PackedVector3Array (V), "sparse": bool}], "shape_w": Callable(t) -> {name: weight}}
 ## -> [text, {"frames", "joints", "fps", "verts", "k", "shapes"}]. text() and the layered / actor writers are unchanged.
 static func text_skinned(S: Scene, B: Body, ch: Dictionary, clean := true) -> Array:
 	var fps := float(maxi(1, S.fps))
@@ -102,7 +102,7 @@ static func text_skinned(S: Scene, B: Body, ch: Dictionary, clean := true) -> Ar
 		extra.append(pad + "    }")
 	var h := _head(S.name, fps, n)
 	h.append_array(PackedStringArray(["def SkelRoot \"Kine\"", "{"]))
-	h.append_array(_skel(S, B, n, fps, L, pad, root, clean, extra))
+	h.append_array(_skel(S, B, n, fps, L, pad, root, clean, extra, ch.get("rest_p0", {})))
 	var verts: PackedVector3Array = ch["verts"]
 	var nv := verts.size()
 	var stride: int = ch["k"]
@@ -212,10 +212,12 @@ static func _head(title: String, fps: float, n: int) -> PackedStringArray:
 
 
 ## one Skeleton + SkelAnimation (lines, indented by pad) under the prim at root, n samples at fps over 0..L
-static func _skel(S: Scene, B: Body, n: int, fps: float, L: float, pad: String, root: String, clean := true, extra := PackedStringArray()) -> PackedStringArray:
+## rest_p0 (optional {joint: Vector3}): the joints' rest positions when they are not Kine's own (an imported character's own bone lengths)
+static func _skel(S: Scene, B: Body, n: int, fps: float, L: float, pad: String, root: String, clean := true, extra := PackedStringArray(), rest_p0 := {}) -> PackedStringArray:
 	var keep := B.state()
 	if B.body != S.body:
 		B.set_proportions(S.body)   # PR2: bind and rest transforms are the scene's own body's (put back at the end)
+	var P0 := func(j: String) -> Vector3: return rest_p0[j] if rest_p0.has(j) else B.p0[j]
 	var paths := {}
 	var joints := PackedStringArray()
 	for j in Body.ORDER:   # ORDER lists parents before children
@@ -228,8 +230,8 @@ static func _skel(S: Scene, B: Body, n: int, fps: float, L: float, pad: String, 
 	var scl := PackedStringArray()
 	for j in Body.ORDER:
 		jt.append("\"%s\"" % paths[j])
-		bind.append(_m(B.p0[j]))
-		rest.append(_m(B.p0[j] if B.parent[j] == "" else (B.p0[j] as Vector3) - (B.p0[B.parent[j]] as Vector3)))
+		bind.append(_m(P0.call(j)))
+		rest.append(_m(P0.call(j) if B.parent[j] == "" else (P0.call(j) as Vector3) - (P0.call(B.parent[j]) as Vector3)))
 		scl.append("(1, 1, 1)")
 	var h := PackedStringArray([
 		pad + "def Skeleton \"Skel\" (", pad + "    prepend apiSchemas = [\"SkelBindingAPI\"]", pad + ")", pad + "{",
@@ -250,7 +252,7 @@ static func _skel(S: Scene, B: Body, n: int, fps: float, L: float, pad: String, 
 		var t := PackedStringArray()
 		for jj in Body.ORDER.size():
 			var j: String = Body.ORDER[jj]
-			var off: Vector3 = B.P[j] if B.parent[j] == "" else (B.p0[j] as Vector3) - (B.p0[B.parent[j]] as Vector3)
+			var off: Vector3 = B.P[j] if B.parent[j] == "" else (P0.call(j) as Vector3) - (P0.call(B.parent[j]) as Vector3)
 			t.append("(%s, %s, %s)" % [_f(off.x), _f(off.y), _f(off.z)])
 			qa[jj].append(B.compose(j, B.ang[j]).normalized())
 		tr.append(pad + "        %d: %s," % [i, q.call(t)])

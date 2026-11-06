@@ -48,6 +48,10 @@ var hidden_rows: Array = [] # the asm panel's rows that hold only proxied button
 var _was_on := false
 var _lab := false           # the rail was built with labels
 var _rail_w := RAIL_W       # the rail's current width (RAIL_W icons only; wider with labels)
+var ws: WorkLayouts         # L20: the named workspace layouts (scripts/work_layouts.gd); the factory one leaves every panel where the app puts it
+var layouts_ui: WorkLayoutsUI   # L20: the layouts dialog (View: workspace layouts)
+var _live := false          # a non-factory layout is in use
+var _ws_hold := {}          # control instance id -> true: hidden by the layout (closed), shown again when it opens or the layout is the factory one
 
 
 func setup(b: BuildUI) -> void:
@@ -64,6 +68,10 @@ func setup(b: BuildUI) -> void:
 	rail.mouse_filter = Control.MOUSE_FILTER_STOP
 	m.ui_root.add_child(rail)
 	m.ui_root.add_child(self)
+	ws = WorkLayouts.new()
+	layouts_ui = WorkLayoutsUI.new(self)
+	m.ui_root.add_child(layouts_ui)
+	_live = not ws.is_factory()
 
 
 ## the wide layout is on for this window
@@ -95,7 +103,110 @@ func active() -> bool:
 
 ## the room the rail takes on the left (nav_clear_rect adds it, so the browser, the panels and the timeline start right of it)
 func inset() -> float:
-	return (_rail_w + PAD + 2.0) if active() else 0.0
+	return (rail_w() + PAD + 2.0) if active() else 0.0
+
+
+## the rail's width: its own (icons or labels), at least the layout's rail width when a saved layout is in use
+func rail_w() -> float:
+	var pg := page_name()
+	if _live and pg != "":
+		return maxf(_rail_w, float(ws.cur["pages"][pg]["rail_w"]))
+	return _rail_w
+
+
+# ---------------------------------------------------------------- L20: workspace layouts
+
+## the workspace page of the screen shown now ("" = not an Expert Part / Assembly screen)
+func page_name() -> String:
+	match screen_kind():
+		"part":
+			return "part"
+		"asm":
+			return "engineering" if bu.asm.fits.is_open() else "assembly"
+	return ""
+
+
+## a saved (non-factory) layout places the panels; the factory layout leaves the app's own placement alone
+func ws_live() -> bool:
+	return _live and active()
+
+
+## the layout in `ws` changed (loaded, edited, reset): re-place everything
+func ws_changed() -> void:
+	_live = not ws.is_factory()
+	if not _live:
+		_unhide()
+	m._fit_top.call_deferred()
+	bu.sync.call_deferred()
+
+
+## the panels of a page the layout can place: id -> control
+func dock_controls(page: String) -> Dictionary:
+	if bu == null:
+		return {}
+	match page:
+		"part":
+			return {"browser": bu.part.browser, "inspector": bu.part.side, "timeline": bu.part.tl}
+		"assembly":
+			return {"parts": bu.asm.src_panel, "inspector": bu.asm.panel}
+		"engineering":
+			return {"parts": bu.asm.src_panel, "inspector": bu.asm.panel, "fits": bu.asm.fits.panel}
+	return {}
+
+
+func _unhide() -> void:
+	for pg in ["part", "assembly", "engineering"]:
+		var ctr := dock_controls(pg)
+		for id in ctr:
+			if is_instance_valid(ctr[id]) and _ws_hold.get(str(ctr[id].get_instance_id()), false):
+				(ctr[id] as Control).visible = true
+				_ws_hold.erase(str(ctr[id].get_instance_id()))
+
+
+## called by the Part / Assembly screens right after they place their panels: with a saved layout in use, the layout moves them. Returns {"free": the
+## middle the docks leave to the 3D view} (empty when the app's own placement stands)
+func dock_apply(page: String, cl: Rect2) -> Dictionary:
+	if not ws_live() or page != page_name():
+		return {}
+	var ctr := dock_controls(page)
+	var P: Dictionary = ws.cur["pages"][page]
+	var only := []
+	var mins := {}
+	var wants := {}
+	for id in ctr:
+		var c: Control = ctr[id]
+		var held: bool = _ws_hold.get(str(c.get_instance_id()), false)
+		if not (c.visible or held):
+			continue
+		only.append(id)
+		var cm := c.get_combined_minimum_size()
+		var df: Dictionary = WorkLayouts.PANEL_DEFS[page][id]
+		mins[id] = Vector2(maxf((df["min"] as Vector2).x, minf(cm.x, 520.0)), maxf((df["min"] as Vector2).y, minf(cm.y, cl.size.y * 0.45)))   # the content's own least height (a dialog), so a bottom dock is never shorter than what it holds
+		wants[id] = Vector2(c.size.x, maxf(c.size.y, cm.y if held else 0.0))
+	var vs: Vector2 = m.get_viewport().get_visible_rect().size
+	var chrome := (WorkLayouts.TOP + WorkLayouts.PAGEBAR) * vs.x + minf(rail_w(), 400.0) * WorkLayouts.RAIL_H_EST
+	var r := WorkLayouts.solve(P, page, vs, cl, chrome, only, mins, wants)
+	var rects: Dictionary = r["rects"]
+	var free := Rect2(cl.position.x + WorkLayouts.GAP, cl.position.y, cl.size.x - 2.0 * WorkLayouts.GAP, cl.size.y)
+	for id in only:
+		var c: Control = ctr[id]
+		var key := str(c.get_instance_id())
+		if rects.has(id):
+			if _ws_hold.get(key, false):
+				c.visible = true
+				_ws_hold.erase(key)
+			var q: Rect2 = rects[id]
+			c.size = q.size
+			c.position = q.position
+			var dk := String(P["panels"][id]["dock"])
+			if dk == "left":
+				free = Rect2(maxf(free.position.x, q.end.x + WorkLayouts.GAP), free.position.y, free.end.x - maxf(free.position.x, q.end.x + WorkLayouts.GAP), free.size.y)
+			elif dk == "right":
+				free.size.x = minf(free.end.x, q.position.x - WorkLayouts.GAP) - free.position.x
+		else:
+			c.visible = false
+			_ws_hold[key] = true
+	return {"free": free, "closed": r["closed"]}
 
 
 ## the top of the room under the ribbon: the Part and Assembly screens start below the ribbon bar's own bottom edge (its tools and
@@ -317,7 +428,7 @@ func _process(_dt: float) -> void:
 		m._fit_top.call_deferred()
 	var cl: Rect2 = m.nav_clear_rect()
 	rail.position = Vector2(PAD, cl.position.y + 4.0)
-	rail.size = Vector2(_rail_w, minf(rail.get_combined_minimum_size().y, cl.size.y - 8.0))
+	rail.size = Vector2(rail_w(), minf(rail.get_combined_minimum_size().y, cl.size.y - 8.0))
 	for row in hidden_rows:
 		if is_instance_valid(row):
 			(row as Control).visible = false
