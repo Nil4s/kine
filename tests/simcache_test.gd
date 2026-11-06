@@ -313,6 +313,16 @@ func _init() -> void:
 		want_v.append((lf[57] as PackedVector3Array)[q])
 	ok(mesh_v.size() == want_v.size() and bytes_of(mesh_v) == bytes_of(want_v), "3 the cape drawn at the playhead holds the cached frame 57 (%d vertices)" % mesh_v.size())
 	m.S.cape = keep_cape
+	var shot := OS.get_environment("SIMCACHE_SHOT")
+	if shot != "":   # SIMCACHE_SHOT=<dir>: the window with the cape at frame 75 (mid-turn) drawn from the file, and at frame 0
+		DirAccess.make_dir_recursive_absolute(shot)
+		for kk in [0, 75, 120]:
+			m.playhead = float(kk) / 60.0
+			m._ps().apply(m.B, m.playhead)
+			m._refresh()
+			await idle(3)
+			await RenderingServer.frame_post_draw
+			root.get_viewport().get_texture().get_image().save_png(shot.path_join("simcache_f%d.png" % kk))
 
 	# 5 STALE
 	var reads0: int = m.simc.reads
