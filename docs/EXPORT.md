@@ -101,10 +101,15 @@ Anything that reads glTF 2.0 or BVH: three.js, Babylon.js, Cascadeur, MotionBuil
 
 If you try one of these, the result (it worked, or what broke) is worth adding here.
 
-## Soft flesh is NOT in the exports (L22, known gap)
+## Soft flesh is NOT in the exports (L22, known gap; L32 looked at it and left it)
 
 The soft-body flesh (BODY page > Soft flesh, `scripts/soft_live.gd`) deforms the drawn skin in the viewport only. The FBX and glTF exports
 carry the skeleton animation and the skinned mesh, and the USD "point cache" (`<name>_points.usda`) is a Points prim of the JOINTS, not of
-skin vertices; none of them has a per-vertex channel, so the flesh offsets (`SoftBody.vertex_offsets`) have nowhere to go. An exported clip
-plays without the jiggle. Closing the gap needs a per-frame vertex cache (a USD PointBased mesh with time samples, or glTF morph targets
-weighted per frame) written from the same bake the viewport reads (`SoftLive.bake`); neither writer exists yet.
+skin vertices; none of them has a per-vertex channel, so the flesh offsets have nowhere to go. An exported clip plays without the jiggle.
+
+L32 checked whether #242's USD skin export (`UsdExport.text_skinned`) makes it cheap, and it does not. The flesh offset of a vertex is a WORLD
+displacement that SoftLive puts into the BIND-pose vertex through the inverse of the vertex's blended skinning matrix, per frame
+(`KineSoftSkinNative.deform` computes exactly that vector: `new - rest`). USD can carry it only as a BlendShape whose `offsets` change with time
+(`offsets.timeSamples`), and UsdSkel readers (Unreal, Houdini, Blender) are not required to honour animated blend-shape offsets; the portable
+form is a baked PointBased mesh per frame, which drops the skinning. Neither writer exists. When one is written, the data is ready: run
+`SoftLive` over the clip at the export fps, keep `deform`'s `buf` positions (12 bytes a vertex, little-endian float32) per frame.
