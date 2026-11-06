@@ -111,3 +111,19 @@ Motion questions = S1-S4 (not S5, not S6).
 - Balanced accuracy will be reported alongside raw accuracy for every arm and question type: the mean of yes-recall and no-recall on yes/no questions, and per-option recall on the others.
 - The primary bars P1 and P2, and the controls, are judged on raw accuracy as registered. If balanced accuracy reverses any verdict, that is reported as a caveat. The bars do not change.
 - Readers are fresh Sonnet subagents. Each gets only its packet, copied outside the repo. Answers are graded by `tools/look4d_truth.py grade`.
+
+## LOOK4D-2 registration (lead, 11-06, before any reader run)
+Packets are in out/look4d2. There are 66 detail questions (held, held_by, joint_limit, support, ttc, balance), 5 arms (D1, L01, L012, Z, L012scr) and 2 reps.
+- **Primary set:** questions that `answer_from_levels` can answer from L012 (59 of 66). The 7 time-to-collision questions are unanswerable because level 2 lists only the 3 nearest gaps. They are reported separately as a FORMAT LIMIT and are excluded from the primary bars.
+- **H1:** L012 beats D1 on the primary set by at least 15 points.
+- **H2:** L01 is at least D1 minus 5 on the primary set (the cheaper level 1 is no worse).
+- **Controls:**
+  - L012scr is within 10 points of Z.
+  - L012 beats L012scr by at least 20.
+- **Reported, not barred:**
+  - per-type accuracy
+  - balanced accuracy (yes share 0.40)
+  - tokens per packet
+  - the 7 format-limit questions
+  - the balance type is weak, because most instants are balanced
+- **Fix candidate whatever the result:** level 2 should take a second named part and return that pair's gap and ttc.
