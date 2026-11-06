@@ -523,6 +523,16 @@ static func _cell_gd(x: PackedFloat64Array, w: PackedFloat64Array, tets: PackedI
 
 # ============================================================ regions on the body
 
+## L22: the BODY panel's toggles, each a group of regions (the order the scene key keeps them in)
+const GROUPS := {"belly": ["belly"], "chest": ["chest"], "thighs": ["thigh_l", "thigh_r"], "arms": ["arm_l", "arm_r"]}
+const STRENGTH_MAX := 4.0
+
+
+## the strength multiplier of the live flesh (the scene key "strength", 1 when absent)
+static func strength_of(S: Scene) -> float:
+	return clampf(float(S.soft.get("strength", 1.0)), 0.0, STRENGTH_MAX)
+
+
 ## true when the scene asks for any region
 static func active(S: Scene) -> bool:
 	return not regions_of(S).is_empty()
@@ -615,18 +625,28 @@ static func region_disp(reg: Dictionary, B: Body) -> PackedVector3Array:
 	var st: Dictionary = reg["st"]
 	var stat: PackedVector3Array = reg["static"]
 	var out := PackedVector3Array()
+	# L22: the standing sag is a displacement in the HOST's frame (the skinned mesh carries it with the bone). With sag_body the
+	# stored world sag is turned by the host's rotation since it was taken; the old default subtracts it unturned (soft_test.gd).
+	var rot := Quaternion.IDENTITY
+	if reg.get("sag_body", false) and reg.has("g0"):
+		rot = (B.G[reg["host"]] as Quaternion) * (reg["g0"] as Quaternion).inverse()
 	for i in pose.size():
 		var d := node(st, i) - pose[i]
 		if not stat.is_empty():
-			d -= stat[i]
+			d -= rot * stat[i]
 		out.append(d)
 	return out
 
 
 ## Bakes regions over a Scene: {hz, frames, regions: {name: {disp: [PackedVector3Array per frame]}}}. B is put back as it was.
-## o: damp_scale (a test's over-damped control), preroll (s, default 1.0), plus region_new's overrides
+## o: damp_scale (a test's over-damped control), preroll (s, default 1.0), plus region_new's overrides.
+## L22: sag_frame "body" turns the standing sag with the host bone (default "world": the L17 behaviour); cancel: an Array whose [0]
+## true ends the bake early ({} returned). The result also carries "static" {name: sag} and "geom" {name: host, xf, size, n} (all
+## the live deform needs of a region, so the app never builds a region of its own).
 static func bake_scene(S: Scene, B: Body, names: Array, hz: float, o := {}) -> Dictionary:
 	var out := {"hz": hz, "frames": 0, "regions": {}}
+	var cancel: Array = o.get("cancel", [false])
+	var body_sag: bool = String(o.get("sag_frame", "world")) == "body"
 	if names.is_empty():
 		return out
 	var keep := B.state()
@@ -639,12 +659,25 @@ static func bake_scene(S: Scene, B: Body, names: Array, hz: float, o := {}) -> D
 	for n in names:
 		regs.append(region_new(B, String(n), o))
 	for k in int(float(o.get("preroll", 1.0)) * hz):
+		if cancel[0]:
+			return {}
 		for reg in regs:
 			region_step(reg, B, step_o)
+	out["static"] = {}
+	out["geom"] = {}
 	for reg in regs:
 		reg["static"] = region_disp(reg, B)
+		if body_sag:
+			reg["sag_body"] = true
+			reg["g0"] = B.G[reg["host"]]
 		(out["regions"] as Dictionary)[reg["name"]] = {"disp": []}
+		out["static"][reg["name"]] = reg["static"]
+		out["geom"][reg["name"]] = {"name": reg["name"], "host": reg["host"], "xf": reg["xf"], "size": reg["size"], "n": reg["n"]}
 	for k in nf:
+		if cancel[0]:
+			B.set_state(keep)
+			B.fk()
+			return {}
 		S.apply(B, minf(float(k) / hz, L))
 		for reg in regs:
 			region_step(reg, B, step_o)
@@ -720,7 +753,10 @@ static func mirror_file(d: Dictionary) -> Dictionary:
 		elif m.ends_with("_r"):
 			m = m.trim_suffix("_r") + "_l"
 		out.append(m)
-	return {"regions": out}
+	var res := {"regions": out}
+	if d.has("strength"):
+		res["strength"] = d["strength"]
+	return res
 
 
 ## The skinned piece of the mannequin with the region jiggle added to its vertices, or null when none of its vertices moves.

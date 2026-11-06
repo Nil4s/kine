@@ -289,7 +289,7 @@ func attach(meshes: Array, sk: Skeleton3D) -> void:
 					break
 			if hit:
 				deps.append(jt[0])
-		_entries.append([m, src, arrs, flags, mats, wd, deps, null, _gcache[key], key])
+		_entries.append([m, src, arrs, flags, mats, wd, deps, null, _gcache[key], key, null])
 
 
 ## a bone's rest origin in the skeleton's space: the rest transforms of its chain, root first. Not
@@ -320,6 +320,19 @@ func drives(B: Body) -> Dictionary:
 	for jt in JOINTS:
 		out[jt[0]] = drive_of(float(B.ang[jt[1]].x)) if on else 0.0
 	return out
+
+
+## the surface arrays of the mesh `mesh` this class put on `mi` (the file's own, or the last one it built); [] for any other mesh.
+## L22: reading them back from the engine costs about 1 ms a surface, and the soft flesh needs them every frame.
+func arrays_of(mi: MeshInstance3D, mesh: Mesh) -> Array:
+	for e in _entries:
+		if e[0] == mi:
+			if mesh == e[1]:
+				return e[2]
+			if e.size() > 10 and e[10] != null and e[10][0] == mesh:
+				return e[10][1]
+			return []
+	return []
 
 
 ## write the corrective for the pose B into the meshes (call after Overlays.pose_skeleton). A mesh is rebuilt only
@@ -354,6 +367,7 @@ func update(B: Body) -> void:
 			continue
 		var am := ArrayMesh.new()
 		var arrs: Array = e[2]
+		var built := []   # the surface arrays of the mesh made here (arrays_of: the soft flesh reads them instead of the engine)
 		for si in arrs.size():
 			var arr: Array = (arrs[si] as Array).duplicate()
 			var vs: PackedVector3Array = (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).duplicate()
@@ -373,7 +387,9 @@ func update(B: Body) -> void:
 				for i in ai:
 					vs[i] = vs[i] + dv[i] * amp
 			arr[Mesh.ARRAY_VERTEX] = vs
+			built.append(arr)
 			am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr, [], {}, int(e[3][si]))
 			am.surface_set_material(si, e[4][si])
 		mi.mesh = am
+		e[10] = [am, built]
 		rebuilds += 1

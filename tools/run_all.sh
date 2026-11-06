@@ -1047,4 +1047,5 @@ EXTRA="$EXTRA lightrig:w"   # L25: light-rig presets (studio/dramatic/overcast/s
 EXTRA="$EXTRA face_geo2:w"   # L18 face polish
 EXTRA="$EXTRA soft:w"   # L17 soft-body
 EXTRA="$EXTRA install:w"   # L16 installer
+EXTRA="$EXTRA softwire:w"   # L22 soft wiring
 EXTRA="$EXTRA layouts:w"   # L20 layouts

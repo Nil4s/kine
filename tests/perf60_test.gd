@@ -56,6 +56,12 @@ func boot() -> void:
 	m._rebuild_cards()
 	m._actor_add()
 	await idle(2)
+	if OS.get_environment("PERF60_SOFT") == "1":   # L22: the same benchmark with the soft flesh on (all six regions); not part of any bar
+		for g in SoftBody.GROUPS:
+			m.soft_set(g, true)
+		await idle(2)
+		while not m.soft_live.ready():
+			await process_frame
 	m.S.loop = true
 	# the cape: the app's own background bake, driven to the end here
 	var job := ClothJob.start(m.S)
