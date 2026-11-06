@@ -41,7 +41,7 @@
 ## STABILITY: all six regions, 1000 frames at 60 Hz of a jog-like drive: no NaN, no inverted tet, kinetic and elastic energy bounded
 ##   (under 5 x the first 200 frames' peak, and kinetic energy under 1e-3 of its peak 2 s after the drive stops).
 ##   CONTROL: negative damping (-8 /s) blows past the bound or goes non-finite; one node flipped by hand is counted as inverted.
-## COST: the native step of all six regions (N particles printed) for one 60 Hz frame (8 substeps, 2 iterations): the measured ms is
+## COST: the native step of all six regions (N particles printed) for one 60 Hz frame (8 substeps, SoftBody.DEFAULT_ITERS iterations; the 2-iteration figure is printed too): the measured ms is
 ##   printed; bar 2.0 ms. CONTROL: the same with 400 substeps must exceed the bar (the timer sees time).
 ## EQUALITY: the GDScript fallback and the native step, 120 frames of the same landing drive: every particle within 1e-9 m.
 ##   CONTROL: one particle nudged 1e-6 m in the native copy is seen (> 1e-9).
@@ -367,7 +367,8 @@ func _init() -> void:
 	# ---------- 4 COST
 	var cost := _cost(names, 8)
 	var cost_big := _cost(names, 400)
-	print("4 COST: %d particles in %d tets (%d regions): %.3f ms per 60 Hz frame at 8 substeps x 2 iterations (native %s); 400 substeps: %.2f ms" % [cost["n"], cost["tets"], names.size(), cost["ms"], str(cost["native"]), cost_big["ms"]])
+	var cost_2it := _cost(names, 8, 2)
+	print("4 COST: %d particles in %d tets (%d regions): %.3f ms per 60 Hz frame at 8 substeps x %d iteration (native %s); with 2 iterations %.3f ms; 400 substeps: %.2f ms" % [cost["n"], cost["tets"], names.size(), cost["ms"], SoftBody.DEFAULT_ITERS, str(cost["native"]), cost_2it["ms"], cost_big["ms"]])
 	ok(cost["native"] and cost["ms"] < 2.0, "4 native step of %d particles: %.3f ms (bar 2.0 ms)" % [cost["n"], cost["ms"]])
 	ok(cost_big["ms"] > 2.0, "4 CONTROL: 400 substeps take %.2f ms: the timer sees time (the bar can fail)" % cost_big["ms"])
 
@@ -452,7 +453,7 @@ func _stability(names: Array, extra: Dictionary) -> Dictionary:
 		var ke := 0.0
 		var el := 0.0
 		for r in regs:
-			SoftBody.region_step(r, B, {"dt": 1.0 / 60.0, "nsub": 8, "iters": 2, "g": G})
+			SoftBody.region_step(r, B, {"dt": 1.0 / 60.0, "nsub": 8, "iters": SoftBody.DEFAULT_ITERS, "g": G})
 			var en := SoftBody.energy(r["st"], G)
 			ke += en["ke"]
 			el += en["el"]
@@ -475,7 +476,7 @@ func _stability(names: Array, extra: Dictionary) -> Dictionary:
 	return {"frames": frames, "finite": finite, "inverted": inv, "e_early": e_early, "e_late": e_late, "ke_after_ratio": (ke_after / maxf(ke_peak, 1e-12)) if finite else INF}
 
 
-func _cost(names: Array, nsub: int) -> Dictionary:
+func _cost(names: Array, nsub: int, iters := SoftBody.DEFAULT_ITERS) -> Dictionary:
 	var B := body()
 	var regs := []
 	var n := 0
@@ -487,14 +488,14 @@ func _cost(names: Array, nsub: int) -> Dictionary:
 		tets += (r["st"]["tets"] as PackedInt32Array).size() / 4
 	for f in 10:
 		for r in regs:
-			SoftBody.region_step(r, B, {"dt": 1.0 / 60.0, "nsub": nsub, "iters": 2, "g": G})
+			SoftBody.region_step(r, B, {"dt": 1.0 / 60.0, "nsub": nsub, "iters": iters, "g": G})
 	var reps := 60 if nsub <= 8 else 3
 	var us := 0.0   # only the region steps are timed (their GDScript marshalling included); the Body.fk of the pose is not the soft body's cost
 	for f in reps:
 		jog_pose(B, float(f) / 60.0, 1.0)
 		var t0 := Time.get_ticks_usec()
 		for r in regs:
-			SoftBody.region_step(r, B, {"dt": 1.0 / 60.0, "nsub": nsub, "iters": 2, "g": G})
+			SoftBody.region_step(r, B, {"dt": 1.0 / 60.0, "nsub": nsub, "iters": iters, "g": G})
 		us += float(Time.get_ticks_usec() - t0)
 	return {"n": n, "tets": tets, "ms": us / 1000.0 / float(reps), "native": SoftBody.native_on()}
 
@@ -511,10 +512,10 @@ func _equality() -> Dictionary:
 	for f in 120:
 		S.apply(B, 0.6 + float(f) / 60.0)
 		SoftBody.force_gdscript = true
-		SoftBody.region_step(a, B, {"dt": 1.0 / 60.0, "nsub": 8, "iters": 2, "g": G})
+		SoftBody.region_step(a, B, {"dt": 1.0 / 60.0, "nsub": 8, "iters": SoftBody.DEFAULT_ITERS, "g": G})
 		SoftBody.force_gdscript = false
-		SoftBody.region_step(b, B, {"dt": 1.0 / 60.0, "nsub": 8, "iters": 2, "g": G})
-		SoftBody.region_step(ctl, B, {"dt": 1.0 / 60.0, "nsub": 8, "iters": 2, "g": G})
+		SoftBody.region_step(b, B, {"dt": 1.0 / 60.0, "nsub": 8, "iters": SoftBody.DEFAULT_ITERS, "g": G})
+		SoftBody.region_step(ctl, B, {"dt": 1.0 / 60.0, "nsub": 8, "iters": SoftBody.DEFAULT_ITERS, "g": G})
 		if nudge:
 			var xc := ctl["st"]["x"] as PackedFloat64Array
 			xc[3 * 20] += 1e-6
@@ -527,6 +528,16 @@ func _equality() -> Dictionary:
 			worst = maxf(worst, absf(xa[i] - xb[i]))
 			worst_ctl = maxf(worst_ctl, absf(xa[i] - xcc[i]))
 	return {"n": int(a["st"]["n"]), "diff": worst, "ctl": worst_ctl}
+
+
+## a node's transform up to (not including) the holder: the tree may not be live yet inside _init, so global_transform is not used
+func xf_of(n: Node3D, stop: Node) -> Transform3D:
+	var t := n.transform
+	var p := n.get_parent()
+	while p != null and p != stop and p is Node3D:
+		t = (p as Node3D).transform * t
+		p = p.get_parent()
+	return t
 
 
 func _placement(S: Scene, t_imp: float) -> void:
@@ -543,7 +554,7 @@ func _placement(S: Scene, t_imp: float) -> void:
 		var m := mi as MeshInstance3D
 		var arr := m.mesh.surface_get_arrays(0)
 		for v in (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array):
-			verts.append(m.global_transform * v)
+			verts.append(xf_of(m, holder) * v)
 	for nm in SoftBody.REGIONS:
 		var bk := SoftBody.bake_scene(S, B, [nm], 120.0, {})
 		var reg: Dictionary = bk["regions"][nm]
@@ -622,6 +633,113 @@ func _placement(S: Scene, t_imp: float) -> void:
 	holder.queue_free()
 
 
-## the picture: a before / after contact sheet of the landing, side view (SOFT_SHOT=<dir>): frames at -2, 0, +3, +8 around the impact
+## the picture: a before / after contact sheet of the landing, side view (SOFT_SHOT=<dir>): frames at -2, 0, +3, +8 around the
+## impact (1/60 s apart). Row 1 the mannequin as it is, row 2 the same frame with the soft regions added to its skin, row 3 the
+## difference of the two pictures (x8, grey) so a few millimetres can be seen at all. Nothing is exaggerated in rows 1 and 2.
 func _shot(dir: String, S: Scene, t_imp: float) -> void:
-	print("LOOK: contact sheet not written yet (%s)" % dir)
+	DirAccess.make_dir_recursive_absolute(dir)
+	var m: Node = (load("res://main.tscn") as PackedScene).instantiate()
+	root.add_child(m)
+	for i in 4:
+		await process_frame
+	m.tour_step = -1
+	if m.ui_tour != null:
+		m.ui_tour.visible = false
+	m.dummy_on = false
+	var tmp := "user://soft_shot_scene.json"
+	var fa := FileAccess.open(tmp, FileAccess.WRITE)
+	fa.store_string(JSON.stringify(S.to_dict(m.B)))
+	fa.close()
+	m._load_scene(tmp)
+	m._rebuild_cards()
+	m.playing = false
+	var names: Array = SoftBody.REGIONS.keys()
+	var bk := SoftBody.bake_scene(S, body(), names, 60.0, {})
+	var rest := body()
+	var regs := []
+	for n in names:
+		regs.append(SoftBody.region_new(rest, n, {}))
+	var sv := SubViewport.new()
+	sv.size = Vector2i(520, 760)
+	sv.transparent_bg = false
+	sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	sv.own_world_3d = false
+	root.add_child(sv)
+	var cam := Camera3D.new()
+	sv.add_child(cam)
+	cam.current = true
+	cam.fov = 28.0
+	cam.global_position = Vector3(3.6, 1.0, 0.0)
+	cam.look_at(Vector3(0.0, 0.93, 0.0), Vector3.UP)
+	var k_imp := int(round(t_imp * 60.0))
+	var offs := [-2, 0, 3, 8]
+	var rows := [[], [], []]
+	var peaks := []
+	for off in offs:
+		var k: int = k_imp + off
+		var t := float(k) / 60.0
+		m.playhead = t
+		m._ps().apply(m.B, t)
+		m._refresh()
+		for i in 3:
+			await process_frame
+		await RenderingServer.frame_post_draw
+		var before: Image = sv.get_texture().get_image()
+		var disps := []
+		var pk := 0.0
+		for n in names:
+			var d: PackedVector3Array = (bk["regions"][n]["disp"] as Array)[k]
+			disps.append(d)
+			for v in d:
+				pk = maxf(pk, v.length())
+		var clones := []
+		var hidden := []
+		for part in m.pieces:
+			var piece: MeshInstance3D = m.pieces[part]
+			var dm := SoftBody.skin_deform(piece, regs, m.B, disps)
+			if dm != null:
+				var c := MeshInstance3D.new()
+				c.mesh = dm
+				c.skin = piece.skin
+				c.material_override = piece.material_override
+				piece.get_parent().add_child(c)
+				c.transform = piece.transform
+				c.skeleton = c.get_path_to(piece.get_node(piece.skeleton))
+				clones.append(c)
+				hidden.append(piece)
+				piece.visible = false
+		for i in 3:
+			await process_frame
+		await RenderingServer.frame_post_draw
+		var after: Image = sv.get_texture().get_image()
+		for c in clones:
+			c.queue_free()
+		for h in hidden:
+			h.visible = true
+		var diff := Image.create(before.get_width(), before.get_height(), false, Image.FORMAT_RGB8)
+		var nd := 0
+		for y in before.get_height():
+			for xx in before.get_width():
+				var a := before.get_pixel(xx, y)
+				var b2 := after.get_pixel(xx, y)
+				var dv := maxf(absf(a.r - b2.r), maxf(absf(a.g - b2.g), absf(a.b - b2.b)))
+				if dv > 0.02:
+					nd += 1
+				diff.set_pixel(xx, y, Color(clampf(dv * 8.0, 0.0, 1.0), clampf(dv * 8.0, 0.0, 1.0), clampf(dv * 8.0, 0.0, 1.0)))
+		rows[0].append(before)
+		rows[1].append(after)
+		rows[2].append(diff)
+		peaks.append([off, pk, nd, clones.size()])
+		print("   frame %+d (k %d, t %.3f s): peak flesh travel %.2f mm, %d pieces deformed, %d pixels differ by more than 2 %%" % [off, k, t, pk * 1000.0, clones.size(), nd])
+	var w := 520
+	var h := 760
+	var sheet := Image.create(w * 4, h * 3, false, Image.FORMAT_RGB8)
+	for r in 3:
+		for c in 4:
+			sheet.blit_rect(rows[r][c], Rect2i(0, 0, w, h), Vector2i(c * w, r * h))
+	sheet.save_png(dir.path_join("soft_landing_sheet.png"))
+	for c in 4:
+		(rows[0][c] as Image).save_png(dir.path_join("before_%d.png" % c))
+		(rows[1][c] as Image).save_png(dir.path_join("after_%d.png" % c))
+	print("   contact sheet -> %s" % dir.path_join("soft_landing_sheet.png"))
+	sv.queue_free()

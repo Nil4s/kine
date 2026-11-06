@@ -19,6 +19,9 @@ extends RefCounted
 ## arithmetic in the same order, so they agree to rounding (bar 5). KINE_NO_NATIVE=1 or SoftBody.force_gdscript forces GDScript.
 
 static var force_gdscript := false
+## the default step of a region at 60 Hz: 8 substeps of 1 iteration (small steps beat iterations; 2 iterations cost 2.7 ms for the six
+## regions, 1 cost about half: tests/soft_test.gd bar 4)
+const DEFAULT_ITERS := 1
 static var _door = null
 static var _door_tried := false
 
@@ -630,7 +633,7 @@ static func bake_scene(S: Scene, B: Body, names: Array, hz: float, o := {}) -> D
 	var L := S.length()
 	var nf := maxi(int(ceil(L * hz - 1e-6)), 1) + 1
 	var nsub := maxi(1, int(round(480.0 / hz)))
-	var step_o := {"dt": 1.0 / hz, "nsub": nsub, "iters": 2, "g": Vector3(0.0, -9.81, 0.0), "damp_scale": float(o.get("damp_scale", 1.0))}
+	var step_o := {"dt": 1.0 / hz, "nsub": nsub, "iters": DEFAULT_ITERS, "g": Vector3(0.0, -9.81, 0.0), "damp_scale": float(o.get("damp_scale", 1.0))}
 	S.apply(B, 0.0)
 	var regs := []
 	for n in names:
@@ -718,3 +721,67 @@ static func mirror_file(d: Dictionary) -> Dictionary:
 			m = m.trim_suffix("_r") + "_l"
 		out.append(m)
 	return {"regions": out}
+
+
+## The skinned piece of the mannequin with the region jiggle added to its vertices, or null when none of its vertices moves.
+## regs / disps: the regions and their region_disp at this frame; B posed at the same frame. The offset is a WORLD displacement; the
+## mesh is skinned on the GPU, so it goes into the bind-pose vertex through the inverse of the vertex's blended skinning matrix.
+static func skin_deform(piece: MeshInstance3D, regs: Array, B: Body, disps: Array) -> ArrayMesh:
+	var mesh := piece.mesh as ArrayMesh
+	var sk := piece.get_node_or_null(piece.skeleton) as Skeleton3D
+	var skin := piece.skin
+	if mesh == null or sk == null or skin == null:
+		return null
+	var nb := skin.get_bind_count()
+	var mb := []
+	for b in nb:
+		var bone := skin.get_bind_bone(b)
+		if bone < 0:
+			bone = sk.find_bone(skin.get_bind_name(b))
+		mb.append(sk.get_bone_global_pose(bone) * skin.get_bind_pose(b))
+	var gt := sk.global_transform
+	var gi := gt.basis.inverse()
+	var out := ArrayMesh.new()
+	var any := false
+	for si in mesh.get_surface_count():
+		var arr := mesh.surface_get_arrays(si)
+		var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var bones: PackedInt32Array = arr[Mesh.ARRAY_BONES]
+		var weights: PackedFloat32Array = arr[Mesh.ARRAY_WEIGHTS]
+		var per := bones.size() / maxi(verts.size(), 1)
+		var mats := []   # per vertex: the blended skinning matrix as [x, y, z, origin]
+		var world := PackedVector3Array()
+		world.resize(verts.size())
+		for i in verts.size():
+			var bx := Vector3.ZERO
+			var by := Vector3.ZERO
+			var bz := Vector3.ZERO
+			var bo := Vector3.ZERO
+			for q in per:
+				var wq := weights[i * per + q]
+				if wq <= 0.0:
+					continue
+				var m: Transform3D = mb[bones[i * per + q]]
+				bx += m.basis.x * wq
+				by += m.basis.y * wq
+				bz += m.basis.z * wq
+				bo += m.origin * wq
+			mats.append([bx, by, bz])
+			world[i] = gt * (bx * verts[i].x + by * verts[i].y + bz * verts[i].z + bo)
+		var off := PackedVector3Array()
+		off.resize(verts.size())
+		for ri in regs.size():
+			var o := vertex_offsets(regs[ri], B, disps[ri], world)
+			for i in verts.size():
+				off[i] += o[i]
+		var nv := verts.duplicate()
+		for i in verts.size():
+			if off[i].length() > 1e-9:
+				var m3: Array = mats[i]
+				var bas := Basis(m3[0], m3[1], m3[2])
+				if absf(bas.determinant()) > 1e-12:
+					nv[i] = verts[i] + bas.inverse() * (gi * off[i])
+					any = true
+		arr[Mesh.ARRAY_VERTEX] = nv
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr, [], {}, mesh.surface_get_format(si) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
+	return out if any else null
