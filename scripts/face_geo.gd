@@ -32,7 +32,8 @@ extends RefCounted
 
 const REGION := {"face": 0, "lid_up_l": 1, "lid_lo_l": 2, "lid_up_r": 3, "lid_lo_r": 4, "lip_up": 5, "lip_lo": 6, "jaw": 7,
 	"brow_l": 8, "brow_r": 9, "cheek_l": 10, "cheek_r": 11, "forehead": 12}
-const AUS := ["AU1", "AU4", "AU6", "AU10", "AU12", "AU16", "AU18", "AU20", "AU22", "AU23", "AU24", "AU26", "AU28", "AU45"]   # AU25 (lips part) is the lens of posed()
+const AUS := ["AU1", "AU4", "AU6", "AU12", "AU26", "AU45"]   # the six the USD face export (UsdWire / usdwire bars) writes as BlendShapes and drives per frame; AU25 (lips part) is the lens of posed()
+const AUS_ALL := ["AU1", "AU4", "AU6", "AU10", "AU12", "AU16", "AU18", "AU20", "AU22", "AU23", "AU24", "AU26", "AU28", "AU45"]   # every blendshape d["au"] holds (L23: + the viseme AUs); the exporter skips the eight it has no per-frame weight for
 const VISEMES := ["rest", "A", "E", "I", "O", "U", "MBP", "FV", "L", "TH"]
 const JAW_MAX_DEG := 27.5
 const CHIN_CLIP := 0.022        # the chin sheet is cut this far above the mask's lowest vertex (m)

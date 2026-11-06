@@ -23255,9 +23255,10 @@ func _face_geo_draw(P: Dictionary) -> void:
 	var bv := (float(P["brow_l"]) + float(P["brow_r"])) * 0.5
 	var au := {"AU1": maxf(bv, 0.0), "AU4": maxf(-bv, 0.0), "AU45": float(P["blink"]), "AU6": float(P["squint"])}
 	# the viseme shape drives the mouth AUs (L23: the full set; the lip sync's own jaw channel keeps the jaw, an override brings its own)
-	var vname := face_geo_viseme if face_geo_viseme != "" else String(P.get("mouth", ""))
-	var vp := FaceGeo.viseme_pose(vname)
-	var vz: Dictionary = vp.get("au", {})
+	# The lip sync's own letters (P["mouth"]) keep the six-AU shape (FaceGeo.viseme_au) the USD face export can write (UsdWire / usdwire
+	# bars: six BlendShapes); the full ten-viseme set (the 14 AUs) is the explicit override face_geo_viseme.
+	var vp := FaceGeo.viseme_pose(face_geo_viseme) if face_geo_viseme != "" else {}
+	var vz: Dictionary = vp.get("au", {}) if face_geo_viseme != "" else FaceGeo.viseme_au(String(P.get("mouth", "")))
 	for k in vz:
 		au[k] = float(au.get(k, 0.0)) + float(vz[k])
 	for k in face_geo_au:
