@@ -329,6 +329,31 @@ static func _place_all_state(ids: Array, p: Dictionary, s: Array, frame: Diction
 	return out
 
 
+## G4DBL: place with the pose in doubles: axis, angle and move are worked out in doubles and rounded to float32 ONCE, at the kernel call
+static func place64(src: int, x: PackedFloat64Array) -> int:
+	var aa := Xform64.axis_angle(x)
+	var s := src
+	var ang: float = aa[1]
+	if absf(ang) > 1e-12:
+		var ax: Array = aa[0]
+		s = KCad.rotate(src, Vector3(ax[0], ax[1], ax[2]), ang)
+		if s == 0:
+			return 0
+	var m: int = KCad.translate(s, Vector3(x[9], x[10], x[11]))
+	if s != src:
+		KCad.release(s)
+	return m
+
+
+static func _place_all64(ids: Array, x: PackedFloat64Array) -> Array:
+	var out: Array = []
+	for s in ids:
+		var n := place64(int(s), x)
+		if n != 0:
+			out.append(n)
+	return out
+
+
 static func _place_all(ids: Array, xf: Transform3D) -> Array:
 	var out: Array = []
 	for s in ids:

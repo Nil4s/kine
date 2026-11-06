@@ -112,6 +112,12 @@ static func xf_of(p: Dictionary) -> Transform3D:
 	return Transform3D(b, Vector3(float(pos[0]), float(pos[1]), float(pos[2])) * MM)
 
 
+## G4DBL: the same place in doubles (metres); Xform64.to_t3d() of it is xf_of(p) rounded to float32, for display only
+static func xf64_of(p: Dictionary) -> PackedFloat64Array:
+	var pos: Array = p["pos"]
+	return Xform64.from_euler_deg(p["rot"], [float(pos[0]) * MM, float(pos[1]) * MM, float(pos[2]) * MM])
+
+
 static func set_pose(p: Dictionary, pos: Vector3, rot_deg: Vector3) -> void:
 	p["pos"] = [snappedf(pos.x, 0.001), snappedf(pos.y, 0.001), snappedf(pos.z, 0.001)]
 	p["rot"] = [snappedf(rot_deg.x, 0.001), snappedf(rot_deg.y, 0.001), snappedf(rot_deg.z, 0.001)]
@@ -183,9 +189,28 @@ static func save(asm: Dictionary, nm := "") -> String:
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
 		return ""
-	f.store_string(JSON.stringify(asm, "\t"))
+	f.store_string(JSON.stringify(_with_pose64(asm), "\t"))
 	f.close()
 	return path
+
+
+## G4DBL: JSON keeps ~15 digits of a double. A part whose pos / rot would not read back as the same doubles also carries them as 6 raw doubles
+## (base64 "pose64"); read() restores them bit-exact and drops the key. Short decimals (hand-typed and old files) get no extra key.
+static func _with_pose64(asm: Dictionary) -> Dictionary:
+	var out := asm.duplicate()
+	var ps: Array = []
+	for p in asm["parts"]:
+		var c: Dictionary = (p as Dictionary).duplicate()
+		if c.get("pos") is Array and c.get("rot") is Array and (c["pos"] as Array).size() >= 3 and (c["rot"] as Array).size() >= 3:
+			var v := PackedFloat64Array([float(c["pos"][0]), float(c["pos"][1]), float(c["pos"][2]), float(c["rot"][0]), float(c["rot"][1]), float(c["rot"][2])])
+			var lossy := false
+			for x in v:
+				lossy = lossy or float(JSON.parse_string(JSON.stringify(x))) != x
+			if lossy:
+				c["pose64"] = Marshalls.raw_to_base64(v.to_byte_array())
+		ps.append(c)
+	out["parts"] = ps
+	return out
 
 
 static func read(path: String) -> Dictionary:
@@ -197,6 +222,13 @@ static func read(path: String) -> Dictionary:
 	var d: Dictionary = j.data
 	if not is_assembly(d):
 		return {}
+	for p in d["parts"]:
+		if p is Dictionary and (p as Dictionary).has("pose64"):
+			var v := Marshalls.base64_to_raw(String(p["pose64"])).to_float64_array()
+			if v.size() == 6:
+				p["pos"] = [v[0], v[1], v[2]]
+				p["rot"] = [v[3], v[4], v[5]]
+			(p as Dictionary).erase("pose64")
 	return d
 
 
