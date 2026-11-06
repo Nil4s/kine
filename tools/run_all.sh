@@ -1064,3 +1064,4 @@ EXTRA="$EXTRA simcache:w"   # L35: sim cache, Bake sim to a point-cache file the
 EXTRA="$EXTRA stretchskin:w"   # L33: the skin follows stretch + volume, spline chains drive the spine, exports carry the stretch (tests/stretchskin_test.gd)
 EXTRA="$EXTRA n041:w"   # N041 lock truth: partner joint limits judge an armbar / wristlock / kimura (tests/n041_test.gd, scripts/lock_truth.gd)
 EXTRA="$EXTRA bgthread:w"   # L42 throw judge + Bake sim off the main thread (tests/bgthread_test.gd)
+EXTRA="$EXTRA render1:w"   # L49 RENDER1: Final HQ preset: GI raise, DOF edge width, motion-blur streak, accumulation 1/sqrt(N) (tests/render1_test.gd, scripts/final_hq.gd)
