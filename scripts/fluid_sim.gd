@@ -28,6 +28,7 @@ var phi := PackedFloat64Array()
 var wxp := PackedFloat64Array()
 var wyp := PackedFloat64Array()
 var wzp := PackedFloat64Array()
+var vfrac := PackedFloat64Array()
 var solid := PackedByteArray()
 var type := PackedByteArray()
 var cnt := PackedInt32Array()
@@ -328,6 +329,29 @@ func rebuild_weights() -> void:
 						continue
 					if wxp[c] == 0.0 and wxp[c - 1] == 0.0 and wyp[c] == 0.0 and wyp[c - nx] == 0.0 and wzp[c] == 0.0 and wzp[c - nx * ny] == 0.0:
 						solid[c] = 1
+	vfrac = _zeros(nc)
+	vfrac.fill(1.0)
+	if cut:
+		for k in nz:
+			for j in ny:
+				for i in nx:
+					var neg := 0
+					for q in 8:
+						if phi[_nid(i + (q & 1), j + ((q >> 1) & 1), k + (q >> 2))] < 0.0:
+							neg += 1
+					var f := 1.0
+					if neg == 8:
+						f = 0.0
+					elif neg > 0:
+						var n := 0
+						for c in 64:
+							var x := o.x + (i + ((c & 3) + 0.5) / 4.0) * h
+							var y := o.y + (j + (((c >> 2) & 3) + 0.5) / 4.0) * h
+							var z := o.z + (k + ((c >> 4) + 0.5) / 4.0) * h
+							if phi_at(x, y, z) >= 0.0:
+								n += 1
+						f = n / 64.0
+					vfrac[_cid(i, j, k)] = maxf(0.05, f)
 
 
 func face_weights() -> PackedFloat64Array:
@@ -489,6 +513,19 @@ func _mark() -> void:
 			fl.append(c)
 		else:
 			type[c] = 0
+	# an empty cut cell whose upper neighbour is fluid is fluid too (see the C++ twin); top to bottom
+	if cut and vfrac.size() > 0:
+		var add := false
+		for k in range(1, nz - 1):
+			for j in range(ny - 2, 0, -1):
+				for i in range(1, nx - 1):
+					var c := _cid(i, j, k)
+					if type[c] == 0 and vfrac[c] < 1.0 and type[c + nx] == 1:
+						type[c] = 1
+						fl.append(c)
+						add = true
+		if add:
+			fl.sort()
 
 
 ## [base, f, w0, w1, w2]
@@ -853,10 +890,13 @@ func _density_project() -> void:
 	var sz := nx * ny
 	for c in fl:
 		var ex := 0.0
-		if cnt[c] > ppc:
-			ex = float(cnt[c]) / ppc - 1.0
-		elif cnt[c] < ppc and type[c - sx] == 1 and type[c + sx] == 1 and type[c - sy] == 1 and type[c + sy] == 1 and type[c - sz] == 1 and type[c + sz] == 1:
-			ex = maxf(-0.5, float(cnt[c]) / ppc - 1.0)
+		var rest: float = ppc * vfrac[c]
+		if vfrac[c] < 1.0:
+			ex = 0.0
+		elif cnt[c] > rest:
+			ex = float(cnt[c]) / rest - 1.0
+		elif cnt[c] < rest and type[c - sx] == 1 and type[c + sx] == 1 and type[c - sy] == 1 and type[c + sy] == 1 and type[c - sz] == 1 and type[c + sz] == 1:
+			ex = maxf(-0.5, float(cnt[c]) / rest - 1.0)
 		db[c] = h * ex
 	for c in dq.size():
 		if type[c] != 1:

@@ -77,7 +77,8 @@ static func normals(pos: PackedVector3Array, idx: PackedInt32Array) -> PackedVec
 	var nrm := PackedVector3Array()
 	nrm.resize(pos.size())
 	for t in range(0, idx.size() - 2, 3):
-		var fn := (pos[idx[t + 1]] - pos[idx[t]]).cross(pos[idx[t + 2]] - pos[idx[t]])   # length = 2 * area
+		# Godot front faces are CLOCKWISE seen from outside, so the right-handed cross product points INTO the body: negate it
+		var fn := -(pos[idx[t + 1]] - pos[idx[t]]).cross(pos[idx[t + 2]] - pos[idx[t]])   # length = 2 * area
 		for e in 3:
 			nrm[idx[t + e]] += fn
 	for i in nrm.size():
@@ -129,13 +130,13 @@ static func build(F: Object, iso := 0.5, ndiv := 4, smooth_iters := 4, h := 0.01
 	var idx: PackedInt32Array = w["idx"]
 	if smooth_iters > 0:
 		pos = taubin(pos, idx, smooth_iters)
-	var vol := signed_volume(pos, idx)
-	if vol < 0.0:   # outward winding: front faces face the viewer
+	var vol := signed_volume(pos, idx)   # > 0: counter-clockwise from outside (right-handed). Godot wants CLOCKWISE front faces: flip then.
+	if vol > 0.0:
 		for t in range(0, idx.size() - 2, 3):
 			var tmp := idx[t + 1]
 			idx[t + 1] = idx[t + 2]
 			idx[t + 2] = tmp
-		vol = -vol
+	vol = absf(vol)
 	var nrm := normals(pos, idx)
 	var fo := PackedFloat32Array()
 	if with_foam:

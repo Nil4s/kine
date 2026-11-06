@@ -445,6 +445,27 @@ void KineFluidNative::rebuild_weights() {
 					if (wxp[c] == 0 && wxp[c - 1] == 0 && wyp[c] == 0 && wyp[c - nx] == 0 && wzp[c] == 0 && wzp[c - nx * ny] == 0) solid[c] = 1;
 				}
 	}
+	// open volume fraction of every cell (rest particle count scale): 1 when all eight corners are open, 0 when all are solid, else 4^3 sub-samples
+	vfrac.assign(nc, 1.0);
+	if (cut) {
+		for (int k = 0; k < nz; k++)
+			for (int j = 0; j < ny; j++)
+				for (int i = 0; i < nx; i++) {
+					int neg = 0;
+					for (int q = 0; q < 8; q++) if (phi[nid(i + (q & 1), j + ((q >> 1) & 1), k + (q >> 2))] < 0) neg++;
+					double f = 1.0;
+					if (neg == 8) f = 0.0;
+					else if (neg > 0) {
+						int n = 0;
+						for (int c = 0; c < 64; c++) {
+							double x = ox + (i + ((c & 3) + 0.5) / 4.0) * h, y = oy + (j + (((c >> 2) & 3) + 0.5) / 4.0) * h, z = oz + (k + ((c >> 4) + 0.5) / 4.0) * h;
+							if (phi_at(x, y, z, nullptr) >= 0) n++;
+						}
+						f = n / 64.0;
+					}
+					vfrac[cid(i, j, k)] = std::max(0.05, f);
+				}
+	}
 	pre_ok = false;
 }
 
@@ -586,6 +607,21 @@ void KineFluidNative::mark_cells() {
 		if (solid[c]) type[c] = 2;
 		else if (cnt[c] > 0) { type[c] = 1; fl.push_back((int32_t)c); }
 		else type[c] = 0;
+	}
+	// A cut cell under water can be empty of particles (a sliver). Left as air it would be a p = 0 Dirichlet cell BELOW the water and the water would fall
+	// into it. An empty cut cell whose upper neighbour is fluid is fluid too (gravity is -y), top to bottom so chains of slivers follow.
+	if (cut && !vfrac.empty()) {
+		std::vector<int32_t> add;
+		for (int k = 1; k < nz - 1; k++)
+			for (int j = ny - 2; j >= 1; j--)
+				for (int i = 1; i < nx - 1; i++) {
+					int c = cid(i, j, k);
+					if (type[c] == 0 && vfrac[c] < 1.0 && type[c + nx] == 1) { type[c] = 1; add.push_back((int32_t)c); }
+				}
+		if (!add.empty()) {
+			fl.insert(fl.end(), add.begin(), add.end());
+			std::sort(fl.begin(), fl.end());
+		}
 	}
 }
 
@@ -1003,9 +1039,12 @@ void KineFluidNative::density_project() {
 		for (int q = q0; q < q1; q++) {
 			int c = fl[q];
 			double ex = 0.0;
-			if (cnt[c] > ppc) ex = (double)cnt[c] / ppc - 1.0;
-			else if (cnt[c] < ppc && type[c - sx] == 1 && type[c + sx] == 1 && type[c - sy] == 1 && type[c + sy] == 1 && type[c - sz] == 1 && type[c + sz] == 1)
-				ex = std::max(-0.5, (double)cnt[c] / ppc - 1.0);
+			// a cut cell holds fewer particles at rest density: the rest count is ppc times the open volume fraction (1 for a whole cell)
+			const double rest = ppc * vfrac[c];
+			if (vfrac[c] < 1.0) ex = 0.0; // a cut cell: no density correction (its particles sit against a wall that pushes them back; asking them to spread is a feedback loop)
+			else if (cnt[c] > rest) ex = (double)cnt[c] / rest - 1.0;
+			else if (cnt[c] < rest && type[c - sx] == 1 && type[c + sx] == 1 && type[c - sy] == 1 && type[c + sy] == 1 && type[c - sz] == 1 && type[c + sz] == 1)
+				ex = std::max(-0.5, (double)cnt[c] / rest - 1.0);
 			db[c] = h * ex;
 		}
 	});

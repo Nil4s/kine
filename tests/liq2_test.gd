@@ -37,15 +37,20 @@ func ok(c: bool, what: String) -> void:
 
 func _init() -> void:
 	var t0 := Time.get_ticks_msec()
+	await process_frame
 	var native := Fluid.native()
 	ok(native, "KineFluidNative is registered (build native/ first)")
 	if native:
-		_a1_fractions()
-		_a2_equal()
-		_b_rest()
-		_m_dam()
-		await _e_mug()
-		await _r_render()
+		var only := OS.get_environment("LIQ2_ONLY")   # development shortcut: "r" or "e"; empty = everything
+		if only == "":
+			_a1_fractions()
+			_a2_equal()
+			_b_rest()
+			_m_dam()
+		if only == "" or only == "e":
+			await _e_mug()
+		if only == "" or only == "r":
+			await _r_render()
 	print("liq2: %d fail  (%.0f s)" % [fails, (Time.get_ticks_msec() - t0) / 1000.0])
 	quit(1 if fails > 0 else 0)
 
@@ -174,7 +179,7 @@ func _through_floor(F: Object) -> int:
 	var n := 0
 	var a := deg_to_rad(B_ANG)
 	for p in F.positions():
-		var d := sin(a) * (p.x - B_X0) + cos(a) * (p.y - B_Y0)
+		var d: float = sin(a) * (p.x - B_X0) + cos(a) * (p.y - B_Y0)
 		if d < -0.05 * B_H and p.y > 1.5 * B_H:   # the domain floor is a straight wall; only the tilted plane is judged
 			n += 1
 	return n
@@ -364,6 +369,7 @@ func _e_mug() -> void:
 func _slab_mesh(size: Vector3) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_smooth_group(-1)   # flat normals: the default smooth group would tilt the top normal toward the sides
 	var hx := size.x * 0.5
 	var hy := size.y * 0.5
 	var hz := size.z * 0.5
@@ -371,7 +377,7 @@ func _slab_mesh(size: Vector3) -> ArrayMesh:
 	# outward winding (counter-clockwise seen from outside)
 	var f := [[0, 3, 2, 1], [4, 5, 6, 7], [0, 4, 7, 3], [1, 2, 6, 5], [3, 7, 6, 2], [0, 1, 5, 4]]
 	for q in f:
-		for t in [[0, 1, 2], [0, 2, 3]]:
+		for t in [[0, 2, 1], [0, 3, 2]]:   # Godot: front faces are CLOCKWISE seen from outside
 			for i in t:
 				st.add_vertex(v[q[i]])
 	st.generate_normals()
@@ -382,6 +388,7 @@ func _wedge_mesh() -> ArrayMesh:
 	# triangle (0,0), (0.6,0), (0.6,0.3) in x,y extruded over z in [-0.15, 0.15]; thickness (vertical) = 0.5 x
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_smooth_group(-1)
 	var a := Vector3(0, 0, -0.15)
 	var b := Vector3(0.6, 0, -0.15)
 	var c := Vector3(0.6, 0.3, -0.15)
@@ -389,7 +396,7 @@ func _wedge_mesh() -> ArrayMesh:
 	var e := Vector3(0.6, 0, 0.15)
 	var f := Vector3(0.6, 0.3, 0.15)
 	for t in [[a, c, b], [d, e, f], [a, b, e], [a, e, d], [b, c, f], [b, f, e], [a, d, f], [a, f, c]]:
-		for p in t:
+		for p in [t[0], t[2], t[1]]:   # clockwise from outside
 			st.add_vertex(p)
 	st.generate_normals()
 	return st.commit()
@@ -426,7 +433,7 @@ func _schlick(cosv: float) -> float:
 
 
 func _r_params_flat() -> Dictionary:
-	return {"sky_top": Vector3(1, 1, 1), "sky_horizon": Vector3(1, 1, 1), "scatter_on": 0.0, "sun_strength": 0.0}
+	return {"sky_top": Color(1, 1, 1), "sky_horizon": Color(1, 1, 1), "scatter_on": 0.0, "sun_strength": 0.0, "foam_gain": 0.0}   # test slabs have no vertex colour: default white would read as full foam
 
 
 ## pixel of a world point for a camera at pos looking at tgt with up (the Camera3D conventions, vertical fov)
@@ -487,7 +494,7 @@ func _r_render() -> void:
 		var rr2: Dictionary = await WaterRender.render(root, {"size": size, "cam_pos": pos2, "cam_look": tgt2, "up": up2, "fov": 14.0, "water": wedge, "props": [_unlit_box(Vector3(0.3, -0.05, 0), Vector3(2, 0.1, 2), Color(1, 1, 1))], "bg": Color(1, 1, 1), "params": prm2})
 		var img2: Image = rr2["color"]
 		var row := []
-		for tv in [0.10, 0.20, 0.30]:
+		for tv in [0.10, 0.20, 0.27]:   # 0.27 not the 0.30 of the header: x = 0.6 is the wedge's own end wall (my sampling error, found in run 4)
 			var x: float = tv / 0.5   # wedge: vertical thickness = 0.5 x
 			var wp := Vector3(x, tv, 0.0)
 			var px := _proj(pos2, tgt2, up2, 14.0, size, wp)

@@ -57,7 +57,7 @@ public:
 	bool cut = false, wdirty = true;
 	double wmin = 0.02;       // an open fraction below this is closed (a tiny fraction makes a stiff, nearly isolated row)
 	double push_margin = 0.02; // particles are kept at phi >= push_margin * h
-	std::vector<double> phi, wxp, wyp, wzp;
+	std::vector<double> phi, wxp, wyp, wzp, vfrac;
 	void add_cut_box(Vector3 p_min, Vector3 p_max);
 	void add_cut_halfspace(Vector3 p_point, Vector3 p_normal);
 	int add_cut_mesh(const PackedVector3Array &p_verts, const PackedInt32Array &p_tris);
