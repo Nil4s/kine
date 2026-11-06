@@ -112,6 +112,13 @@ func shown(r: Dictionary) -> String:
 	return P.readout()
 
 
+func shot(name: String) -> void:
+	var img := root.get_viewport().get_texture().get_image()
+	if img.get_width() > 1000:
+		img.resize(1000, int(round(1000.0 * img.get_height() / img.get_width())))
+	img.save_png("C:/Temp/claude/L42/%s.png" % name)
+
+
 func tweak(v: float) -> void:
 	m._do(func(): ((m.S.cards[0]["pose"]["joints"] as Dictionary)["pelvis"] as Dictionary).set("bend", v))
 
@@ -224,6 +231,22 @@ func _init() -> void:
 	nudged["frames"][int(nudged["frame"])]["partner"]["out"] = float(nudged["frames"][int(nudged["frame"])]["partner"]["out"]) + 0.0001
 	control(var_to_str(nudged) == var_to_str(P.res), "b CONTROL a number nudged by 0.1 mm is a different result")
 
+	# the picture: the panel while the judge works ("checking...") and after
+	DirAccess.make_dir_recursive_absolute("C:/Temp/claude/L42")
+	tweak(20.0)
+	await process_frame
+	await RenderingServer.frame_post_draw
+	var vr := Rect2(Vector2.ZERO, Vector2(root.get_viewport().get_visible_rect().size))
+	var pr := P.get_global_rect()
+	ok(P.visible and vr.encloses(pr) and pr.size.x >= 500.0 and P.readout().contains("checking"), "p PLACEMENT the throw panel (%s) lies inside the window (%s) and says checking..." % [str(pr), str(vr)])
+	shot("throw_checking")
+	print("SHOT C:/Temp/claude/L42/throw_checking.png readout: ", P.readout())
+	await wait_until(func(): return not m._throw_busy())
+	await idle(3)
+	await RenderingServer.frame_post_draw
+	shot("throw_done")
+	print("SHOT C:/Temp/claude/L42/throw_done.png readout: ", P.readout())
+
 	# a. frame time while the judge works: 8 edits, pooled
 	probe.dt.clear()
 	for i in 8:
@@ -301,10 +324,21 @@ func _init() -> void:
 	m._simc_bake_bg()
 	var steps_before_done := 0
 	var t_bake := Time.get_ticks_msec()
+	var shot_done := false
 	while m._imp_busy() and Time.get_ticks_msec() < t_bake + 180000:
 		await process_frame
 		if m._imp_busy():
 			steps_before_done = maxi(steps_before_done, m.undo.size() - u2)
+			if not shot_done and Time.get_ticks_msec() - t_bake > 120:
+				shot_done = true
+				probe.on = false
+				await RenderingServer.frame_post_draw
+				var ip: Control = m._imp_panel
+				ok(ip != null and ip.visible and vr.encloses(ip.get_global_rect()) and m._imp_bar.value >= 0.0 and m._imp_cancel_btn != null and m._imp_cancel_btn.visible and not m._imp_cancel_btn.disabled, "p PLACEMENT the bake panel %s is inside the window, bar at %.0f %%, Cancel visible" % [str(ip.get_global_rect()) if ip != null else "-", m._imp_bar.value])
+				shot("bake_bar")
+				print("SHOT C:/Temp/claude/L42/bake_bar.png progress ", VideoIQ.progress)
+				await process_frame
+				probe.on = true
 	var bake_ms := Time.get_ticks_msec() - t_bake
 	await idle(10)
 	probe.on = false
