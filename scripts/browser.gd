@@ -98,6 +98,7 @@ func _ready() -> void:
 		b.tooltip_text = "show / hide the %s in the list below" % Outliner.KIND_NAMES[k].to_lower()
 		b.focus_mode = Control.FOCUS_NONE
 		b.add_theme_font_size_override("font_size", 10)
+		b.clip_text = true   # six toggles in a 214 px tree: a label may be cut, the row may not run off the edge
 		b.custom_minimum_size = Vector2(10, 18)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.toggled.connect(func(on: bool): set_outl_filter(k, on))
