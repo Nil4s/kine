@@ -931,6 +931,11 @@ func bar_real_net() -> void:
 	man_strokes = make_man_strokes(man)
 	var net := real_net()
 	var st := net.stats()
+	var skipped: Array = net.skipped_regions()
+	var open_named := false
+	for r in skipped:
+		open_named = open_named or String(r["reason"]).contains("open edge")
+	ok(skipped.size() == int(st["skipped"]) and (skipped.is_empty() or open_named), "G16 skipped regions are named with their reason: %d skipped, first '%s'" % [skipped.size(), String(skipped[0]["reason"]) if not skipped.is_empty() else "none"])
 	say("mannequin network: %d strokes (%s); %s; notes %s" % [man_strokes.size(), ", ".join(PackedStringArray(man_strokes.map(func(s): return "%.0f cm" % (poly_len(s) * 100.0)))), str(st), str(net.notes)])
 	var kinds := {}
 	for p in net.patches:

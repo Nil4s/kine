@@ -1098,3 +1098,13 @@ func stats() -> Dictionary:
 		else:
 			bad += 1
 	return {"strokes": strokes.size(), "nodes": nodes.size(), "arcs": arcs.size(), "patches": ok, "unsolved": bad, "skipped": skipped}
+
+
+## G16: every skipped region with its reason, so the UI can say WHAT was skipped instead of only "3 regions skipped"
+func skipped_regions() -> Array:
+	var out: Array = []
+	for i in patches.size():
+		var p: Dictionary = patches[i]
+		if not bool(p.get("valid", false)) and String(p.get("reason", "")) != "":
+			out.append({"patch": i, "reason": String(p["reason"])})
+	return out
