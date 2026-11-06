@@ -1061,3 +1061,4 @@ EXTRA="$EXTRA outliner:w"   # L36 OUTLINER: the browser tree gets an Outliner fo
 EXTRA="$EXTRA detach:w"   # L37 detach timeline / graph / second view into OS windows (tests/detach_test.gd)
 EXTRA="$EXTRA simcache:w"   # L35: sim cache, Bake sim to a point-cache file the timeline scrubs (tests/simcache_test.gd)
 EXTRA="$EXTRA stretchskin:w"   # L33: the skin follows stretch + volume, spline chains drive the spine, exports carry the stretch (tests/stretchskin_test.gd)
+EXTRA="$EXTRA bgthread:w"   # L42 throw judge + Bake sim off the main thread (tests/bgthread_test.gd)
