@@ -23,6 +23,15 @@
 ##   R6 SCENE KEY  to_key / from_key give the same map back (by bone name); a bone gone from the file is dropped, the rest stands.
 ##   R7 PICTURE  the imported long-legged character posed beside the Kine body in pose X, saved to user://zz_charimp/beside.png;
 ##      both figures present (pixels of each colour > 3000), the imported one taller than the Kine one. LOOK at it.
+##   R8 IN THE APP (added with the commands, before their first run)  CharImportApp.open on the long-legged file in main: the scene's
+##      body takes the character's proportions (thigh within 3 mm), the Kine mannequin is hidden, pose X on main.B reaches the
+##      imported skeleton (limb directions within 0.5 deg), the scene dict carries the "charimp" key and a fresh clear + from_scene
+##      brings the same map back by name; the map screen builds on it; a manual fix (hand_l -> the right hand's bone) moves the
+##      mesh (control: the same pose before the fix does not).
+##   R9 FBX WITH SKIN (added with the fixture)  tests/fixtures/skinned_mannequin.fbx (the CC0 mannequin through Blender,
+##      tests/fixtures/make_skinned_fbx.py): imported through ufbx with its mesh, weights summing to 1 on every vertex (1e-3),
+##      22 of 22 joints mapped, pose X reaching the skeleton (limb directions 0.5 deg). Control: the weights check fails on a
+##      table with one vertex's weights doubled.
 extends SceneTree
 
 var fails := 0
@@ -91,14 +100,13 @@ func _readback(ch: Dictionary, mapping: Dictionary, ft: Dictionary, B: Body, swa
 		var G: Quaternion = (D * (ft["roff"][jj] as Quaternion)).normalized()
 		worst_g = maxf(worst_g, _ang_deg(G, B.G[jj]))
 	# limb directions: bone -> its mapped child, source side (posed positions from the skeleton) vs Kine's E - P
-	var sk: Skeleton3D = ch["sk"]
-	var bq: Transform3D = ch["src"]["base"]
+	var wp := CharImport.world_pos(ch)
 	for j in ["upperarm_l", "lowerarm_l", "upperarm_r", "lowerarm_r", "thigh_l", "calf_l", "thigh_r", "calf_r", "spine_01", "spine_02"]:
 		var ch2 := String(Body.CHILD.get(j, ""))
 		if ch2 == "" or not mp.has(j) or not mp.has(ch2):
 			continue
-		var a: Vector3 = bq * (sk.get_bone_global_pose(mp[j]).origin)
-		var c: Vector3 = bq * (sk.get_bone_global_pose(mp[ch2]).origin)
+		var a: Vector3 = wp[mp[j]]
+		var c: Vector3 = wp[mp[ch2]]
 		var jj2: String = j
 		if swap and j.contains("arm"):
 			jj2 = j.substr(0, j.length() - 2) + ("_r" if j.ends_with("_l") else "_l")
@@ -109,10 +117,11 @@ func _readback(ch: Dictionary, mapping: Dictionary, ft: Dictionary, B: Body, swa
 
 
 func _init() -> void:
+	await process_frame
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(DIR))
 	var B := _body()
 	var S := Scene.new()
-	S.add("rest", {})
+	S.add("rest", B.to_dict())
 	# ================================================================= R1 round trip
 	var gp := _export(S, B, DIR + "/kine.glb")
 	ok(gp != "", "R1 the Kine character is exported to .glb")
@@ -152,21 +161,21 @@ func _init() -> void:
 		for i in mini((P0[si] as PackedVector3Array).size(), (P1[si] as PackedVector3Array).size()):
 			worst = maxf(worst, (obase * (P0[si] as PackedVector3Array)[i]).distance_to(ibase * (P1[si] as PackedVector3Array)[i]))
 			nvert += 1
-	ok(worst <= 1e-4 and nvert > 1000, "R1 %d posed vertices: worst distance %.2e m (bar 1e-4)" % [nvert, worst])
+	ok(worst <= 1e-4 and nvert > 1000, "R1 %d posed vertices: worst distance %s m (bar 1e-4)" % [nvert, String.num_scientific(worst)])
 	# the weights
 	var W0 := CharImport.weights_of(osk, omesh)
 	var W1 := CharImport.weights_of(ch["sk"], imesh)
 	var wworst := 0.0
 	for si in mini(W0.size(), W1.size()):
 		for i in mini((W0[si] as Array).size(), (W1[si] as Array).size()):
-			var a: Dictionary = W0[si][i]
-			var b: Dictionary = W1[si][i]
+			var a := _lc(W0[si][i])
+			var b := _lc(W1[si][i])
 			for k in a:
 				wworst = maxf(wworst, absf(float(a[k]) - float(b.get(k, 0.0))))
 			for k in b:
 				if not a.has(k):
 					wworst = maxf(wworst, float(b[k]))
-	ok(wworst <= 1e-4, "R1 weights equal by bone name: worst %.2e (bar 1e-4)" % wworst)
+	ok(wworst <= 1e-4, "R1 weights equal by bone name: worst %s (bar 1e-4)" % String.num_scientific(wworst))
 	# controls
 	var swapped := mapping.duplicate(true)
 	var t1: int = swapped["map"]["thigh_l"]
@@ -182,13 +191,13 @@ func _init() -> void:
 	var wsw := 0.0
 	for si in mini(W0.size(), W1.size()):
 		for i in (W0[si] as Array).size():
-			var a2: Dictionary = (W0[si][i] as Dictionary).duplicate()
+			var a2 := _lc(W0[si][i])
 			if a2.has("thigh_l") or a2.has("thigh_r"):   # the table with thigh_l / thigh_r swapped
 				var t: Variant = a2.get("thigh_l", 0.0)
 				a2["thigh_l"] = a2.get("thigh_r", 0.0)
 				a2["thigh_r"] = t
 			for k in a2:
-				wsw = maxf(wsw, absf(float(a2[k]) - float((W1[si][i] as Dictionary).get(k, 0.0))))
+				wsw = maxf(wsw, absf(float(a2[k]) - float(_lc(W1[si][i]).get(k, 0.0))))
 	ctl(wsw > 1e-4, "R1 two bones swapped in the weights table differ by %.3f" % wsw)
 	CharImport.pose(ch, mapping, ft, B)
 
@@ -205,9 +214,9 @@ func _init() -> void:
 	var body_long := {"stature": 1.9, "scale": {"thigh": 1.25, "shank": 1.2, "upper_arm": 0.85, "forearm": 0.9}}
 	var SL := Scene.new()
 	SL.body = Proportions.clean(body_long)
-	SL.add("rest", {})
 	var BL := _body()
 	BL.set_proportions(SL.body)
+	SL.add("rest", BL.to_dict())
 	var lp := _export(SL, BL, DIR + "/long.glb")
 	var chl := CharImport.load_character(lp)
 	ok(chl["ok"], "R3 long-legged character imported (%s)" % (chl["text"] if chl["ok"] else chl["why"]))
@@ -252,7 +261,7 @@ func _init() -> void:
 	# ================================================================= R6 scene key
 	var key := CharImport.to_key(ch, mapping)
 	var back := CharImport.from_key(src, JSON.parse_string(JSON.stringify(key)))
-	var same := back["map"].size() == mapping["map"].size()
+	var same: bool = back["map"].size() == mapping["map"].size()
 	for j in mapping["map"]:
 		same = same and back["map"].get(j, -1) == mapping["map"][j]
 	ok(same, "R6 the map kept by bone name comes back whole (%d pairs)" % back["map"].size())
@@ -263,8 +272,17 @@ func _init() -> void:
 
 	# ================================================================= R7 the picture
 	await _r7_picture(chl, mapl, ftl, bd)
+	await _r8_app(lp)
+	_r9_fbx()
 	print("charimp: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
+
+
+func _lc(d: Dictionary) -> Dictionary:   # bone names compared without case ("Head" in the mannequin, "head" as the exporter writes it)
+	var o := {}
+	for k in d:
+		o[String(k).to_lower()] = d[k]
+	return o
 
 
 func _rest_lengths(b: Body) -> Dictionary:
@@ -307,6 +325,8 @@ func _conv_src(B: Body, nm: Callable, extras: Array, spine_chain := 0) -> Array:
 		add.call(nm.call(j), nm.call(pj) if pj != "" else "", B.p0[j], j)
 	for e in extras:
 		var pn: String = e[1]
+		if pn in Body.ORDER:
+			pn = nm.call(pn)
 		add.call(e[0], pn, (rest[at[pn]] as Transform3D).origin + (e[2] as Vector3), "")
 	return [{"names": names, "parent": parent, "rest": rest, "base": Transform3D.IDENTITY}, truth]
 
@@ -567,7 +587,9 @@ func _r4_shapes(B: Body, S: Scene) -> void:
 			var ba := []
 			ba.resize(Mesh.ARRAY_MAX)
 			ba[Mesh.ARRAY_VERTEX] = deltas[key][si]
-			ba[Mesh.ARRAY_NORMAL] = PackedVector3Array((arr2[Mesh.ARRAY_NORMAL] as PackedVector3Array).size())
+			var zn := PackedVector3Array()
+			zn.resize((arr2[Mesh.ARRAY_NORMAL] as PackedVector3Array).size())
+			ba[Mesh.ARRAY_NORMAL] = zn
 			bsl.append(ba)
 		nm.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr2, bsl)
 		nm.surface_set_material(si, om.surface_get_material(si))
@@ -593,13 +615,12 @@ func _r4_shapes(B: Body, S: Scene) -> void:
 				continue
 			for i in a.size():
 				worst = maxf(worst, a[i].distance_to(b[i]))
-	ok(worst <= 1e-5, "R4 every vertex delta equal: worst %.2e m (bar 1e-5)" % worst)
+	ok(worst <= 1e-5, "R4 every vertex delta equal: worst %s m (bar 1e-5)" % String.num_scientific(worst))
 	var tw := 0.0
 	var bb: PackedVector3Array = (got["smile"][0] as PackedVector3Array).duplicate()
 	bb[10] += Vector3(0, 0.001, 0)
 	tw = (deltas["smile"][0] as PackedVector3Array)[10].distance_to(bb[10])
 	ctl(tw > 1e-5, "R4 one delta changed by 1 mm is caught (%.4f m)" % tw)
-	man.free()
 
 
 ## ---- R7 the picture
@@ -620,8 +641,7 @@ func _r7_picture(chl: Dictionary, mapl: Dictionary, ftl: Dictionary, bd: Diction
 	holder.add_child(sun)
 	var cam := Camera3D.new()
 	holder.add_child(cam)
-	cam.position = Vector3(0, 1.0, 4.2)
-	cam.look_at(Vector3(0, 0.95, 0))
+	cam.transform = Transform3D(Basis(), Vector3(0, 1.0, 3.3)).looking_at(Vector3(0, 0.9, 0), Vector3.UP)
 	cam.current = true
 	var floor_m := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
@@ -675,3 +695,86 @@ func _r7_picture(chl: Dictionary, mapl: Dictionary, ftl: Dictionary, bd: Diction
 				bmin = mini(bmin, y)
 	ok(red > 3000 and blue > 3000, "R7 both figures drawn: Kine %d px, import %d px" % [red, blue])
 	ok(bmin < rmin, "R7 the long-legged import stands taller (top at y=%d vs the Kine body's y=%d)" % [bmin, rmin])
+
+
+## ---- R8 the app
+func _r8_app(path: String) -> void:
+	var m: Node = (load("res://main.tscn") as PackedScene).instantiate()
+	root.add_child(m)
+	await process_frame
+	await process_frame
+	var r := CharImportApp.open(m, ProjectSettings.globalize_path(path), {}, false)
+	ok(r["ok"] and CharImportApp.active(m), "R8 the character is on the fighter: %s" % m.ui_status.text.left(150))
+	var rest := _rest_lengths(m.B)
+	ok(absf(float(rest["thigh"]) - 0.472) <= 0.003, "R8 the scene's body has the character's thigh: %.4f m (file 0.472)" % rest["thigh"])
+	ok(not m.man_root.visible, "R8 the Kine mannequin is hidden while the import stands")
+	_pose_x(m.B)
+	m._refresh()
+	var st := CharImportApp.state(m)
+	var rb := _readback(st["ch"], st["mapping"], st["fit"], m.B)
+	ok(rb[0] <= 0.5 and rb[1] <= 0.5, "R8 pose X from main reaches the imported skeleton: %.3f deg / %.3f deg (bar 0.5)" % [rb[0], rb[1]])
+	var pts0 := CharImport.skin_points(st["ch"]["sk"], st["ch"]["meshes"][0])
+	var d: Dictionary = m._scene_dict(false)
+	ok(d.has("charimp") and (d["charimp"]["pairs"] as Dictionary).size() == st["mapping"]["map"].size(), "R8 the scene dict keeps the character: %d pairs, %s" % [(d["charimp"]["pairs"] as Dictionary).size(), String(d["charimp"]["path"]).get_file()])
+	var jd: Dictionary = JSON.parse_string(JSON.stringify(d["charimp"]))
+	CharImportApp.clear(m)
+	ok(not CharImportApp.active(m) and m.man_root.visible, "R8 removed: the Kine body is back")
+	CharImportApp.from_scene(m, {"charimp": jd})
+	var st2 := CharImportApp.state(m)
+	var same := CharImportApp.active(m)
+	if same:
+		for j in st["mapping"]["map"]:
+			same = same and st2["mapping"]["map"].get(j, -1) == st["mapping"]["map"][j]
+	ok(same, "R8 from_scene brings the same map back by bone name")
+	# the map screen builds
+	CharImportApp._screen(m, st2["ch"], st2["mapping"].duplicate(true), func(_x): pass)
+	var lay := m.get_node_or_null("CharMapLayer")
+	await process_frame
+	ok(lay != null, "R8 the mapping panel opens on the imported skeleton")
+	if lay != null:
+		lay.queue_free()
+	# a manual fix moves the mesh
+	m._refresh()
+	var pa := CharImport.skin_points(st2["ch"]["sk"], st2["ch"]["meshes"][0])
+	var mp: Dictionary = st2["mapping"]
+	RetargetMap.set_pair(mp, "hand_l", int(mp["map"]["hand_r"]))
+	st2["sig"] = -1
+	m._refresh()
+	var pb := CharImport.skin_points(st2["ch"]["sk"], st2["ch"]["meshes"][0])
+	var moved := 0.0
+	for i in (pa[0] as PackedVector3Array).size():
+		moved = maxf(moved, (pa[0] as PackedVector3Array)[i].distance_to((pb[0] as PackedVector3Array)[i]))
+	ok(moved > 0.05, "R8 a manual fix in the map moves the mesh (%.2f m)" % moved)
+	m.queue_free()
+	await process_frame
+
+
+func _r9_fbx() -> void:
+	var path := ProjectSettings.globalize_path("res://tests/fixtures/skinned_mannequin.fbx")
+	var ch := CharImport.load_character(path)
+	ok(ch["ok"], "R9 FBX with skin read: %s" % (ch["text"] if ch["ok"] else ch["why"]))
+	if not ch["ok"]:
+		return
+	var B := _body()
+	var mapping := CharImport.map_bones(ch["src"])
+	var ft := CharImport.fit(ch["src"], mapping, B)
+	ok(mapping["main"] == 22 and ft["ok"], "R9 FBX: %s; leg ratio %.3f" % [CharImport.report(ch["src"], mapping), ft["ratio"]])
+	_pose_x(B)
+	CharImport.pose(ch, mapping, ft, B)
+	var rb := _readback(ch, mapping, ft, B)
+	ok(rb[0] <= 0.5 and rb[1] <= 0.5, "R9 FBX posed: rotations %.3f deg, directions %.3f deg (bar 0.5)" % [rb[0], rb[1]])
+	var W := CharImport.weights_of(ch["sk"], ch["meshes"][0])
+	var worst := 0.0
+	var n := 0
+	for surf in W:
+		for row in surf:
+			var t := 0.0
+			for k in row:
+				t += float(row[k])
+			worst = maxf(worst, absf(t - 1.0))
+			n += 1
+	ok(n > 1000 and worst <= 1e-3, "R9 FBX weights sum to 1 on %d vertices: worst %.5f (bar 1e-3)" % [n, worst])
+	var t2 := 0.0
+	for k in W[0][0]:
+		t2 += float(W[0][0][k]) * 2.0
+	ctl(absf(t2 - 1.0) > 1e-3, "R9 a vertex with doubled weights fails the sum check")

@@ -1036,3 +1036,5 @@ EXTRA="$EXTRA g16open:w"   # g16open (gap G16): stroke retopo across open edges,
 EXTRA="$EXTRA g4dbl:w"   # G4DBL: CAD poses in doubles (Xform64, Assembly.xf64_of, place64): round trip 1e-12, CH13 pin height 1e-9 mm, display = float32 rounding, save/load bit-exact, tests/g4dbl_test.gd
 EXTRA="$EXTRA g3fits:w"   # G3FITS: ISO 286 fit classes on Part dimensions (iso_fits.gd, dim_fit.gd), mating-pair kind + clearance, stack-up panel (worst case, RSS, CSV), agent call fits, tests/g3fits_test.gd
 EXTRA="$EXTRA mcpfast:w"   # MCPFAST: the CAD tools of the local MCP (cad_part, cad_asm, check_fit, bom, eval_gd, batch), cache by record hash, terse replies, CH13 through MCP (tests/mcpfast_test.gd, docs/MCPFAST_FEEDBACK.md)
+
+EXTRA="$EXTRA charimp:w"   # L9 CHARIMP: a rigged character (mesh, skin, blend shapes) from glb / fbx onto the Kine body: map by name then geometry, rest-pose alignment, pose transfer, proportions, scene key (tests/charimp_test.gd)

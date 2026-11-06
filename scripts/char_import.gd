@@ -25,7 +25,7 @@ const KEY := "charimp"
 const EXTS := ["glb", "gltf", "fbx"]
 const MAIN_NEED := 12          # fewer main joints than this by name: the geometry route is tried
 const NAME_GOOD := 18          # and below this a geometry map that finds more wins
-const HEAD_TOP_FRAC := 0.13    # geometry: a leaf this far above the shoulders (x stature) is a head-top end bone, not the head
+const HEAD_TOP_FRAC := 0.075   # geometry: a last bone this long (x the skeleton's extent) is a head-top end bone (a head's height), not a neck-to-head step
 
 
 static func _fail(why: String) -> Dictionary:
@@ -316,13 +316,13 @@ static func _chain(kids: Array, i: int, hm: Dictionary, sm: Dictionary) -> Array
 	return out
 
 
-static func _pair_across(pos: Array, hip: Vector3, up: Vector3, cands: Array, size: float) -> Array:
+static func _pair_across(pos: Array, hip: Vector3, up: Vector3, cands: Array, size: float, tips := {}) -> Array:
 	var best := []
 	var bsep := 0.0
 	for a in cands.size():
 		for b in range(a + 1, cands.size()):
-			var la: Vector3 = (pos[cands[a]] as Vector3) - hip
-			var lb: Vector3 = (pos[cands[b]] as Vector3) - hip
+			var la: Vector3 = (pos[tips.get(cands[a], cands[a])] as Vector3) - hip
+			var lb: Vector3 = (pos[tips.get(cands[b], cands[b])] as Vector3) - hip
 			la -= up * la.dot(up)
 			lb -= up * lb.dot(up)
 			var sep := (la - lb).length()
@@ -415,15 +415,17 @@ static func geometry_map(src: Dictionary) -> Dictionary:
 		var ks2: Array = kids[jn]
 		if ks2.size() >= 3:
 			var cands2 := []
+			var tips2 := {}
 			for k in ks2:
 				if _subtree(kids, k, sm) >= 3:
 					cands2.append(k)
-			var pa := _pair_across(pos, pos[jn], up, cands2, size)
+					tips2[k] = _chain(kids, k, hm, sm)[-1]
+			var pa := _pair_across(pos, pos[jn], up, cands2, size, tips2)
 			if not pa.is_empty():
 				arms = pa
 				var bestn := -1
 				var bu := -INF
-				for k in cands2:
+				for k in ks2:
 					if k in pa:
 						continue
 					var d: float = ((pos[k] as Vector3) - (pos[jn] as Vector3)).dot(up)
@@ -492,9 +494,11 @@ static func geometry_map(src: Dictionary) -> Dictionary:
 		var nc := _chain(kids, neck0, hm, sm)
 		var topj: int = chain[-1]
 		var last: int = nc[-1]
-		var rise := ((pos[last] as Vector3) - (pos[topj] as Vector3)).dot(up) / size
+		var end_len := 0.0
+		if nc.size() >= 2:
+			end_len = ((pos[last] as Vector3) - (pos[nc[nc.size() - 2]] as Vector3)).length() / size
 		var hd := nc.size() - 1
-		if rise > HEAD_TOP_FRAC and nc.size() >= 2:
+		if end_len > HEAD_TOP_FRAC and nc.size() >= 2:
 			hd = nc.size() - 2   # the last bone is the head's top: an end
 		mp["head"] = nc[hd]
 		if hd >= 1:
@@ -696,6 +700,22 @@ static func world_rots(ch: Dictionary) -> Array:
 		var p := sk.get_bone_parent(i)
 		g[i] = sk.get_bone_pose(i) if p < 0 else (g[p] as Transform3D) * sk.get_bone_pose(i)
 		out[i] = (bq * (g[i] as Transform3D).basis.orthonormalized().get_rotation_quaternion()).normalized()
+	return out
+
+
+## each bone's origin in the scene's space as the skeleton is posed now
+static func world_pos(ch: Dictionary) -> Array:
+	var sk: Skeleton3D = ch["sk"]
+	var base: Transform3D = ch["src"].get("base", Transform3D.IDENTITY)
+	var n := sk.get_bone_count()
+	var g := []
+	g.resize(n)
+	var out := []
+	out.resize(n)
+	for i in n:
+		var p := sk.get_bone_parent(i)
+		g[i] = sk.get_bone_pose(i) if p < 0 else (g[p] as Transform3D) * sk.get_bone_pose(i)
+		out[i] = (base * (g[i] as Transform3D)).origin
 	return out
 
 
