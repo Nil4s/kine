@@ -1051,5 +1051,6 @@ EXTRA="$EXTRA install:w"   # L16 installer
 EXTRA="$EXTRA i16fast:w"   # L21 I16 speed
 EXTRA="$EXTRA undotpl:w"   # L24 template undo
 EXTRA="$EXTRA softwire:w"   # L22 soft wiring
+EXTRA="$EXTRA soft2:w"   # L32 SOFT-2: C++ skin deform, normals recomputed, arm window (tests/soft2_test.gd)
 EXTRA="$EXTRA layouts:w"   # L20 layouts
 EXTRA="$EXTRA splineik:w"   # L28: spline IK on bone chains + stretchy limbs (tests/splineik_test.gd)
