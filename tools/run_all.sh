@@ -1056,3 +1056,4 @@ EXTRA="$EXTRA layouts:w"   # L20 layouts
 
 EXTRA="$EXTRA autorig:w"   # L29 quick rig: markers/template -> skeleton inside the mesh -> geodesic voxel weights -> character (tests/autorig_test.gd)
 EXTRA="$EXTRA splineik:w"   # L28: spline IK on bone chains + stretchy limbs (tests/splineik_test.gd)
+EXTRA="$EXTRA detach:w"   # L37 detach timeline / graph / second view into OS windows (tests/detach_test.gd)
