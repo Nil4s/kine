@@ -123,12 +123,24 @@ func bar_a() -> void:
 # ------------------------------------------------------------------ b, c
 func bars_part() -> void:
 	var pu: PartUI = m.bld.part
-	pu.set_on(true)
+	var ss: StartScreen = m.start_screen
+	ss.dirs_override = ["user://g3fits_test"]
+	ss.show_screen()
+	await idle(3)
+	await click_ctl(ss._cards["building"])
+	if m.ui_save_ask != null and m.ui_save_ask.visible:
+		m._save_ask_choose("discard")
+	await idle(6)
+	pu.set_on(false)
+	m.S.part = {}
+	await idle(8)
+	await click_ctl(pu.part_btn)
 	await idle(4)
 	var rec := pin_rec("Pin", 20.0, "")
 	m.S.part = rec
 	pu.sk = "f1"
 	pu._nums_sig = ""
+	pu.sync()
 	pu._nums_sync()
 	await idle(3)
 	var fe := nd("part_fit_0") as LineEdit
@@ -155,7 +167,7 @@ func bars_part() -> void:
 	var plain := pin_rec("Pin", 20.0, "")
 	var r1 := Part.replay(plain)
 	var r2 := Part.replay(back)
-	ok((r1["errors"] as Array).is_empty() and (r2["errors"] as Array).is_empty() and absf(float(r1["volume"]) - float(r2["volume"])) < 1e-15 and float(r2["volume"]) > 0.0, "c replay with the class: no errors, volume %.6e = %.6e" % [float(r2["volume"]), float(r1["volume"])])
+	ok((r1["errors"] as Dictionary).is_empty() and (r2["errors"] as Dictionary).is_empty() and absf(float(r1["volume"]) - float(r2["volume"])) < 1e-15 and float(r2["volume"]) > 0.0, "c replay with the class: no errors, volume %s = %s" % [String.num_scientific(float(r2["volume"])), String.num_scientific(float(r1["volume"]))])
 	# c: undo / redo
 	m._undo()
 	await idle(3)
@@ -169,6 +181,7 @@ func bars_part() -> void:
 	m.S.part = pin_rec("Pin", 20.0, "")
 	pu.sk = "f1"
 	pu._nums_sig = ""
+	pu.sync()
 	pu._nums_sync()
 	await idle(3)
 	fe = nd("part_fit_0") as LineEdit
@@ -180,6 +193,7 @@ func bars_part() -> void:
 	ok(lab != null and lab.text == "Ø" + String(G6["text"]) and lab.text.contains("19.980 to 19.993"), "b g6: the label reads '%s'" % (lab.text if lab != null else "-"))
 	ctl(lab != null and lab.text != h7_text, "b the g6 label is not the H7 label")
 	# a bad class says why and stores nothing
+	fe = nd("part_fit_0") as LineEdit
 	fe.text = "Z9"
 	fe.text_submitted.emit("Z9")
 	await idle(3)
