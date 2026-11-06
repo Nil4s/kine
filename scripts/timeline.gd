@@ -32,7 +32,12 @@ signal audio_drag_started(i: int)   # ROADMAP 77: a lane dragged past 3 px: main
 ## FRAME DATA (ROADMAP 12; scripts/frame_data.gd): main.gd sets `fd` (the analysis, {} = off) and the strip shows its
 ## startup (green), active (red) and recovery (blue) in frames, under the ruler. Drawn only; the numbers are FrameData's.
 const FD_H := 11.0   # px: the strip's height
-var fd: Dictionary = {}
+var fd: Dictionary = {}:
+	set(v):
+		fd = v
+		_rx_sync()
+var rx: ReactableCells = null   # N082 wired (L11): one cell per frame under the strip, tell green / red (scripts/reactable_cells.gd)
+var _rx_src: Dictionary = {}
 
 ## HIT / HURT BOXES (ROADMAP 36; scripts/hit_boxes.gd lanes): main.gd sets `bx` ([] = none). Two rows under the frame strip:
 ## the attack boxes in red (top), the vulnerable edits in blue and the invincible ranges in gold (bottom). Drawn only.
@@ -1476,8 +1481,32 @@ func _draw_bx_lane(y: float) -> void:
 				hx += 6.0
 
 
+func _rx_sync() -> void:
+	if fd.is_empty() or (fd.get("frames", []) as Array).is_empty():
+		_rx_src = {}
+		if rx != null:
+			rx.visible = false
+		return
+	if rx != null and is_same(_rx_src, fd):
+		rx.visible = true
+		return
+	_rx_src = fd
+	var made := ReactableCells.build(fd, Reactable.analyze(fd))
+	if rx == null:
+		rx = made
+		rx.xmap = x_of
+		add_child(rx)
+	else:
+		rx.set_data(fd, Reactable.analyze(fd))
+	rx.visible = true
+
+
 ## the frame strip: one block per phase over its frames (time = frame / fps), its count in the block
 func _draw_fd_strip(font: Font, y: float) -> void:
+	if rx != null:   # the tell cells ride the strip's lower edge
+		rx.position = Vector2(0.0, y + FD_H - ReactableCells.H)
+		rx.size = Vector2(size.x, ReactableCells.H)
+		rx.queue_redraw()
 	var fps := float(fd["fps"])
 	var cols := {"startup": Tok.c("fd_startup"), "active": Tok.c("fd_active"), "recovery": Tok.c("fd_recovery")}
 	for sp in FrameData.spans(fd):
