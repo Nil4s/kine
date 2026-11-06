@@ -229,6 +229,7 @@ static func pose_skeleton(sk: Skeleton3D, idx: Dictionary, b: Body) -> void:
 			sk.set_bone_pose_rotation(idx[j], b.gltf_local(j))
 	if idx["pelvis"] >= 0:
 		sk.set_bone_pose_position(idx["pelvis"], b.gltf_pelvis_pos())
+	StretchSkin.pose_positions(sk, idx, b)   # L33: the child bones at the stretched joints (nothing without a stretch)
 	_squash_skel(sk, idx, b)
 
 
