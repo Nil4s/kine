@@ -20,6 +20,7 @@
 #include "kine_seat_native.h"
 #include "kine_wood_native.h"
 #include "kine_fastener_native.h"
+#include "kine_ik_native.h"
 
 using namespace godot;
 
@@ -44,6 +45,7 @@ void kine_native_initialize(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(KineSeatNative);
 	GDREGISTER_ABSTRACT_CLASS(KineWoodNative);
 	GDREGISTER_ABSTRACT_CLASS(KineFastenerNative);
+	GDREGISTER_ABSTRACT_CLASS(KineIKNative);
 }
 
 void kine_native_terminate(ModuleInitializationLevel p_level) {
