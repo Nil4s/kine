@@ -32,7 +32,9 @@ static func _with(pose: Dictionary, joint: String, axis: String, v: float) -> Di
 
 static func build(kind: String, opts := {}) -> Scene:
 	var sfx := "_" + String(opts.get("arm", "r"))
-	var d: float = float(opts.get("dist", ThrowFixtures.DIST)) + (3.0 if kind == "apart" else 0.0)
+	var fam: bool = kind in ["armbar", "armbar_light", "apart"]   # the juji-gatame family: the arm held across the locker's front, both his hands on it
+	var d: float = float(opts.get("dist", 0.6 if fam else ThrowFixtures.DIST)) + (3.0 if kind == "apart" else 0.0)
+	var arm_b := 125.0 if fam else 90.0   # the upper arm swung across his chest (probed: both of the locker's hands reach wrist and elbow within 5 cm)
 	var el := "lowerarm" + sfx
 	var ua := "upperarm" + sfx
 	var hd := "hand" + sfx
@@ -66,7 +68,7 @@ static func build(kind: String, opts := {}) -> Scene:
 			from_v = float(opts.get("from", 45.0))
 			to_v = float(opts.get("to", -15.0))
 	var P := ThrowFixtures.stand()
-	_put(P, ua, 90.0)
+	_put(P, ua, arm_b)
 	_put(P, el, elbow_geo)
 	if kind == "wristlock":
 		_put(P, hd, to_v)
@@ -78,9 +80,16 @@ static func build(kind: String, opts := {}) -> Scene:
 	var elbow: Vector3 = X * (P.P[el] as Vector3)
 	var mid: Vector3 = X * (((P.P[ua] as Vector3) + (P.P[el] as Vector3)) * 0.5)
 	var H := ThrowFixtures.stand()
+	if fam:
+		H.offset.x += -0.05 if sfx == "_r" else 0.05
+		H.fk()
 	# the partner's right arm is the locker's left (+x): his left hand takes the wrist, the right the elbow; the left arm swaps them
 	var ha := "hand_l" if sfx == "_r" else "hand_r"
 	var hb := "hand_r" if sfx == "_r" else "hand_l"
+	if fam:   # the arm lies across him: the far hand (hb) takes the wrist, the near hand (ha) the elbow
+		var tmp := wrist
+		wrist = elbow
+		elbow = tmp
 	var miss := 0.0
 	if kind == "sweep":
 		miss = maxf(_reach(H, ha, mid), _reach(H, hb, elbow))
