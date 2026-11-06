@@ -5313,6 +5313,7 @@ func _refresh() -> void:
 	var _pk := PerfDoc.t()
 	if not PerfStub.skip("skinning"):
 		Overlays.pose_skeleton(skel, bone_idx, B)
+	CharImportApp.update(self)   # L9: an imported rigged character stands on the pose (scripts/char_import_app.gd)
 	PerfDoc.add("skinning", _pk)
 	corr.update(B)
 	dq_skin_pass.update(S.dq_skin)   # H04: after the corrective (its mesh is the rest DQ corrects)
@@ -8177,6 +8178,7 @@ func _scene_dict(frames := true) -> Dictionary:
 	var ar := ArmourFromBody.to_file(self)   # B23: the armour plates on the fighter, when there are any (scripts/armour_from_body.gd)
 	if not ar.is_empty():
 		d[ArmourFromBody.KEY] = ar
+	CharImportApp.put_key(self, d)   # L9: the imported character (its file, its bone map by name)
 	return d
 
 
@@ -16844,6 +16846,10 @@ func _commands() -> Array:
 	add.call("Sculpt: a test sphere (preview)", "", _sculpt_start, "sculpt brush draw clay inflate smooth flatten pinch crease grab snake hook pressure tablet zbrush", false, "add a test sphere to the stage and sculpt it: drag to stroke, D C I S F P E G K brushes, [ ] radius, Shift+[ ] strength, O falloff, X symmetry, Ctrl invert, Shift smooth, Ctrl+Z undo, Esc leaves (nothing is saved)")
 	add.call("Rig: bone editor (add / delete / parent bones)", "", func(): _bone_ui().toggle(), "bone bones rig skeleton add delete parent extrude roll rest edit armature tail chain joint", false, "open / close the bone editor: your own bones on the body (E extrude from a tail, Shift+A add, X delete, drag the end balls; name, parent, length, roll in its panel). Each edit is one undo step; the body's own skeleton is not edited")
 	add.call("Model: edit a test cube (preview)", "", _kmesh_edit_start, "model mesh cube edit select vertex edge face box lasso xray polygon modeling", false, "add a 4x4-per-side test cube to the stage and select on it: click, Shift+click, B box, L lasso, X x-ray, 1/2/3 vertex / edge / face, Esc leaves (nothing is saved)")
+	add.call("Character: import a rigged character (glb / fbx)", "", func(): CharImportApp.ask(self), "character import rigged rig skin skinned mesh blendshape blend shape fbx glb mixamo unreal rigify vrm own model mapping bring in", false, "a .glb / .fbx with a skinned mesh becomes the fighter: its mesh, skin weights and blend shapes, its skeleton mapped onto Kine's body (names, then geometry; a map screen to fix bones). Kine's poses, limits, balance and contacts then drive it, on its own proportions")
+	add.call("Character: map the imported skeleton (fix bones)", "", func(): CharImportApp.map_cmd(self), "character map bones skeleton retarget fix rig imported joints", false, "the bone-map screen for the imported character: pick another bone for any Kine joint")
+	add.call("Character: show the Kine body beside the import", "", func(): CharImportApp.beside_toggle(self), "character beside compare kine body import side", false, "the Kine body and the imported character side by side, 1 m each side of the origin; run again for the import alone")
+	add.call("Character: remove the import (the Kine body again)", "", func(): CharImportApp.remove_cmd(self), "character remove clear imported rigged kine body back", false, "take the imported character off; the Kine mannequin is the fighter again")
 	add.call("Model: edit the body mesh", "", func(): BaseBody.start(self), "model mesh body skin fighter mannequin character edit sculpt base topology weights rigged", false, "open the fighter's skinned body in the model preview (its skin weights ride along as attributes); every model key works on it; Esc leaves without changing the fighter")
 	add.call("Model: apply the body mesh to the fighter", "", func(): BaseBody.apply_cmd(self), "apply write commit body mesh fighter skin weights save model", true, "the edited body becomes the fighter's skinned mesh, with its weights (new verts carry their neighbours'); one undo step")
 	add.call("Body: save the fighter's body (.kbody)", "", func(): BodyFile.save_cmd(self), "body save kbody file keep library mesh skin weights fighter character", false, "the fighter's body (mesh, skin weights, the scene's proportions) as a NEW .kbody in bodies/ (the same body twice is the same file); the Browser lists it under Bodies with a picture, a click puts it back")
@@ -21500,6 +21506,7 @@ func _restore_work(a: Dictionary) -> void:
 		BaseBody.restore_gen(self, 0)   # the mannequin as shipped (the state held no applied body)
 	BodyFile.from_scene(self, a["scene"])   # G07: an applied body back, from its file or inline
 	ArmourFromBody.from_scene(self, a["scene"])   # B23: the armour plates back
+	CharImportApp.from_scene(self, a["scene"])   # L9
 	camx.from_scene(a["scene"])   # C01
 	scene_path = path
 	if ui_loop != null:
@@ -23998,6 +24005,10 @@ func _import_file(path: String) -> Dictionary:
 	if r["kind"] == "rigged" and AnimImport.load_source(path)["ok"]:   # a skeleton WITH an animation: the animation import
 		var o := _import_anim(path)
 		return {"ok": o != "", "path": o, "why": "" if o != "" else "refused (the reason is on the status line)"}
+	if r["kind"] == "rigged":   # L9: a skeleton with a skinned mesh and no animation is a CHARACTER
+		var cr := CharImportApp.open(self, path, {}, true)
+		if cr["ok"]:
+			return {"ok": true, "path": path, "why": ""}
 	if r["kind"] == "rigged":
 		var aa: Dictionary = Importer.accept(path, "animation", library)
 		_say(("%s has a skeleton: importing animations comes later (UPGRADES #209); it was kept in your library. To use a model as a prop, drop one without a skeleton" % path.get_file()) if aa["ok"] else "could not import %s: %s Try another .glb, or open it in Blender and export it as .glb again" % [path.get_file(), aa["why"]])
@@ -24585,6 +24596,7 @@ func _open_scene_dict(path: String, d: Dictionary, work: bool, built := false) -
 			_say.call_deferred("this scene's set names models your library does not have (%s): they were left out" % ", ".join(S.props_skipped))
 		BodyFile.from_scene(self, d)   # G07: the body the scene was saved with back on the fighter
 		ArmourFromBody.from_scene(self, d)   # B23: the armour plates the scene was saved with (none when the file has none)
+		CharImportApp.from_scene(self, d)   # L9: the imported character the scene was saved with (none: the Kine body)
 		camx.from_scene(d)   # C01: the cube's Top the scene was saved with
 	else:   # an old move file: its keys become cards
 		var prev := 0.0
