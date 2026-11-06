@@ -6,7 +6,7 @@
   python tools/look4d_truth.py grade <reader> <answers.json>     e.g. grade C_r1 answers.json
   python tools/look4d_truth.py selfcheck  the oracle answers score 100%, shifted answers score near chance, the projection matches the sampled pixels
 
-Answers are option letters; yes/no questions have A = yes, B = no. No model grades.
+Answers are option letters; every question lists its own options. No model grades.
 """
 import hashlib
 import json
@@ -392,9 +392,46 @@ def gen_scene(scene, td, spec=None):
     return qs, pick
 
 
+def balance(allq_full):
+    """Permute each question's options (fixed seed) so the correct letter is balanced within each arity. Truth content is unchanged: only which letter carries which option.
+    A pinned last option ("none of them is moving") stays last and its question is left alone."""
+    groups = {}
+    for sc in SCENES:
+        for q in allq_full[sc]:
+            if "E" in q["options"] and q["options"]["E"].startswith("none"):
+                continue
+            groups.setdefault(len(q["options"]), []).append(q)
+    for k in sorted(groups):
+        qs = groups[k]
+        rng = rng_for("look4d-balance-v1", k)
+        targets = [chr(65 + (j % k)) for j in range(len(qs))]
+        rng.shuffle(targets)
+        for q, t in zip(qs, targets):
+            opts = [q["options"][L] for L in sorted(q["options"])]
+            correct = q["options"][q["answer"]]
+            rest = [o for o in opts if o != correct]
+            rng.shuffle(rest)
+            ti = ord(t) - 65
+            new = rest[:ti] + [correct] + rest[ti:]
+            q["options"] = letters(new)
+            q["answer"] = t
+    return allq_full
+
+
+def letter_dist(truth):
+    """{arity: {letter: count}} over a truth.json-shaped dict (needs the option count, kept as 'k')"""
+    d = {}
+    for sc in truth:
+        for t in truth[sc].values():
+            d.setdefault(t["k"], {}).setdefault(t["answer"], 0)
+            d[t["k"]][t["answer"]] += 1
+    return d
+
+
 def cmd_gen():
     allq = {}
     truth = {}
+    full = {}
     spec = None
     for sc in SCENES:
         td = load(sc)
@@ -404,14 +441,25 @@ def cmd_gen():
             qs, pick = gen_scene(sc, td)
             if sc == "s1_engine":
                 spec = pick
+        full[sc] = qs
+    old = {sc: {q["id"]: {"answer": q["answer"], "k": len(q["options"]), "type": q["type"]} for q in full[sc]} for sc in SCENES}
+    json.dump(old, open(os.path.join(ROOT, "truth_unshuffled.json"), "w"), indent=1)
+    balance(full)
+    for sc in SCENES:
+        qs = full[sc]
         allq[sc] = [{k: v for k, v in q.items() if k not in ("answer", "truth")} for q in qs]
-        truth[sc] = {q["id"]: {"answer": q["answer"], "type": q["type"], "lookup": q["lookup"], "truth": q.get("truth")} for q in qs}
+        truth[sc] = {q["id"]: {"answer": q["answer"], "k": len(q["options"]), "type": q["type"], "lookup": q["lookup"], "truth": q.get("truth")} for q in qs}
     rows = [t for sc in truth for t in truth[sc].values()]
     nl = sum(1 for r in rows if not r["lookup"])
     share = nl / float(len(rows))
     stats = {"total": len(rows), "by_type": {}, "non_lookup": nl, "non_lookup_share": share, "by_scene": {sc: len(truth[sc]) for sc in SCENES}}
     for r in rows:
         stats["by_type"][r["type"]] = stats["by_type"].get(r["type"], 0) + 1
+    yn = [(q["options"][q["answer"]] == "yes") for sc in SCENES for q in full[sc] if len(q["options"]) == 2 and set(q["options"].values()) == {"yes", "no"}]
+    stats["yes_no_questions"] = len(yn)
+    stats["yes_share_of_yes_no_truth"] = sum(yn) / float(max(1, len(yn)))
+    stats["letters_before"] = letter_dist(old)
+    stats["letters_after"] = letter_dist(truth)
     motion = [t for sc in ("s1_engine", "s2_arm", "s3_walk", "s4_fall") for t in truth[sc].values() if t["type"] in ("fastest", "toward", "collide", "predict")]
     stats["motion_questions_s1_s4"] = len(motion)
     if share < MIN_NONLOOKUP:
@@ -430,7 +478,7 @@ ARM_NAME = {"A": "A", "B": "B", "C": "C", "D": "D", "CD": "C+D", "Z": "Z", "Dscr
 
 COMMON = """You will answer multiple-choice questions about {n} short scenes from a 3D simulation (mechanical parts, an arm, a walking figure, falling objects). Each scene is a single moment, called "now". Parts are listed by name at the start of each scene.
 
-Rules: answer from what is given below only. Do not read other files, do not search, do not run tools except to open the image files named in this packet. Each question has lettered options; yes/no questions have A = yes and B = no. If you cannot tell, give your best guess (always answer every question).
+Rules: answer from what is given below only. Do not read other files, do not search, do not run tools except to open the image files named in this packet. Each question has lettered options; read the options of every question (yes/no questions list their own letters). If you cannot tell, give your best guess (always answer every question).
 
 Conventions for every question: "the picture" is the 768 x 432 pixel camera image of the scene (x to the right, y down). Left/right/above/below, and the 3 x 3 grid (three equal columns, three equal rows over the whole picture), refer to the picture. "Centre" means the part's 3D centre projected into the picture. Distances and speeds are in metres and seconds in the scene's own world units; the camera looks at the scene from a fixed viewpoint.
 
@@ -509,7 +557,7 @@ def cmd_packets():
                 lines.append("Parts: " + ", ".join(names) + ".\n")
                 if arm in ("A", "B", "C", "CD"):
                     src = {"A": "A", "B": "B", "C": "C", "CD": "C"}[arm]
-                    fname = "img_%s.png" % hashlib.sha256((rid + sc).encode()).hexdigest()[:10]
+                    fname = "img_%s.png" % hashlib.sha256((rid + sc + "-balance-v2").encode()).hexdigest()[:10]
                     shutil.copy(os.path.join(ROOT, sc, src + ".png"), os.path.join(pk, "images", fname))
                     lines.append("Image for %s: images/%s (open it and look at it).\n" % (label, fname))
                     img_tokens += int(round(W * H / 750.0))
@@ -598,7 +646,32 @@ def cmd_selfcheck():
         if o != 1.0 or s >= 0.9:
             bad += 1
             print("FAIL", rid, o, s)
-    print("selfcheck:", "FAIL" if bad else "ok", "(oracle 1.0, wrong-letter answers low on every packet)")
+    # letter balance
+    def balance_ok(tr, label, expect_pass):
+        ok_all = True
+        dist = letter_dist(tr)
+        for k, cnt in sorted(dist.items()):
+            n = sum(cnt.values())
+            if n < 10:
+                continue
+            mx = max(cnt.values()) / float(n)
+            if mx > 1.0 / k + 0.10:
+                ok_all = False
+                print("  %s: arity %d: most common correct letter %.2f of %d questions (limit %.2f)" % (label, k, mx, n, 1.0 / k + 0.10))
+        tot = sum(sum(c.values()) for c in dist.values())
+        chance = sum(sum(c.values()) / float(k) for k, c in dist.items()) / tot
+        for fixed in "AB":
+            hit = sum(1 for sc in tr for t in tr[sc].values() if t["answer"] == fixed) / float(tot)
+            if hit > chance + 0.10:
+                ok_all = False
+                print("  %s: always %s scores %.3f (chance %.3f, limit %.3f)" % (label, fixed, hit, chance, chance + 0.10))
+        print("%s: balance %s (expected %s)" % (label, "pass" if ok_all else "FAIL", "pass" if expect_pass else "FAIL"))
+        return ok_all == expect_pass
+    if not balance_ok(json.load(open(os.path.join(ROOT, "truth.json"))), "shuffled set", True):
+        bad += 1
+    if not balance_ok(json.load(open(os.path.join(ROOT, "truth_unshuffled.json"))), "PLANTED old unshuffled set", False):
+        bad += 1
+    print("selfcheck:", "FAIL" if bad else "ok", "(oracle 1.0, wrong-letter answers low on every packet, letters balanced, planted old set fails)")
     sys.exit(1 if bad else 0)
 
 
