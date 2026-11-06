@@ -73,6 +73,9 @@ TOOLS = {
     "look_facts": ("look_facts", "Numbers for how the final picture LOOKS per piece / kind / nature item (colour, contrast, neon, ring, share), from an id render. "
                    "Needs a part view or nature items showing: give piece, kind, nature or targets; camera, w, h optional.",
                    {"type": "object", "properties": {"piece": S, "kind": S, "nature": S, "targets": {"type": "array"}, "camera": {"type": "object"}, "w": N, "h": N}, "additionalProperties": True}),
+    "final_render": ("final_render", "Render the shot camera as a PNG sequence + mp4 with a quality preset: draft | final | final_hq (Final HQ = GI bounce, depth of field at the shot's focus, motion blur from sub-frames across the shutter, jittered accumulation). "
+                     "w, h (default 1920x1080), first, count (frame range), out (folder), subframes (default 8), accum (default 2), shutter (fraction of a frame, 0.5). Returns dir, frames, mp4.",
+                     {"type": "object", "properties": {"preset": S, "w": N, "h": N, "first": N, "count": N, "out": S, "subframes": N, "accum": N, "shutter": N}, "additionalProperties": False}),
     "nature": ("nature", "Trees, hedges, shrubs, grass, flowers, paths, scatter: op list | add {item} | words {text: '2 oak trees 5 m tall'} | remove {id} | clear | measure.",
                {"type": "object", "properties": {"op": S, "item": {"type": "object"}, "text": S, "id": S}, "additionalProperties": True}),
     "part_warn": ("part_warn", "The part's warnings at its level (off / look / print / engineering), the list the Part panel shows; level, mute, unmute edit the record "
@@ -100,7 +103,7 @@ TOOLS = {
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig"]
+MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:

@@ -2077,6 +2077,7 @@ func _axis_node() -> Node3D:
 
 var ui_fr_dlg: ConfirmationDialog
 var ui_fr_res: OptionButton
+var ui_fr_preset: OptionButton
 
 
 ## "Final render...": pick the resolution, OK renders (the shot camera over every frame; exports/shots/<scene>_<stamp>_final/)
@@ -2092,6 +2093,13 @@ func _final_render_dialog() -> void:
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.custom_minimum_size = Vector2(360, 0)
 		v.add_child(l)
+		ui_fr_preset = OptionButton.new()
+		ui_fr_preset.name = "opt_preset"
+		for pn in ["Draft", "Final", "Final HQ"]:
+			ui_fr_preset.add_item(pn)
+		ui_fr_preset.select(1)
+		ui_fr_preset.tooltip_text = "Final HQ adds global light bounce (SDFGI), depth of field at the shot's focus, motion blur from 8 sub-frames across the shutter and a 2-pass jittered accumulation; several times slower than Final"
+		v.add_child(ui_fr_preset)
 		ui_fr_res = OptionButton.new()
 		ui_fr_res.name = "opt_resolution"
 		for r in FinalRender.RES:
@@ -2101,7 +2109,7 @@ func _final_render_dialog() -> void:
 		ui_fr_dlg.add_child(v)
 		ui_fr_dlg.confirmed.connect(func():
 			var r: Vector2i = FinalRender.RES[ui_fr_res.selected]
-			_render_shots(ShotRender.ROOT, "", {"preset": "final", "w": r.x, "h": r.y}))
+			_render_shots(ShotRender.ROOT, "", {"preset": ["draft", "final", "final_hq"][ui_fr_preset.selected], "w": r.x, "h": r.y}))
 		add_child(ui_fr_dlg)
 	ui_fr_dlg.popup_centered()
 
@@ -2196,7 +2204,11 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "", opts := {}) -
 			ui_root.visible = false
 			_sr_layer.visible = false
 			var sub_imgs := []
-			for tt in BlastBlur.times(blast_blur, float(f) / fps, fps, blast_blur_n, blast_shutter, 0.0, float(maxi(n - 1, 0)) / fps):
+			var hq := preset == "final_hq"
+			var hq_sub := int(opts.get("subframes", FinalHQ.PRESET["subframes"]))
+			var hq_acc := maxi(1, int(opts.get("accum", FinalHQ.PRESET["accum"])))
+			var tt_list: Array = FinalHQ.motion_times(float(f) / fps, fps, hq_sub, float(opts.get("shutter", FinalHQ.PRESET["shutter"])), 0.0, float(maxi(ShotRender.frame_count(length, fps) - 1, 0)) / fps) if hq else BlastBlur.times(blast_blur, float(f) / fps, fps, blast_blur_n, blast_shutter, 0.0, float(maxi(n - 1, 0)) / fps)
+			for tt in tt_list:
 				playhead = tt
 				_ps().apply(B, playhead)
 				BlastBlur.on_time(playhead)
@@ -2208,15 +2220,32 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "", opts := {}) -
 					svp_cam.global_transform = sv["xf"]
 					svp_cam.fov = ShotCam.fov_v(float(sv["f"]))
 					svp_cam.attributes = cam.attributes
-					if preset == "final":
-						await get_tree().process_frame   # SSAO / SDFGI settle on the new pose
+					if hq:
+						var kk := shot_at(playhead)
+						var fd: float = float(sv["focus"]) if not is_nan(float(sv["focus"])) else maxf(0.5, (kk["pos"] as Vector3).distance_to(kk["aim"] as Vector3))
+						if svp_cam.attributes == null:
+							FinalHQ.dof(svp_cam, fd)
+						await get_tree().process_frame   # SDFGI / SSAO settle on the new pose
 						await get_tree().process_frame
-					sub_imgs.append(await FinalRender.grab(get_tree(), svp))
+						await get_tree().process_frame
+						var base_xf: Transform3D = svp_cam.global_transform
+						for ak in hq_acc:
+							svp_cam.global_transform = FinalHQ.jitter_xf(base_xf, FinalHQ.jitter(ak, hq_acc), svp_cam.fov, fd, svp.size.y)
+							sub_imgs.append(await FinalRender.grab(get_tree(), svp))
+						svp_cam.global_transform = base_xf
+					else:
+						if preset == "final":
+							await get_tree().process_frame   # SSAO / SDFGI settle on the new pose
+							await get_tree().process_frame
+						sub_imgs.append(await FinalRender.grab(get_tree(), svp))
 				else:
 					await get_tree().process_frame
 					await RenderingServer.frame_post_draw
 					sub_imgs.append(_shot_blast_image(shot, get_viewport().get_texture().get_image()))
-			(sub_imgs[0] if sub_imgs.size() == 1 else PlayblastExport.average(sub_imgs)).save_png("%s/frame_%04d.png" % [gdir, f - first_f])
+			if hq:
+				FinalHQ.to_rgb8(FinalHQ.accumulate(sub_imgs)).save_png("%s/frame_%04d.png" % [gdir, f - first_f])
+			else:
+				(sub_imgs[0] if sub_imgs.size() == 1 else PlayblastExport.average(sub_imgs)).save_png("%s/frame_%04d.png" % [gdir, f - first_f])
 			wt.render_active = false
 			ui_root.visible = true
 			_sr_layer.visible = true
