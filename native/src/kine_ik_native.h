@@ -10,6 +10,7 @@
 #include <godot_cpp/classes/object.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/packed_float32_array.hpp>
+#include <godot_cpp/variant/packed_float64_array.hpp>
 #include <godot_cpp/variant/vector3.hpp>
 
 namespace godot {
@@ -22,6 +23,8 @@ protected:
 
 public:
 	static int version();
+	// math_probe: kind 0 sin, 1 cos, 2 atan2(xs[2i], xs[2i+1]) (double); 3 Quaternion((0.6, 0, 0.8), (real_t)x) as xyzw; 4 Vector3((x, 0.3, -0.5)).normalized() as xyz
+	static PackedFloat64Array math_probe(int p_kind, const PackedFloat64Array &p_xs);
 	static PackedFloat32Array plant_leg(const PackedFloat32Array &p_static, const PackedFloat32Array &p_dyn, const Vector3 &p_ball_at, double p_head, bool p_flat, double p_knee);
 };
 
