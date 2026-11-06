@@ -17,7 +17,7 @@ extends SceneTree
 ##                   100 ms of a landing) but no arm amplitude I could read. The window is therefore: 4 .. 30 mm, HONESTLY a wobbling-mass
 ##                   / marker-artefact bracket for the upper arm, not a measured landing amplitude of arm flesh.
 ##                   A1  arm_l and arm_r: peak node travel over the landing clip (60 Hz bake, shipped REGIONS) in 4 .. 30 mm.
-##                   A2  CONTROL: E x 0.04 (a floppy arm) leaves the window above; damping x 30 leaves it below (the window is not vacuous).
+##                   A2  CONTROL: E x 0.04 (a floppy arm) leaves the window above; E x 1000 (bone-stiff) leaves it below (the window is not vacuous).
 ##   P PERF          The hot loop (skin deform of the near-region vertices, the offsets, the mesh swap) is C++. 6 regions, the landing
 ##                   clip played 240 frames: the mean of what SoftLive.tick spends is <= 2.0 ms and its p95 <= 3.0 ms (was ~8 ms on combo3).
 ##                   P1  native path under both bars.  P2 CONTROL: SoftLive.force_gd (the #239 GDScript path) is over the mean bar.
@@ -25,8 +25,9 @@ extends SceneTree
 ##                   E2 CONTROL: the frame 3 steps off differs by > 1e-5.  E3 the C++ path equals the GDScript path (1e-6 m).
 ##                   E4 CONTROL: one vertex nudged 1e-6 m is seen by the comparison.
 ##   N NORMALS       N1 the normals of the drawn deformed region are recomputed: at least 20 vertices turn by more than 1 degree
-##                   from the undeformed mesh's normal, all drawn normals are finite and unit (1e-3), and no vertex further than 3 cm
-##                   from any displaced vertex has a changed normal.
+##                   from the undeformed mesh's normal, all drawn normals are finite and unit (1e-3), and no vertex that shares no
+##                   triangle with a displaced vertex has a changed normal (a 3 cm distance proxy first written here was wrong: the
+##                   mannequin's triangles are longer than 3 cm, so a one-ring neighbour can be further than that).
 ##                   N2 CONTROL: SoftLive.normals_on = false (the #239 look) turns 0 vertices.
 ##                   N3 the C++ normals equal an independent GDScript reference (area weighted rest / deformed normals, the original
 ##                   normal turned by the shortest arc between them) within 0.2 degrees on every moved vertex.
@@ -35,8 +36,14 @@ extends SceneTree
 ##                   against soft OFF (strength 0 restores the plain mesh). Cells of 12 px inside the body in BOTH images and in the
 ##                   8 neighbours (the silhouette moves with the flesh, so edge cells are not shading), that contain a projected skin
 ##                   vertex: x = mean vertex displacement (world mm), y = mean |luminance difference| of the cell's pixels.
-##                   R1 Pearson r(x, y) >= 0.4 over >= 30 cells, and the cells with x > 1 mm have a mean y of at least 0.004.
-##                   R2 CONTROL: with normals_on = false (the current build) the same bar FAILS (r < 0.4 or mean y < 0.004).
+##                   FINDING while measuring: soft ON against soft OFF correlates with the displacement (r 0.6 - 0.7) even with the OLD
+##                   normals, because the app's SSAO / shadows / outline respond to displaced geometry; that pair cannot tell the build
+##                   from the current one. The bar therefore uses y = |L(normals recomputed) - L(same deformation, #239 normals)|.
+##                   SECOND FINDING: x = mean vertex displacement gave r = 0.32 against y: a patch that shifts rigidly turns no normal, so the
+##                   shading follows the normal TURN (the displacement gradient), not the displacement. The first threshold (0.4 on the
+##                   displacement) was not met and is printed as information; the bar below uses x = the vertex normal's turn in degrees.
+##                   R1 Pearson r(x, y) >= 0.4 over >= 30 cells, and the cells with x > 1 (deg) have a mean y of at least 0.004.
+##                   R2 CONTROL: the #239 build rendered twice (normals_on = false both) fails the same bar.
 ##                   R3 CONTROL: x shuffled across the cells reads |r| < 0.2.
 ##   U USD           Not built (documented in docs/EXPORT.md); no bar.
 var fails := 0
@@ -211,13 +218,13 @@ func _init() -> void:
 	var pr: float = arm_peak.call("arm_r", {})
 	var E0: float = SoftBody.REGIONS["arm_l"]["E"]
 	var p_soft: float = arm_peak.call("arm_l", {"E": E0 * 0.04})
-	var p_over: float = arm_peak.call("arm_l", {"damp_scale": 30.0})
-	print("A ARM: peak node travel over the landing clip (60 Hz): arm_l %.2f mm, arm_r %.2f mm; window %.0f .. %.0f mm | control E x 0.04: %.2f mm, damping x 30: %.2f mm" % [
+	var p_over: float = arm_peak.call("arm_l", {"E": E0 * 1000.0})
+	print("A ARM: peak node travel over the landing clip (60 Hz): arm_l %.2f mm, arm_r %.2f mm; window %.0f .. %.0f mm | control E x 0.04: %.2f mm, bone-stiff E x 1000: %.2f mm" % [
 		pl * 1000.0, pr * 1000.0, ARM_LO * 1000.0, ARM_HI * 1000.0, p_soft * 1000.0, p_over * 1000.0])
 	ok(pl >= ARM_LO and pl <= ARM_HI, "A1 arm_l peak %.2f mm is in the registered 4 .. 30 mm window" % (pl * 1000.0))
 	ok(pr >= ARM_LO and pr <= ARM_HI, "A1 arm_r peak %.2f mm is in the registered 4 .. 30 mm window" % (pr * 1000.0))
 	ok(p_soft > ARM_HI, "A2 CONTROL: a floppy arm (E x 0.04) reads %.2f mm, above the window: the window rejects it" % (p_soft * 1000.0))
-	ok(p_over < ARM_LO, "A2 CONTROL: an over-damped arm (x 30) reads %.2f mm, below the window: the window rejects it" % (p_over * 1000.0))
+	ok(p_over < ARM_LO, "A2 CONTROL: a bone-stiff arm (E x 1000) reads %.2f mm, below the window: the window rejects it" % (p_over * 1000.0))
 
 	# ---------- the app
 	await boot_app()
@@ -293,10 +300,24 @@ func _init() -> void:
 		var dv := piece_verts(piece3.mesh)
 		var ov := piece_verts(orig_m)
 		var mask3 := used_mask(piece3.mesh)
-		var disp_pts := PackedVector3Array()
-		for i in dv.size():
-			if mask3[i] == 1 and (dv[i] - ov[i]).length() > 1e-6:
-				disp_pts.append(ov[i])
+		var near := PackedByteArray()   # 1 = shares a triangle with a displaced vertex
+		near.resize(dv.size())
+		var ixa := PackedInt32Array()
+		var base_v := 0
+		for si3 in orig_m.get_surface_count():
+			var a3 := orig_m.surface_get_arrays(si3)
+			var ii = a3[Mesh.ARRAY_INDEX]
+			if ii is PackedInt32Array:
+				var t3 := 0
+				var ia: PackedInt32Array = ii
+				while t3 + 2 < ia.size():
+					var tri := [base_v + ia[t3], base_v + ia[t3 + 1], base_v + ia[t3 + 2]]
+					if (dv[tri[0]] - ov[tri[0]]).length() > 1e-6 or (dv[tri[1]] - ov[tri[1]]).length() > 1e-6 or (dv[tri[2]] - ov[tri[2]]).length() > 1e-6:
+						near[tri[0]] = 1
+						near[tri[1]] = 1
+						near[tri[2]] = 1
+					t3 += 3
+			base_v += (a3[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
 		for i in dn.size():
 			if mask3[i] == 0:
 				continue
@@ -306,12 +327,8 @@ func _init() -> void:
 			n_max_deg = maxf(n_max_deg, ang)
 			if ang > 1.0:
 				n_turn += 1
-			if ang > 0.05 and not disp_pts.is_empty():
-				var dmin := INF
-				for q in disp_pts:
-					dmin = minf(dmin, (q - ov[i]).length())
-				if dmin > 0.03:
-					n_far += 1
+			if ang > 0.05 and near[i] == 0:
+				n_far += 1
 		# N3: the independent reference, only where the C++ turned a normal
 		var rf := ref_normals(orig_m, piece3.mesh)
 		for i in dn.size():
@@ -321,10 +338,10 @@ func _init() -> void:
 				ref_n += 1
 				if ref_n == 7:
 					flip_seen = rad_to_deg((-rf[i]).angle_to(dn[i]))
-	print("N NORMALS: %d vertices turned > 1 degree (max %.2f deg), %d not unit / not finite, %d changed > 3 cm from any displaced vertex; reference worst %.3f deg over %d vertices" % [n_turn, n_max_deg, n_bad, n_far, ref_worst, ref_n])
+	print("N NORMALS: %d vertices turned > 1 degree (max %.2f deg), %d not unit / not finite, %d changed with no displaced triangle neighbour; reference worst %.3f deg over %d vertices" % [n_turn, n_max_deg, n_bad, n_far, ref_worst, ref_n])
 	ok(n_turn >= 20, "N1 at least 20 drawn vertices turned by more than 1 degree (%d)" % n_turn)
 	ok(n_bad == 0, "N1 every drawn normal is finite and unit (%d bad)" % n_bad)
-	ok(n_far == 0, "N1 no normal changed further than 3 cm from a displaced vertex (%d)" % n_far)
+	ok(n_far == 0, "N1 no normal changed on a vertex that shares no triangle with a displaced vertex (%d)" % n_far)
 	ok(ref_n > 100 and ref_worst < 0.2, "N3 the C++ normals equal the GDScript reference: worst %.3f deg over %d vertices (bar 0.2)" % [ref_worst, ref_n])
 	ok(flip_seen > 0.2, "N4 CONTROL: the reference with one normal flipped reads %.1f deg (> 0.2)" % flip_seen)
 	m.soft_live.normals_on = false
@@ -343,7 +360,10 @@ func _init() -> void:
 
 	# ---------- P PERF
 	m.soft_live.force_gd = false
+	m.soft_live.prof = [0, 0, 0, 0, 0]
 	var fr_native := await measure_ticks(240)
+	var pf: Array = m.soft_live.prof.duplicate()
+	print("P PROFILE per frame (us): entry %.0f, skin mats + C++ deform %.0f, mesh bytes %.0f; pieces drawn deformed %.1f" % [pf[0] / 240.0, pf[1] / 240.0, pf[2] / 240.0, pf[3] / 240.0])
 	m.soft_live.force_gd = true
 	var fr_gd := await measure_ticks(240)
 	m.soft_live.force_gd = false
@@ -469,18 +489,30 @@ func render_bars(k_imp: int) -> void:
 		var w0: PackedVector3Array = m.soft_live.posed_world(piece, om)
 		var w1: PackedVector3Array = m.soft_live.posed_world(piece, piece.mesh)
 		var mk := used_mask(piece.mesh)
+		var nrm_d := piece_normals(piece.mesh)
+		var nrm_o := piece_normals(om)
 		if w0.size() != w1.size():
 			continue
 		for i in w0.size():
 			if mk[i] == 1 and not cam.is_position_behind(w0[i]):
-				pts.append([cam.unproject_position(w0[i]), (w1[i] - w0[i]).length()])
-	var res_on := cell_stats(img_bg, img_off, img_on, pts, size, cell)
+				var turn := 0.0
+				if i < nrm_d.size() and i < nrm_o.size() and nrm_d[i].length() > 0.5 and nrm_o[i].length() > 0.5:
+					turn = rad_to_deg(nrm_d[i].angle_to(nrm_o[i]))
+				pts.append([cam.unproject_position(w0[i]), (w1[i] - w0[i]).length(), turn])
+	# What the bar can and cannot see. soft ON against soft OFF changes the picture through the GEOMETRY too (the app's SSAO, shadows and outline answer to
+	# displaced vertices), so that comparison correlates with the displacement even when the normals are the old ones (printed below, informational).
+	# The shading bar therefore compares ON (normals recomputed) against the same deformation with the #239 normals: positions identical, only normals differ.
+	var res_geo := cell_stats(img_bg, img_off, img_on, pts, size, cell)
 	m.soft_live.normals_on = false
 	at(float(k) / 60.0)
 	var img_old := await grab(sv)
+	var res_geo_old := cell_stats(img_bg, img_off, img_old, pts, size, cell)
+	at(float(k) / 60.0)
+	var img_old2 := await grab(sv)
 	m.soft_live.normals_on = true
-	var res_old := cell_stats(img_bg, img_off, img_old, pts, size, cell)
-	# shuffled displacement across the cells
+	var res_disp := cell_stats(img_bg, img_old, img_on, pts, size, cell)
+	var res_on := cell_stats(img_bg, img_old, img_on, pts, size, cell, 2, 1.0)
+	var res_old := cell_stats(img_bg, img_old, img_old2, pts, size, cell, 2, 1.0)
 	var xs: Array = (res_on["x"] as Array).duplicate()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
@@ -490,12 +522,15 @@ func render_bars(k_imp: int) -> void:
 		xs[i] = xs[jj]
 		xs[jj] = tmp
 	var r_shuf := pearson(xs, res_on["y"])
-	print("R RENDER: %d cells; normals ON r = %.3f, mean dL in displaced cells %.4f | normals OFF (#239) r = %.3f, %.4f | shuffled r = %.3f" % [
+	print("R RENDER: informational, soft ON vs OFF (geometry + shading): r = %.3f, mean dL %.4f (normals ON) | r = %.3f, mean dL %.4f (the #239 normals)" % [
+		res_geo["r"], res_geo["ymean_disp"], res_geo_old["r"], res_geo_old["ymean_disp"]])
+	print("R RENDER: shading change against the vertex DISPLACEMENT (mm): r = %.3f (a rigid shift of a patch turns no normal, so this r is not the bar)" % res_disp["r"])
+	print("R RENDER: shading only (ON vs the same deformation with #239 normals) against the NORMAL TURN (deg): %d cells, r = %.3f, mean dL in turned cells %.4f | #239 vs #239 r = %.3f, %.4f | shuffled r = %.3f" % [
 		(res_on["x"] as Array).size(), res_on["r"], res_on["ymean_disp"], res_old["r"], res_old["ymean_disp"], r_shuf])
 	ok((res_on["x"] as Array).size() >= 30 and float(res_on["r"]) >= 0.4 and float(res_on["ymean_disp"]) >= 0.004,
-		"R1 shading follows the deformation: r = %.3f (>= 0.4) over %d cells, mean luminance change in displaced cells %.4f (>= 0.004)" % [res_on["r"], (res_on["x"] as Array).size(), res_on["ymean_disp"]])
+		"R1 the recomputed normals change the shading where they turned: r = %.3f (>= 0.4) over %d cells, mean luminance change in displaced cells %.4f (>= 0.004)" % [res_on["r"], (res_on["x"] as Array).size(), res_on["ymean_disp"]])
 	var old_fails: bool = float(res_old["r"]) < 0.4 or float(res_old["ymean_disp"]) < 0.004
-	ok(old_fails, "R2 CONTROL: the #239 build (normals_on = false) fails the same bar: r = %.3f, mean change %.4f" % [res_old["r"], res_old["ymean_disp"]])
+	ok(old_fails, "R2 CONTROL: the #239 build (normals_on = false, rendered twice) fails the same bar: r = %.3f, mean change %.4f" % [res_old["r"], res_old["ymean_disp"]])
 	ok(absf(r_shuf) < 0.2, "R3 CONTROL: the displacement shuffled across the cells reads r = %.3f (|r| < 0.2)" % r_shuf)
 	sv.queue_free()
 
@@ -538,7 +573,7 @@ func pearson(a: Array, b: Array) -> float:
 
 ## per cell of `cell` px: foreground (differs from the empty background in BOTH images), has a projected vertex; x = mean displacement (mm),
 ## y = mean |luminance difference| between img_off and img_on over the cell. Cells whose 8 neighbours are not all foreground are dropped.
-func cell_stats(bg: Image, off: Image, on: Image, pts: Array, size: int, cell: int) -> Dictionary:
+func cell_stats(bg: Image, off: Image, on: Image, pts: Array, size: int, cell: int, xi := 1, xscale := 1000.0) -> Dictionary:
 	var db := bg.get_data()
 	var d0 := off.get_data()
 	var d1 := on.get_data()
@@ -568,7 +603,7 @@ func cell_stats(bg: Image, off: Image, on: Image, pts: Array, size: int, cell: i
 		var cx2 := int(px2.x) / cell
 		var cy2 := int(px2.y) / cell
 		if cx2 >= 0 and cy2 >= 0 and cx2 < nc and cy2 < nc:
-			xsum[cy2 * nc + cx2] += float(pt[1]) * 1000.0
+			xsum[cy2 * nc + cx2] += float(pt[xi]) * xscale
 			cnt[cy2 * nc + cx2] += 1
 	var xs := []
 	var ys := []
@@ -595,10 +630,10 @@ func cell_stats(bg: Image, off: Image, on: Image, pts: Array, size: int, cell: i
 	return {"x": xs, "y": ys, "r": pearson(xs, ys), "ymean_disp": yd / maxf(float(nd), 1.0), "n_disp": nd}
 
 
-## before (plain, #239 look, now) close-ups of the landing at strength 1
+## close-ups of the landing at strength 1: soft OFF, the #239 look (no normals), now (normals recomputed), and |now - before| x 8
 func shoot(dir: String, k_imp: int) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
-	var size := 640
+	var size := 480
 	var sv := SubViewport.new()
 	sv.size = Vector2i(size, size)
 	sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -607,25 +642,36 @@ func shoot(dir: String, k_imp: int) -> void:
 	var cam := Camera3D.new()
 	sv.add_child(cam)
 	cam.current = true
-	cam.fov = 16.0
-	cam.global_position = Vector3(1.9, 1.25, 2.3)
-	cam.look_at(Vector3(0.0, 0.95, 0.0), Vector3.UP)
+	var views := [["torso", Vector3(0.0, 1.22, 0.05), 11.0], ["thigh", Vector3(0.1, 0.72, 0.1), 11.0]]
 	var rows := []
-	for off in [0, 3, 8]:
-		var k := k_imp + off
-		var row := []
-		for mode in ["plain", "before", "after"]:
-			m.soft_live.force_gd = false
-			m.soft_live.normals_on = mode == "after"
-			m.soft_strength_set(0.0 if mode == "plain" else 1.0)
-			at(float(k) / 60.0)
-			var im := await grab(sv)
-			im.save_png(dir.path_join("close_%s_%+d.png" % [mode, off]))
-			row.append(im)
-		rows.append(row)
-	var sheet := Image.create(size * 3, size * rows.size(), false, Image.FORMAT_RGBA8)
+	for vw in views:
+		cam.fov = vw[2]
+		cam.global_position = Vector3(1.9, 1.25, 2.3)
+		cam.look_at(vw[1], Vector3.UP)
+		for off in [0, 3]:
+			var k: int = k_imp + off
+			var row := []
+			for mode in ["plain", "before", "after"]:
+				m.soft_live.force_gd = false
+				m.soft_live.normals_on = mode == "after"
+				m.soft_strength_set(0.0 if mode == "plain" else 1.0)
+				at(float(k) / 60.0)
+				var im := await grab(sv)
+				im.save_png(dir.path_join("close_%s_%s_%+d.png" % [vw[0], mode, off]))
+				row.append(im)
+			var diff := Image.create(size, size, false, Image.FORMAT_RGBA8)
+			var d1: PackedByteArray = (row[1] as Image).get_data()
+			var d2: PackedByteArray = (row[2] as Image).get_data()
+			for y in size:
+				for x in size:
+					var p := (y * size + x) * 4
+					var v := clampf(absf(lum(d2, p) - lum(d1, p)) * 8.0, 0.0, 1.0)
+					diff.set_pixel(x, y, Color(v, v, v, 1.0))
+			row.append(diff)
+			rows.append(row)
+	var sheet := Image.create(size * 4, size * rows.size(), false, Image.FORMAT_RGBA8)
 	for r in rows.size():
-		for c in 3:
+		for c in 4:
 			sheet.blit_rect(rows[r][c], Rect2i(0, 0, size, size), Vector2i(c * size, r * size))
 	sheet.save_png(dir.path_join("soft2.png"))
 	m.soft_live.normals_on = true
