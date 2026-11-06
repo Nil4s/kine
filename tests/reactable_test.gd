@@ -1,6 +1,12 @@
 ## godot --headless --path . -s tests/reactable_test.gd     (INNOVATIONS N082: reactable or not, scripts/reactable.gd + scripts/reactable_strip.gd)
 ## The question: from the frame a viewer can SEE the strike coming (the tell) to the first ACTIVE frame, is there time to react?
-## Tell = the unbroken run of striking-tip motion >= Reactable.SEE_SPEED (0.5 m/s) that ends at the first active frame of a strike.
+## Tell = the earliest frame of the motion that leads into the first active frame of a strike: walking back, tip speed >= Reactable.SEE_SPEED
+## (0.5 m/s) frames extend it, and a still stretch of up to GAP_F (6) frames is bridged (an eased wind-up stops for a moment at its top).
+## AMENDED after the first run (recorded, not hidden): the first definition (unbroken run, no bridging) gave window 1 f on EVERY strike, slow
+## or fast, because an eased wind-up is below 0.5 m/s for a few frames at its top. That was the definition being wrong, not the clips: the
+## bars below are unchanged, the tell rule and the test's own scan (own_tell) were both changed to the bridged rule. The strip's missing
+## SubViewport.UPDATE_ALWAYS (black PNG) was a harness fix. Second fixture fix: upperarm_r bend is limited to -45, so the first cock (-40 to -75)
+## moved 5 degrees; the guard is now +10 and the cock -45 (a 55 degree backswing). Bars unchanged.
 ## Need = ceil((Counter.REACT + latency) * fps) frames. Window = first active - tell start. Reactable <=> window >= need.
 ## Bars, written before the first run (60 fps; synthetic attacker = guard hold 10 f, cock back over W f, strike in 3 f, back in 12 f):
 ##  1 SLOW TELL (W 24): one strike run; the tell starts within [10, 12] (card timing); the window equals the test's OWN backward scan of the
@@ -66,8 +72,8 @@ func f(n: float) -> float:
 func attacker(w: int) -> Scene:
 	var B := stand()
 	var a0: Vector3 = B.ang["upperarm_r"]
-	var guard := posed("upperarm_r", Vector3(-40.0, a0.y, a0.z))
-	var cock := posed("upperarm_r", Vector3(-75.0, a0.y, a0.z))
+	var guard := posed("upperarm_r", Vector3(10.0, a0.y, a0.z))
+	var cock := posed("upperarm_r", Vector3(-45.0, a0.y, a0.z))
 	var hit := posed("upperarm_r", Vector3(70.0, a0.y, a0.z))
 	return plain([{"name": "guard", "pose": guard, "move": -1.0, "hold": f(10)},
 		{"name": "cock", "pose": cock, "move": f(w), "hold": 0.0},
@@ -96,8 +102,15 @@ func own_speeds(S: Scene, B: Body, key := "hand_r") -> Array:
 
 func own_tell(v: Array, fa: int) -> int:
 	var t := fa
-	while t > 0 and float(v[t - 1]) >= 0.5:
-		t -= 1
+	var low := 0
+	for g in range(fa - 1, -1, -1):
+		if float(v[g]) >= 0.5:
+			t = g
+			low = 0
+		else:
+			low += 1
+			if low > 6:
+				break
 	return t
 
 
@@ -195,6 +208,7 @@ func _strip_shot(rs: Dictionary, rf: Dictionary) -> void:
 	var vp := SubViewport.new()
 	vp.size = Vector2i(900, 260)
 	vp.transparent_bg = false
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	root.add_child(vp)
 	var st := ReactableStrip.new()
 	st.size = Vector2(900, 260)
