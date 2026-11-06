@@ -195,7 +195,7 @@ func _wall_friction(dt: float) -> void:
 				if nw > 0:
 					var au: float = absf(g[idx])
 					if au > 1e-12:
-						var fill: float = float(cnt[c]) / float(ppc)
+						var fill: float = 2.0 * float(cnt[c]) / float(ppc)
 						var dep: float = h * (1.0 if fill > 1.0 else (0.1 if fill < 0.1 else fill))
 						var ut := _wall_utau(au, 0.5 * dep, wnu)
 						var fac: float = 1.0 - dt * nw * ut * ut / (dep * au)
