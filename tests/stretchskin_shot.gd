@@ -26,7 +26,7 @@ func _run() -> void:
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
 	await idle(4)
-	m._load_scene("res://scenes/combo3.json")
+	m.clean = true   # no highlights, no name tag, no panels
 	await idle(3)
 	for c in m.get_children():
 		if c is Control or c is CanvasLayer:
@@ -36,9 +36,23 @@ func _run() -> void:
 	for j in B.ang.keys():
 		B.ang[j] = Vector3.ZERO
 	B.offset = Vector3.ZERO
-	B.ang["upperarm_l"] = Vector3(0, -80, 0)
-	B.ang["upperarm_r"] = Vector3(0, 80, 0)
+	# raise both arms to a T: try each axis and sign, keep the one that puts the hand furthest out sideways
+	for jn in ["l", "r"]:
+		var best := Vector3.ZERO
+		var bx := -1.0
+		for ax in 3:
+			for sg in [-80.0, 80.0]:
+				var a := Vector3.ZERO
+				a[ax] = sg
+				B.ang["upperarm_" + jn] = a
+				B.fk()
+				var dx := absf((B.P["hand_" + jn] as Vector3).x - (B.P["upperarm_" + jn] as Vector3).x) - absf((B.P["hand_" + jn] as Vector3).y - (B.P["upperarm_" + jn] as Vector3).y) * 0.5
+				if dx > bx:
+					bx = dx
+					best = a
+		B.ang["upperarm_" + jn] = best
 	B.fk()
+	print("T pose: hand_l ", B.P["hand_l"], " shoulder ", B.P["upperarm_l"])
 	m._refresh()
 	var imgs := []
 	imgs.append(await shot(0.0))

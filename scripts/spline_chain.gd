@@ -556,6 +556,7 @@ static func make_body(B: Body, joints: Array, k := 4) -> Dictionary:
 ## Body.stretch (and the cross scale with volume), which StretchSkin draws. Returns the solve. Joint limits are not applied (a curve asks
 ## for its pose); the caller sees the result in B.P.
 static func drive_body(B: Body, ch: Dictionary) -> Dictionary:
+	B.set_meta("spline_body", true)   # the viewport skins a driven back by dual quaternions (main._refresh): a plain blend loses ~10 mm at its bends
 	var js: Array = ch["joints"]
 	var n := js.size() - 1
 	B.fk()

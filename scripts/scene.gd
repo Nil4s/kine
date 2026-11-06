@@ -921,6 +921,8 @@ func apply(B: Body, t: float) -> void:
 		ik_last = LimbIK.play(ik, B, t) if not PerfStub.skip("ik_plants") else {}
 		if not ik_last.is_empty() and B.wep_on and B.grip and B.wep_hand != "" and not ik_last.has("hand_l" if B.wep_hand == "hand_r" else "hand_r"):
 			B.apply_grip()   # the weapon hand moved: the other hand follows it onto the bat (unless it is pinned itself)
+	if spline_body.is_empty() and B.has_meta("spline_body"):
+		B.remove_meta("spline_body")
 	# L33: a spline chain on the body's joints (the back): after the IK pass (which clears a stretch), before the plants. Nothing without one
 	if not spline_body.is_empty():
 		if ik.is_empty() and B.has_stretch():
