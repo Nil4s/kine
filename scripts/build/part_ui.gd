@@ -2531,8 +2531,38 @@ func _nums_sync() -> void:
 		le.text = _dim_field_text(d)
 		le.text_submitted.connect(func(t: String): _num_typed.call_deferred(i, t, le))   # (deferred: the rows are rebuilt by the number)
 		le.focus_exited.connect(func(): _num_typed.call_deferred(i, le.text, le))
+		if String(d["kind"]) in DimFit.FIT_KINDS:   # G3: an ISO 286 fit class (H7 hole, g6 shaft) beside the size
+			var fe := LineEdit.new()
+			fe.name = "part_fit_%d" % i
+			fe.custom_minimum_size.x = 52
+			fe.placeholder_text = "fit"
+			fe.tooltip_text = "ISO 286 fit class on this size: H7 for a hole, g6 for a shaft (empty = none). The limits show under the size"
+			fe.text = String(d.get("fit", ""))
+			fe.text_submitted.connect(func(t: String): _fit_typed.call_deferred(i, t))
+			fe.focus_exited.connect(func(): _fit_typed.call_deferred(i, fe.text))
+			h.add_child(fe)
 		h.add_child(le)
 		nums_vb.add_child(h)
+		var fl := DimFit.label(d)
+		if fl != "":
+			var ll := _label(fl, 11, true)
+			ll.name = "part_fitlim_%d" % i
+			nums_vb.add_child(ll)
+
+
+## G3: a fit class typed on dimension i ("" clears it); stored on the dimension, so save, load, undo and replay keep it
+func _fit_typed(i: int, t: String) -> void:
+	if sk == "":
+		return
+	var dims: Array = _sk().get("dims", [])
+	if i >= dims.size() or String(dims[i].get("fit", "")) == t.strip_edges():
+		return
+	var err := DimFit.set_fit(_sk(), i, t)
+	if err != "":
+		_say(err)
+	else:
+		_say("Fit %s: %s" % [t.strip_edges(), DimFit.label(dims[i])] if t.strip_edges() != "" else "Fit class cleared")
+	_after_sketch_edit()
 
 
 func _num_typed(i: int, t: String, le: LineEdit) -> void:

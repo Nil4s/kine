@@ -72,6 +72,8 @@ TOOLS = {
                    {"type": "object", "properties": {"part": {"type": "object"}, "path": S, "gap": {"type": "array", "items": N, "minItems": 2, "maxItems": 2}, "cap": N, "near_mm": N}, "additionalProperties": False}),
     "part_assert": ("part_assert", "One-line checks on the part (e.g. 'piston touches barrel clearance 0.0-0.2 mm'); no lines = the record's saved asserts; save keeps the lines that pass.",
                     {"type": "object", "properties": {"lines": {"type": "array", "items": S}, "part": {"type": "object"}, "path": S, "save": {"type": "boolean"}, "clear": {"type": "boolean"}}, "additionalProperties": False}),
+    "fits": ("fits", "ISO 286 fits and stack-ups as data: each mating pair (fit kind, min/max clearance in um, interference-as-sliding flag), each stack-up (nominal, worst case, RSS) and every sized dimension with its class. assembly {record} or path, else the Assembly on screen, else the live part dimensions; csv adds each stack-up CSV.",
+             {"type": "object", "properties": {"assembly": {"type": "object"}, "path": S, "part": {"type": "object"}, "csv": {"type": "boolean"}}, "additionalProperties": False}),
     "part_build": ("part_build", "Build a part from steps in ONE call (mm, y up); append: true adds steps to the part on screen (send only new ones). "
                    "Main step: {t:'prim', kind: box|cylinder|tube|cone|sphere|wedge, op: new|join|cut|intersect, into: body, box/wedge x,y,z (corner) w,h,d; "
                    "cylinder x,y,z (cap centre) axis x|y|z r len; tube +r_in; cone +r2; sphere x,y,z r}. Also pattern {body,kind linear|circular,count,mm,dir|axis,deg}, "
@@ -84,7 +86,7 @@ TOOLS = {
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build"]
+MATH_TOOLS = ["frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:
