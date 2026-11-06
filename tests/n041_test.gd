@@ -192,7 +192,7 @@ func _init() -> void:
 	for c in cases:
 		var Sc: Scene = LockFixtures.build(c[0], c[1])
 		var pth := save(Sc, "rc_%s_%s" % [c[0], str(c[4]).replace(".", "p").replace("-", "m")])
-		var raw := (JSON.parse_string(FileAccess.get_file_as_string(pth))["actors"][0]["scene"]["cards"][1]["pose"]["joints"][c[2]][c[3]])
+		var raw: Variant = (JSON.parse_string(FileAccess.get_file_as_string(pth))["actors"][0]["scene"]["cards"][1]["pose"]["joints"][c[2]][c[3]])
 		var r := LockTruth.judge(load_scene(pth), FPS)
 		var want := -margin_of(c[2], c[3], float(raw))
 		ok(r["verdict"] == V_PAST and near_deg(float(r["past_deg"]), want) and near_deg(float(r["margin_deg"]), -want), "2 %s %s: card raw %.2f, own recompute %.3f past, judge %s %.3f (%s %s)" % [c[0], c[1], float(raw), want, r["verdict"], r["past_deg"], r["side"], r["joint"]])
@@ -224,7 +224,7 @@ func _init() -> void:
 		if fr["verdict"] != class_of(m):
 			bad = "frame %d: raw %.3f -> %s, judge %s" % [f, raw_e, class_of(m), fr["verdict"]]
 			break
-		var past := fr["verdict"] == V_PAST
+		var past: bool = fr["verdict"] == V_PAST
 		if past != prev_past:
 			flips += 1
 			if past:

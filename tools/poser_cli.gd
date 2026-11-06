@@ -98,6 +98,7 @@
 ##                                 recovery at 60 fps; opt-in "exchange": hitstun, blockstun, on_hit / on_block (+ = attacker
 ##                                 first), punishable, vs the other fighter on the stage or reaction clips (first card = impact)
 ##   throw_check {clip?, fps?, thrower?}  N040 (scripts/throw_serve.gd): does the throw work? verdict, key frame, per frame partner out and thrower margin
+##   lock_check {clip?, fps?, locker?}  N041 (scripts/lock_serve.gd): does the lock reach the partner's limit or go past it? verdict, key frame, joint, degrees past
 ##   reactable {clip?, frame?, latency_ms?, fps?}  N082 (scripts/reactable_serve.gd): per strike, the frames a viewer has between SEEING it
 ##                                 coming and its first active frame vs the frames a human needs: reactable / not reactable + margin
 ##   lint {path}                   N018: a .bvh/.glb/.gltf/.fbx made anywhere, on Kine's body (scripts/clip_lint.gd); live scene kept
@@ -452,6 +453,20 @@ func _init() -> void:
 			if tco["ok"]:
 				say(String(tco["result"]["text"]))
 			done(tco["result"] if tco["ok"] else tco)
+		"lock_check":   # N041 wired: lock_check <scene> [fps=N] [locker=0|1] (scripts/lock_serve.gd)
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "lock_check <scene.json> [fps=N] [locker=0|1]  (N041; scripts/lock_serve.gd)"})
+				return
+			var lp := {}
+			for x in a.slice(2):
+				var kv4 := String(x).split("=", true, 1)
+				if kv4.size() == 2 and kv4[1].is_valid_int() and kv4[0] in ["fps", "locker"]:
+					lp[kv4[0]] = int(kv4[1])
+			var lco := LockServe.serve(m, lp)
+			if lco["ok"]:
+				say(String(lco["result"]["text"]))
+			done(lco["result"] if lco["ok"] else lco)
 		"brief":   # N011 (scripts/scene_brief.gd)
 			var ti := a.find("--tokens")
 			var tk := int(a[ti + 1]) if ti >= 0 and ti + 1 < a.size() else SceneBrief.DEFAULT_TOKENS

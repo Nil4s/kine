@@ -64,6 +64,9 @@ TOOLS = {
     "throw_check": ("throw_check", "Does the throw work? Two bodies judged frame by frame: verdict (throw works / no kuzushi / thrower falls / no contact), the key frame, and per frame the partner's "
                     "extrapolated centre of mass outside his feet (out_m) and the thrower's own balance margin (margin_m). clip = a scene file with a partner (else the live scene); thrower 0 = hero, 1 = partner.",
                     {"type": "object", "properties": {"clip": S, "fps": N, "thrower": {"type": "integer"}}, "additionalProperties": False}),
+    "lock_check": ("lock_check", "Does the lock reach his limit, or go past it? Two bodies judged frame by frame: the partner's elbow, wrist and shoulder angles the clip asks, against his joint limits, on the arm the locker touches. "
+                   "Verdict: lock not on / at limit (within 5 deg) / past limit: injury (joint, axis, degrees past) / no contact; the key frame; per frame margin_deg. clip = a scene file with a partner (else the live scene); locker 0 = hero, 1 = partner.",
+                   {"type": "object", "properties": {"clip": S, "fps": N, "locker": {"type": "integer"}}, "additionalProperties": False}),
     "look_facts": ("look_facts", "Numbers for how the final picture LOOKS per piece / kind / nature item (colour, contrast, neon, ring, share), from an id render. "
                    "Needs a part view or nature items showing: give piece, kind, nature or targets; camera, w, h optional.",
                    {"type": "object", "properties": {"piece": S, "kind": S, "nature": S, "targets": {"type": "array"}, "camera": {"type": "object"}, "w": N, "h": N}, "additionalProperties": True}),
@@ -92,7 +95,7 @@ TOOLS = {
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["reactable", "throw_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits"]
+MATH_TOOLS = ["reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:
