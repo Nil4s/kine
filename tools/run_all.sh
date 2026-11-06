@@ -1046,6 +1046,7 @@ EXTRA="$EXTRA charimp:w"   # L9 CHARIMP: a rigged character (mesh, skin, blend s
 EXTRA="$EXTRA uiexp:w ch17:w frender:w"   # UIEXP (lane L2): Expert Part / Assembly / Engineering on a wide window: tool rail with icons, nothing outside the window, no panel overlap, every old function reachable, window start inside the usable screen (tests/uiexp_test.gd, docs/UIEXP_DESIGN.md)
 EXTRA="$EXTRA usdwire:h"   # L19 usd wiring
 EXTRA="$EXTRA lightrig:w"   # L25: light-rig presets (studio/dramatic/overcast/sunset/night), the HDRI picker and light linking (tests/lightrig_test.gd)
+EXTRA="$EXTRA lightrig2:w"   # L48: light rig 2: sky picks measured on the scene and in the app, the linking toggle on two objects (A lit, B < 2 percent), the lightrig agent tool (tests/lightrig2_test.gd)
 EXTRA="$EXTRA face_geo2:w"   # L18 face polish
 EXTRA="$EXTRA soft:w"   # L17 soft-body
 EXTRA="$EXTRA install:w"   # L16 installer
