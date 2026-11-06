@@ -17226,7 +17226,7 @@ func _commands() -> Array:
 	add.call("Reset body", "", _do.bind(_reset_all), "t-pose", true, "every joint back to straight and the hips to the origin")
 	add.call("Arms down 25°", "", _do.bind(_arms_relaxed), "relax a-pose", true, "both arms relaxed: 25° out from straight down")
 	for tn in Templates.NAMES:   # R7: each starting scene is its own command (the picker above needs a mouse; a command needs only its name)
-		add.call("New from template: " + Templates.INFO[tn][0], "", _template_make.bind(tn), "template starting scene new example " + tn.replace("_", " "), false, "a NEW scene in scenes/_wip, opened: " + Templates.INFO[tn][1] + ("  Land it on the dummy's head with Next." if tn == "punch" else ""))
+		add.call("New from template: " + Templates.INFO[tn][0], "", _template_make.bind(tn), "template starting scene new example " + tn.replace("_", " "), true, "a NEW scene in scenes/_wip, opened: " + Templates.INFO[tn][1] + ("  Land it on the dummy's head with Next." if tn == "punch" else ""))
 	add.call("Strike: aim the fist at the dummy's head", "", _strike_aim, "punch land hit contact reach target jab cross fist dummy head aim", true, "the punch (the card the fist travels fastest into) now ends with its fist on the dummy's head: the arm is solved to touch it, the rest of the card stays; Dummy closer first if the arm cannot reach (one undo step)")
 	add.call("Dummy on/off", "H", _press.bind(KEY_H), "target enemy mannequin", false, "show or hide the target dummy")
 	add.call("Dummy solid / see-through", "", _dummy_solid, "target", false, "solid: the weapon stops on the dummy (impact + rebound); see-through: it passes")
@@ -18482,6 +18482,11 @@ func _template_build_now(nm: String, d: Dictionary) -> void:
 	var path := Templates.new_path(nm)
 	d["scene"] = path.get_file().get_basename()
 	d["plan"] = "from the %s template" % String(Templates.INFO[nm][0]).to_lower()
+	# L24: opening the template REPLACES the open scene, so it is ONE undo step (a whole-scene swap, as Easy's Copy a video):
+	# Ctrl+Z puts the scene that was open back (the new file in scenes/_wip stays on disk), Ctrl+Y the template scene
+	_step_hint = "New from template: " + String(Templates.INFO[nm][0])
+	_push_undo()
+	undo[-1]["swap"] = true
 	_write(path, d)
 	_load_scene(path, true)
 	_rebuild_cards()
