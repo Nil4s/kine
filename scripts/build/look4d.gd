@@ -726,3 +726,877 @@ static func shapes_now(ctx: Dictionary) -> Dictionary:
 		var bb: AABB = n.global_transform * n.mesh.get_aabb()
 		out[id] = {"k": "aabb", "min": _r2(bb.position), "max": _r2(bb.end)}
 	return out
+
+
+# ================================================================ ZOOM: levels 0-3, delta, characters, held (L1 AI-COST, docs/LOOK4D_ZOOM.md)
+## An agent looks at a scene in steps, each dearer than the last:
+##   level 0  one line (~30 tokens): moving count, fastest part, contacts, near misses, hidden, held
+##   level 1  today's D made cheaper: moving parts [id, pos, vel, speed], spin only where it exists, static parts as NAMES, hidden pairs, touching pairs, held pairs
+##   level 2  one part: size, shape, rotation, spin, acceleration, joint (value, limits, distance to the nearest limit), mass, material, contacts (point, normal, penetration),
+##            the nearest gaps with time to collision, support, visible share, last 3 / next 3 positions
+##   level 3  track: a time series for named parts over [t0, t1]
+##   delta    only the fields that changed since a given time (applying it to frame n gives frame n+1 exactly)
+##   character  per-bone data, foot contacts, balance (CoM against the support polygon)
+## Optional scene keys used here: joint: Callable(id, t) -> {type, value, unit, lo, hi}; material: {id: String}; gap: Callable(a, b) -> mm (exact);
+## groups: {name: [ids]} (a holder is reported by its group name); holdable: [ids] that can be held; char: bool; skeleton: {bone: parent}.
+const FLOOR_P := 0.0001           # m: a position under this prints as 0
+const FLOOR_V := 0.001            # m/s
+const FLOOR_W := 0.01             # rad/s
+const TOUCH_MM := 0.1
+const HELD_MM := 1.0
+const NEAR_MM := 2.0
+const RIGID_M := 0.0005           # m: held = the offset between two parts stays within this over +-HELD_WIN
+const HELD_WIN := 0.1             # s
+const MOVED_M := 0.0005           # m: a part moved if its centre travelled this far over the window
+const TTC_HORIZON := 0.5
+const TTC_STEP := 0.025
+const FOOT_DOWN_M := 0.015        # a foot capsule whose lowest point is under this is on the ground
+
+
+static func _q(x: float, fl := 0.0) -> float:
+	if not is_finite(x):
+		return 0.0
+	if absf(x) < fl:
+		return 0.0
+	return round_sig(x)
+
+
+static func _qv(v: Vector3, fl := 0.0) -> Array:
+	return [_q(v.x, fl), _q(v.y, fl), _q(v.z, fl)]
+
+
+static func _num(x: float) -> String:
+	if not is_finite(x):
+		return "null"
+	if x == 0.0:
+		return "0"
+	if x == floorf(x) and absf(x) < 1.0e9:
+		return str(int(x))
+	var e := int(floor(log(absf(x)) / log(10.0)))
+	var s := String.num(x, clampi(SIG - 1 - e, 0, 12))
+	if s.contains("."):
+		s = s.rstrip("0").rstrip(".")
+	return s
+
+
+## compact JSON text: no spaces, numbers printed shortest
+static func txt(v: Variant) -> String:
+	if v == null:
+		return "null"
+	if v is bool:
+		return "true" if v else "false"
+	if v is int:
+		return str(v)
+	if v is float:
+		return _num(v)
+	if v is String or v is StringName:
+		return JSON.stringify(String(v))
+	if v is Vector3:
+		return txt([v.x, v.y, v.z])
+	if v is Array:
+		var parts: Array = []
+		for e in v:
+			parts.append(txt(e))
+		return "[" + ",".join(parts) + "]"
+	if v is Dictionary:
+		var parts2: Array = []
+		for k in v:
+			parts2.append(JSON.stringify(String(k)) + ":" + txt(v[k]))
+		return "{" + ",".join(parts2) + "}"
+	return JSON.stringify(str(v))
+
+
+static func tokens(v: Variant) -> int:
+	return int(ceil(txt(v).length() / 4.0))
+
+
+# ---------------------------------------------------------------- the snapshot
+## visible share without a renderer (the MCP session is headless): rays from the camera to points on the part's camera-facing faces,
+## blocked when they cross another part's box (in that part's own frame, so a turned box is a turned box). Same row layout as measure().
+static func measure_ray(ctx: Dictionary) -> Dictionary:
+	var sc: Dictionary = ctx["sc"]
+	var nodes: Dictionary = sc["nodes"]
+	var cam: Camera3D = ctx["cam"]
+	var cp := cam.global_position
+	var out := {}
+	var nm_set := {}
+	for id in named(ctx):
+		nm_set[id] = true
+	var inv := {}
+	var loc := {}
+	for id in sc["ids"]:
+		var n0 := nodes[id] as MeshInstance3D
+		inv[id] = n0.global_transform.affine_inverse()
+		loc[id] = n0.mesh.get_aabb() if n0.mesh != null else AABB()
+	for id in sc["ids"]:
+		var n := nodes[id] as MeshInstance3D
+		var row := {"solo_px": 0, "vis_px": 0, "frac": 0.0, "by": "", "bbox": [0, 0, 0, 0]}
+		if n.is_visible_in_tree() and nm_set.has(id) and n.mesh != null:
+			var bb: AABB = loc[id]
+			var xf := n.global_transform
+			var pts: Array = []
+			var ctr := bb.get_center()
+			var hs := bb.size * 0.5
+			for ax in 3:
+				for sg in [-1.0, 1.0]:
+					var nl := Vector3.ZERO
+					nl[ax] = sg
+					var nw := (xf.basis * nl).normalized()
+					var fc := xf * (ctr + nl * hs)
+					if nw.dot(cp - fc) <= 0.0:
+						continue
+					var a1 := (ax + 1) % 3
+					var a2 := (ax + 2) % 3
+					for u in [-0.6, 0.0, 0.6]:
+						for w in [-0.6, 0.0, 0.6]:
+							var q := ctr + nl * hs
+							q[a1] += u * hs[a1]
+							q[a2] += w * hs[a2]
+							pts.append(xf * q + nw * 1.0e-4)
+			var free := 0
+			var cover := {}
+			for p in pts:
+				var blocker := ""
+				for oid in sc["ids"]:
+					var on := nodes[oid] as MeshInstance3D
+					if oid == id or on.mesh == null or not on.is_visible_in_tree():
+						continue
+					if _seg_hits_box(cp, p, inv[oid], loc[oid]):
+						blocker = oid
+						break
+				if blocker == "":
+					free += 1
+				else:
+					cover[blocker] = int(cover.get(blocker, 0)) + 1
+			if pts.size() > 0:
+				row["solo_px"] = 1
+				row["frac"] = float(free) / float(pts.size())
+				row["vis_px"] = free
+				var best := 0
+				for k in cover:
+					if int(cover[k]) > best:
+						best = int(cover[k])
+						row["by"] = k
+		out[id] = row
+	return out
+
+
+## does the segment a-b cross the box (local frame given by inv)
+static func _seg_hits_box(a: Vector3, b: Vector3, inv: Transform3D, box: AABB) -> bool:
+	var la := inv * a
+	var lb := inv * b
+	var d := lb - la
+	var t0 := 0.0
+	var t1 := 1.0
+	for ax in 3:
+		var lo := box.position[ax]
+		var hi := box.end[ax]
+		if absf(d[ax]) < 1e-12:
+			if la[ax] < lo or la[ax] > hi:
+				return false
+		else:
+			var ta := (lo - la[ax]) / d[ax]
+			var tb := (hi - la[ax]) / d[ax]
+			t0 = maxf(t0, minf(ta, tb))
+			t1 = minf(t1, maxf(ta, tb))
+			if t0 > t1:
+				return false
+	return true
+
+
+static func _hasj(ctx: Dictionary, id: String, t: float) -> bool:
+	var sc: Dictionary = ctx["sc"]
+	if not sc.has("joint"):
+		return false
+	return not (sc["joint"] as Callable).call(id, t).is_empty()
+
+
+## {id: [holder names]} for the named parts that move rigidly with a partner within HELD_MM, with no penetration needed.
+## Rigid: over t -/+ HELD_WIN the offset between the two centres stays within RIGID_M in the world frame, or in either part's own frame (so a turning gripper and a tilting one both count).
+## At least one of the two must have moved (two parts at rest are resting, not held). The held one is the one scene.holdable names, else the one without a joint, else the lighter.
+## A holder inside a scene group is reported by the group's name.
+static func held_map(ctx: Dictionary, t: float, contacts: Array) -> Dictionary:
+	var sc: Dictionary = ctx["sc"]
+	var nm: Array = named(ctx)
+	var groups: Dictionary = sc.get("groups", {})
+	var cand: Array = []
+	for c in contacts:
+		if nm.has(c["a"]) and nm.has(c["b"]) and (float(c.get("gap_mm", 0.0)) <= HELD_MM or float(c.get("pen_mm3", 0.0)) > 0.0):
+			cand.append(c)
+	var out := {}
+	if cand.is_empty():
+		return out
+	var sa := state(ctx, t - HELD_WIN)
+	var sm := state(ctx, t)
+	var sb := state(ctx, t + HELD_WIN)
+	at(ctx, t)
+	var holdable: Variant = sc.get("holdable", null)
+	for c in cand:
+		var a: String = c["a"]
+		var b: String = c["b"]
+		var moved := false
+		for id in [a, b]:
+			moved = moved or ((sa[id]["c"] as Vector3).distance_to(sb[id]["c"]) > MOVED_M)
+		if not moved:
+			continue
+		var dev_w := 0.0
+		var dev_a := 0.0
+		var dev_b := 0.0
+		var w0: Vector3 = (sm[b]["c"] as Vector3) - (sm[a]["c"] as Vector3)
+		var fa0: Vector3 = (sm[a]["b"] as Basis).inverse() * w0
+		var fb0: Vector3 = (sm[b]["b"] as Basis).inverse() * (-w0)
+		for s in [sa, sb]:
+			var w1: Vector3 = (s[b]["c"] as Vector3) - (s[a]["c"] as Vector3)
+			dev_w = maxf(dev_w, (w1 - w0).length())
+			dev_a = maxf(dev_a, ((s[a]["b"] as Basis).inverse() * w1 - fa0).length())
+			dev_b = maxf(dev_b, ((s[b]["b"] as Basis).inverse() * (-w1) - fb0).length())
+		if minf(dev_w, minf(dev_a, dev_b)) > RIGID_M:
+			continue
+		var held := ""
+		if holdable != null:
+			var ha: bool = (holdable as Array).has(a)
+			var hb: bool = (holdable as Array).has(b)
+			if ha and not hb:
+				held = a
+			elif hb and not ha:
+				held = b
+			else:
+				continue
+		elif sc.has("joint"):
+			var ja := _hasj(ctx, a, t)
+			var jb := _hasj(ctx, b, t)
+			if ja and not jb:
+				held = b
+			elif jb and not ja:
+				held = a
+			else:
+				continue
+		else:
+			held = a if float(sc["mass"].get(a, 1.0)) <= float(sc["mass"].get(b, 1.0)) else b
+		var holder := b if held == a else a
+		var hn := holder
+		for g in groups:
+			if (groups[g] as Array).has(holder):
+				hn = String(g)
+		if not out.has(held):
+			out[held] = []
+		if not (out[held] as Array).has(hn):
+			(out[held] as Array).append(hn)
+	for k in out:
+		(out[k] as Array).sort()
+	return out
+
+
+## everything the levels read, at time t (kinematics, visible share, contacts, held). render false = rays, no renderer and no await (the headless MCP session).
+static func snap_ray(ctx: Dictionary, t: float) -> Dictionary:
+	var key := "%s|ray" % t
+	var cc := _snap_cache(ctx)
+	if cc.has(key):
+		at(ctx, t)
+		return cc[key]
+	var kin := kinematics(ctx, t)
+	return _snap_store(ctx, key, t, kin, measure_ray(ctx), false)
+
+
+static func snap(ctx: Dictionary, t: float, render := true) -> Dictionary:
+	if not render:
+		return snap_ray(ctx, t)
+	var key := "%s|render" % t
+	var cc := _snap_cache(ctx)
+	if cc.has(key):
+		at(ctx, t)
+		return cc[key]
+	var kin := kinematics(ctx, t)
+	var meas := await measure(ctx)
+	return _snap_store(ctx, key, t, kin, meas, true)
+
+
+static func _snap_cache(ctx: Dictionary) -> Dictionary:
+	if not ctx.has("snaps"):
+		ctx["snaps"] = {}
+	var cc: Dictionary = ctx["snaps"]
+	if cc.size() > 8:
+		cc.clear()
+	return cc
+
+
+static func _snap_store(ctx: Dictionary, key: String, t: float, kin: Dictionary, meas: Dictionary, render: bool) -> Dictionary:
+	var sc: Dictionary = ctx["sc"]
+	at(ctx, t)
+	var contacts: Array = (sc["contacts"] as Callable).call() if sc.has("contacts") else []
+	var S := {"t": t, "kin": kin, "meas": meas, "contacts": contacts, "render": render}
+	S["held"] = held_map(ctx, t, contacts)
+	(ctx["snaps"] as Dictionary)[key] = S
+	return S
+
+
+## touching (gap <= 0.1 mm or overlapping) pairs among the named parts
+static func touching(ctx: Dictionary, S: Dictionary) -> Array:
+	var nm: Array = named(ctx)
+	var out: Array = []
+	for c in S["contacts"]:
+		if nm.has(c["a"]) and nm.has(c["b"]) and (float(c.get("gap_mm", 0.0)) <= TOUCH_MM or float(c.get("pen_mm3", 0.0)) > 1.0):
+			out.append(c)
+	return out
+
+
+static func near_miss(ctx: Dictionary, S: Dictionary) -> Array:
+	var nm: Array = named(ctx)
+	var out: Array = []
+	for c in S["contacts"]:
+		var g := float(c.get("gap_mm", 0.0))
+		if nm.has(c["a"]) and nm.has(c["b"]) and g > TOUCH_MM and g <= NEAR_MM and float(c.get("pen_mm3", 0.0)) <= 1.0:
+			out.append(c)
+	return out
+
+
+# ---------------------------------------------------------------- level 0 and 1
+static func level0(ctx: Dictionary, S: Dictionary) -> Dictionary:
+	var nm: Array = named(ctx)
+	var mv := 0
+	var fast := ""
+	var fs := 0.0
+	var hid := 0
+	for id in nm:
+		var k: Dictionary = S["kin"][id]
+		if _moving(k):
+			mv += 1
+		if float(k["speed"]) > fs:
+			fs = float(k["speed"])
+			fast = id
+		if occluded(S["meas"][id]):
+			hid += 1
+	return {"scene": ctx["sc"]["name"], "t": _q(float(S["t"])), "moving": mv, "fastest": [fast, _q(fs)] if fast != "" else null,
+		"contacts": touching(ctx, S).size(), "near": near_miss(ctx, S).size(), "hidden": hid, "held": (S["held"] as Dictionary).size()}
+
+
+## moving parts [id, pos, vel, speed]; spin [id, angvel] for the parts that turn; still = names; hid = [id, by]; touch = [a, b, gap_mm, overlap_mm3]; held = [id, holders...]
+static func level1(ctx: Dictionary, S: Dictionary) -> Dictionary:
+	var sc: Dictionary = ctx["sc"]
+	var cam: Camera3D = ctx["cam"]
+	var mov: Array = []
+	var spin: Array = []
+	var still: Array = []
+	var hid: Array = []
+	for id in named(ctx):
+		var k: Dictionary = S["kin"][id]
+		var m: Dictionary = S["meas"][id]
+		if _moving(k):
+			mov.append([id, _qv(k["c"], FLOOR_P), _qv(k["v"], FLOOR_V), _q(float(k["speed"]), FLOOR_V)])
+			if (k["w"] as Vector3).length() > FLOOR_W:
+				spin.append([id, _qv(k["w"], FLOOR_W)])
+		else:
+			still.append(id)
+		if occluded(m):
+			hid.append([id, String(m["by"]) if named(ctx).has(m["by"]) else "other"])
+	var touch: Array = []
+	for c in touching(ctx, S):
+		touch.append([c["a"], c["b"], _q(float(c.get("gap_mm", 0.0))), _q(float(c.get("pen_mm3", 0.0)))])
+	var held: Array = []
+	var hk: Array = (S["held"] as Dictionary).keys()
+	hk.sort()
+	for h in hk:
+		held.append([h] + S["held"][h])
+	var out := {"scene": sc["name"], "t": _q(float(S["t"])), "u": "m, m/s, rad/s, mm, mm3; pos = part centre; hid = visible share < 0.25",
+		"cam": {"pos": _qv(cam.global_position, FLOOR_P), "dir": _qv(-cam.global_transform.basis.z, 0.001), "fov": _q(cam.fov)},
+		"mov": mov, "spin": spin, "still": still}
+	if not hid.is_empty():
+		out["hid"] = hid
+	if not touch.is_empty():
+		out["touch"] = touch
+	if not held.is_empty():
+		out["held"] = held
+	return out
+
+
+# ---------------------------------------------------------------- shapes and gaps (level 2)
+static func _scn_gap_m(sa: Dictionary, sb: Dictionary) -> float:
+	var scn: Script = load("res://scripts/build/look4d_scenes.gd")
+	return float(scn.shape_gap(sa, sb))
+
+
+## the gap between two parts at the pose set now, mm (negative = overlap of the boxes). scene.gap (exact solids) when it has one, else the shapes
+static func gap_mm(ctx: Dictionary, a: String, b: String, shapes: Dictionary = {}) -> float:
+	var sc: Dictionary = ctx["sc"]
+	if sc.has("gap"):
+		return float((sc["gap"] as Callable).call(a, b))
+	var sh: Dictionary = shapes if not shapes.is_empty() else shapes_now(ctx)
+	return _scn_gap_m(sh[a], sh[b]) * 1000.0
+
+
+## the gap between the two parts' world boxes, mm (negative = the boxes overlap)
+static func box_gap_mm(ctx: Dictionary, a: String, b: String) -> float:
+	var sh := {}
+	for id in [a, b]:
+		var n := ctx["sc"]["nodes"][id] as MeshInstance3D
+		var bb: AABB = n.global_transform * n.mesh.get_aabb()
+		sh[id] = {"k": "aabb", "min": _r2(bb.position), "max": _r2(bb.end)}
+	return _scn_gap_m(sh[a], sh[b]) * 1000.0
+
+
+static func _shape_kind(mesh: Mesh) -> String:
+	if mesh is BoxMesh:
+		return "box"
+	if mesh is CapsuleMesh:
+		return "capsule"
+	if mesh is SphereMesh:
+		return "sphere"
+	if mesh is CylinderMesh:
+		return "cylinder"
+	return "mesh"
+
+
+## the closest points of two shapes {k: aabb|sphere|capsule} -> {pa, pb, d (m, negative = inside), n (from a to b)}; the aabb pair reports its least penetration
+static func closest(sa: Dictionary, sb: Dictionary) -> Dictionary:
+	var ka := String(sa["k"])
+	var kb := String(sb["k"])
+	if ka == "aabb" and kb == "aabb":
+		var la := _v3(sa["min"])
+		var ha := _v3(sa["max"])
+		var lb := _v3(sb["min"])
+		var hb := _v3(sb["max"])
+		var gap := Vector3.ZERO
+		var inside := true
+		var pen := INF
+		var pax := 0
+		var pdir := 1.0
+		for ax in 3:
+			var lo := maxf(la[ax], lb[ax])
+			var hi := minf(ha[ax], hb[ax])
+			if lo > hi:
+				gap[ax] = lo - hi
+				inside = false
+			elif hi - lo < pen:
+				pen = hi - lo
+				pax = ax
+				pdir = 1.0 if (la[ax] + ha[ax]) <= (lb[ax] + hb[ax]) else -1.0
+		if inside:
+			var n := Vector3.ZERO
+			n[pax] = pdir
+			var c := (la.max(lb) + ha.min(hb)) * 0.5
+			c[pax] = minf(ha[pax], hb[pax]) if pdir > 0.0 else maxf(la[pax], lb[pax])
+			return {"pa": c, "pb": c, "d": -pen, "n": n}
+		var pa := Vector3.ZERO
+		var pb := Vector3.ZERO
+		for ax in 3:
+			if gap[ax] > 0.0:
+				var sgn := 1.0 if (la[ax] + ha[ax]) <= (lb[ax] + hb[ax]) else -1.0
+				pa[ax] = ha[ax] if sgn > 0.0 else la[ax]
+				pb[ax] = lb[ax] if sgn > 0.0 else hb[ax]
+			else:
+				var m := (maxf(la[ax], lb[ax]) + minf(ha[ax], hb[ax])) * 0.5
+				pa[ax] = m
+				pb[ax] = m
+		return {"pa": pa, "pb": pb, "d": gap.length(), "n": (pb - pa).normalized()}
+	var g := _scn_gap_m(sa, sb)
+	# one of them round: closest points by sampling the round one's axis (good to a few mm, labelled bbox/approx)
+	var best := INF
+	var bp: Array = [Vector3.ZERO, Vector3.ZERO]
+	for p in _axis_pts(sa):
+		for q in _axis_pts(sb):
+			var pp: Vector3 = p
+			var qq: Vector3 = q
+			if ka == "aabb":
+				pp = _clamp_box(qq, sa)
+			if kb == "aabb":
+				qq = _clamp_box(pp, sb)
+			var d := pp.distance_to(qq)
+			if d < best:
+				best = d
+				bp = [pp, qq]
+	var pa2: Vector3 = bp[0]
+	var pb2: Vector3 = bp[1]
+	var nn := (pb2 - pa2).normalized() if pa2.distance_to(pb2) > 1e-9 else Vector3.UP
+	if ka != "aabb":
+		pa2 += nn * float(sa["r"])
+	if kb != "aabb":
+		pb2 -= nn * float(sb["r"])
+	return {"pa": pa2, "pb": pb2, "d": g, "n": nn}
+
+
+static func _axis_pts(s: Dictionary) -> Array:
+	match String(s["k"]):
+		"aabb":
+			return [(_v3(s["min"]) + _v3(s["max"])) * 0.5]
+		"sphere":
+			return [_v3(s["c"])]
+		_:
+			var out: Array = []
+			for i in 21:
+				out.append(_v3(s["a"]).lerp(_v3(s["b"]), i / 20.0))
+			return out
+
+
+static func _clamp_box(p: Vector3, s: Dictionary) -> Vector3:
+	return p.clamp(_v3(s["min"]), _v3(s["max"]))
+
+
+# ---------------------------------------------------------------- level 2
+## one part in full. S = snap at the same t. Lengths in m, angles in deg, rates in rad/s, gaps in mm.
+static func level2(ctx: Dictionary, S: Dictionary, id: String) -> Dictionary:
+	var sc: Dictionary = ctx["sc"]
+	var t := float(S["t"])
+	var nodes: Dictionary = sc["nodes"]
+	if not nodes.has(id):
+		return {"error": "no part '%s'" % id}
+	var n := nodes[id] as MeshInstance3D
+	var k: Dictionary = S["kin"][id]
+	var m: Dictionary = S["meas"][id]
+	var out := {"id": id, "t": _q(t)}
+	var bb: AABB = n.mesh.get_aabb() if n.mesh != null else AABB()
+	var sc3 := n.global_transform.basis.get_scale()
+	out["shape"] = _shape_kind(n.mesh)
+	out["size_m"] = _qv(bb.size * sc3, 0.0)
+	var e := n.global_transform.basis.orthonormalized().get_euler()
+	out["rot_deg"] = [_q(rad_to_deg(e.x), 0.01), _q(rad_to_deg(e.y), 0.01), _q(rad_to_deg(e.z), 0.01)]
+	out["pos"] = _qv(k["c"], FLOOR_P)
+	out["vel"] = _qv(k["v"], FLOOR_V)
+	out["angvel"] = _qv(k["w"], FLOOR_W)
+	out["acc"] = _qv(acceleration(ctx, id, t), 0.01)
+	if sc.has("joint"):
+		var j: Dictionary = (sc["joint"] as Callable).call(id, t)
+		at(ctx, t)
+		if not j.is_empty():
+			var jj := {"type": j["type"], "value": _q(float(j["value"]), 1e-9), "unit": j.get("unit", "")}
+			if j.has("lo") and j.has("hi"):
+				jj["lo"] = j["lo"]
+				jj["hi"] = j["hi"]
+				jj["to_limit"] = _q(minf(float(j["value"]) - float(j["lo"]), float(j["hi"]) - float(j["value"])), 1e-9)
+				jj["near"] = "lo" if float(j["value"]) - float(j["lo"]) < float(j["hi"]) - float(j["value"]) else "hi"
+			out["joint"] = jj
+	out["mass_kg"] = _q(float(sc["mass"].get(id, 1.0)))
+	out["mass_note"] = "nominal"
+	out["material"] = String(sc.get("material", {}).get(id, "unspecified"))
+	var shapes := shapes_now(ctx)
+	var cons: Array = []
+	var nm: Array = named(ctx)
+	for c in S["contacts"]:
+		var o := ""
+		if c["a"] == id:
+			o = c["b"]
+		elif c["b"] == id:
+			o = c["a"]
+		if o == "" or not nodes.has(o):
+			continue
+		if float(c.get("gap_mm", 0.0)) <= TOUCH_MM or float(c.get("pen_mm3", 0.0)) > 1.0:
+			var cl := closest(shapes[id], shapes[o])
+			var nrm: Vector3 = cl["n"]
+			cons.append({"with": o, "pt": _qv((cl["pa"] as Vector3).lerp(cl["pb"], 0.5), FLOOR_P), "n": _qv(nrm, 0.001), "pen_mm": _q(maxf(0.0, -float(cl["d"]) * 1000.0), 0.001), "src": "bbox"})
+	out["contacts"] = cons
+	# nearest gaps: the 4 nearest by shape, refined by scene.gap when it exists
+	var cands: Array = []
+	for o in nm:
+		if o == id or not (nodes[o] as MeshInstance3D).is_visible_in_tree():
+			continue
+		cands.append([o, _scn_gap_m(shapes[id], shapes[o]) * 1000.0])
+	cands.sort_custom(func(x, y): return float(x[1]) < float(y[1]))
+	var topn: Array = cands.slice(0, 4)
+	if sc.has("gap"):
+		for r in topn:
+			r[1] = gap_mm(ctx, id, String(r[0]))
+		topn.sort_custom(func(x, y): return float(x[1]) < float(y[1]))
+	var gaps: Array = []
+	for r in topn.slice(0, 3):
+		var o2 := String(r[0])
+		gaps.append({"id": o2, "gap_mm": _q(float(r[1]), 0.001), "ttc_s": ttc(ctx, id, o2, t)})
+	out["gaps"] = gaps
+	# support: resting on = a part whose top face is under this one's bottom face (within 1 mm, boxes overlapping in plan); held_by from the held map
+	var holders: Array = (S["held"].get(id, []) as Array).duplicate()
+	var on: Array = []
+	var mine: AABB = n.global_transform * bb
+	for o in nodes:
+		var on_n := nodes[o] as MeshInstance3D
+		if o == id or on_n.mesh == null or not on_n.is_visible_in_tree():
+			continue
+		var ob: AABB = on_n.global_transform * on_n.mesh.get_aabb()
+		if absf(mine.position.y - ob.end.y) <= 0.001 and mine.position.x < ob.end.x and mine.end.x > ob.position.x and mine.position.z < ob.end.z and mine.end.z > ob.position.z \
+				and ob.end.y <= mine.get_center().y and holders.is_empty():
+			on.append(o)
+	on.sort()
+	out["support"] = {"on": on, "held_by": holders}
+	out["vis"] = {"share": _q(float(m["frac"])), "by": String(m["by"]), "src": "render" if bool(S.get("render", true)) else "ray"}
+	var h := float(sc.get("h", 0.1))
+	var prev: Array = []
+	var nxt: Array = []
+	for i in range(3, 0, -1):
+		prev.append(_qv(state(ctx, t - i * h)[id]["c"], FLOOR_P))
+	for i in range(1, 4):
+		nxt.append(_qv(state(ctx, t + i * h)[id]["c"], FLOOR_P))
+	at(ctx, t)
+	out["prev"] = prev
+	out["next"] = nxt
+	out["step_s"] = _q(h)
+	return out
+
+
+## the second difference of the centre over the half step DT: (x(t+DT) - 2 x(t) + x(t-DT)) / DT^2, m/s2
+static func acceleration(ctx: Dictionary, id: String, t: float) -> Vector3:
+	var a: Vector3 = state(ctx, t - DT)[id]["c"]
+	var b: Vector3 = state(ctx, t)[id]["c"]
+	var c: Vector3 = state(ctx, t + DT)[id]["c"]
+	at(ctx, t)
+	return (c - 2.0 * b + a) / (DT * DT)
+
+
+## seconds until the boxes of a and b first come within 0.1 mm, scanning TTC_HORIZON ahead (boxes, for speed); 0 = touching now; null = not within the horizon
+static func ttc(ctx: Dictionary, a: String, b: String, t: float) -> Variant:
+	at(ctx, t)
+	var g0 := box_gap_mm(ctx, a, b)
+	if g0 <= TOUCH_MM:
+		return 0.0
+	var prev_g := g0
+	var prev_t := 0.0
+	var tau := TTC_STEP
+	while tau <= TTC_HORIZON + 1e-9:
+		at(ctx, t + tau)
+		var g := box_gap_mm(ctx, a, b)
+		if g <= TOUCH_MM:
+			at(ctx, t)
+			var f := (prev_g - TOUCH_MM) / maxf(prev_g - g, 1e-9)
+			return _q(prev_t + f * (tau - prev_t))
+		prev_g = g
+		prev_t = tau
+		tau += TTC_STEP
+	at(ctx, t)
+	return null
+
+
+# ---------------------------------------------------------------- level 3, frame, delta
+## a time series for named parts over [t0, t1]: pos (m) and speed (m/s) per sample
+static func track(ctx: Dictionary, part_ids: Array, t0: float, t1: float, step: float) -> Dictionary:
+	var n := clampi(int(floor((t1 - t0) / maxf(step, 1e-6) + 1e-9)) + 1, 1, 200)
+	var ts: Array = []
+	var pos := {}
+	var spd := {}
+	for id in part_ids:
+		pos[id] = []
+		spd[id] = []
+	for i in n:
+		var t := t0 + i * step
+		ts.append(_q(t))
+		var kin := kinematics(ctx, t)
+		for id in part_ids:
+			if not kin.has(id):
+				continue
+			(pos[id] as Array).append(_qv(kin[id]["c"], FLOOR_P))
+			(spd[id] as Array).append(_q(float(kin[id]["speed"]), FLOOR_V))
+	return {"scene": ctx["sc"]["name"], "t": ts, "pos": pos, "speed": spd}
+
+
+## the flat frame the delta works on: "id.field" -> value, "touch.a|b" -> [gap, overlap], over the same rounding as level 1 (static parts included, with their positions)
+static func frame(ctx: Dictionary, S: Dictionary) -> Dictionary:
+	var f := {}
+	for id in named(ctx):
+		var k: Dictionary = S["kin"][id]
+		f[id + ".pos"] = _qv(k["c"], FLOOR_P)
+		f[id + ".vel"] = _qv(k["v"], FLOOR_V)
+		f[id + ".spin"] = _qv(k["w"], FLOOR_W)
+		var m: Dictionary = S["meas"][id]
+		f[id + ".hid"] = String(m["by"]) if occluded(m) else ""
+		f[id + ".held"] = ",".join((S["held"].get(id, []) as Array))
+	for c in touching(ctx, S):
+		f["touch." + String(c["a"]) + "|" + String(c["b"])] = [_q(float(c.get("gap_mm", 0.0))), _q(float(c.get("pen_mm3", 0.0)))]
+	return f
+
+
+## {chg: {key: new value}, gone: [keys no longer in b]}; applying it to a gives b
+static func delta(fa: Dictionary, fb: Dictionary) -> Dictionary:
+	var chg := {}
+	for k in fb:
+		if not fa.has(k) or str(fa[k]) != str(fb[k]):
+			chg[k] = fb[k]
+	var gone: Array = []
+	for k in fa:
+		if not fb.has(k):
+			gone.append(k)
+	gone.sort()
+	return {"chg": chg, "gone": gone}
+
+
+static func apply_delta(fa: Dictionary, d: Dictionary) -> Dictionary:
+	var out := fa.duplicate(true)
+	for k in d["chg"]:
+		out[k] = d["chg"][k]
+	for k in d["gone"]:
+		out.erase(k)
+	return out
+
+
+## the delta as text-ready data grouped by part: {since, t, chg: {id: {field: value}}, touch: {...}, gone: [...]}
+static func delta_view(ctx: Dictionary, Sa: Dictionary, Sb: Dictionary) -> Dictionary:
+	var d := delta(frame(ctx, Sa), frame(ctx, Sb))
+	var by := {}
+	var touch := {}
+	for k in d["chg"]:
+		var ks := String(k)
+		if ks.begins_with("touch."):
+			touch[ks.substr(6)] = d["chg"][k]
+			continue
+		var p := ks.rfind(".")
+		var id := ks.substr(0, p)
+		if not by.has(id):
+			by[id] = {}
+		by[id][ks.substr(p + 1)] = d["chg"][k]
+	var out := {"scene": ctx["sc"]["name"], "since": _q(float(Sa["t"])), "t": _q(float(Sb["t"])), "chg": by}
+	if not touch.is_empty():
+		out["touch"] = touch
+	if not (d["gone"] as Array).is_empty():
+		out["gone"] = d["gone"]
+	return out
+
+
+# ---------------------------------------------------------------- characters
+## foot contacts, balance, per-bone data. Needs capsule shapes. Support polygon = the convex hull (in x, z) of a circle of the capsule radius around both ends of every
+## foot/ball capsule that is on the ground (lowest point under FOOT_DOWN_M); CoM = the mass-weighted centre of the bone centres (floor and bat left out).
+static func character(ctx: Dictionary, S: Dictionary) -> Dictionary:
+	var sc: Dictionary = ctx["sc"]
+	var t := float(S["t"])
+	at(ctx, t)
+	var shapes := shapes_now(ctx)
+	var feet := {}
+	var pts: Array = []
+	for id in named(ctx):
+		var s: Dictionary = shapes[id]
+		if String(s["k"]) != "capsule" or not (id.begins_with("foot") or id.begins_with("ball")):
+			continue
+		var a := _v3(s["a"])
+		var b := _v3(s["b"])
+		var r := float(s["r"])
+		var low := minf(a.y, b.y) - r
+		var down := low <= FOOT_DOWN_M
+		feet[id] = {"down": down, "h_mm": _q(maxf(low, 0.0) * 1000.0, 0.01), "speed": _q(float(S["kin"][id]["speed"]), FLOOR_V)}
+		if down:
+			for e in [a, b]:
+				for i in 8:
+					var ang := TAU * i / 8.0
+					pts.append(Vector2(e.x + r * cos(ang), e.z + r * sin(ang)))
+	var hull := convex_hull(pts)
+	var msum := 0.0
+	var com := Vector3.ZERO
+	for id in named(ctx):
+		if id == "floor" or id == "bat_barrel":
+			continue
+		var mass := float(sc["mass"].get(id, 1.0))
+		msum += mass
+		com += (S["kin"][id]["c"] as Vector3) * mass
+	com /= maxf(msum, 1e-9)
+	var margin := 0.0
+	var inside := false
+	if hull.size() >= 3:
+		margin = INF
+		for i in hull.size():
+			var p: Vector2 = hull[i]
+			var q: Vector2 = hull[(i + 1) % hull.size()]
+			var e2 := q - p
+			var nrm := Vector2(-e2.y, e2.x).normalized()   # counter-clockwise hull: the inside is on the left
+			margin = minf(margin, nrm.dot(Vector2(com.x, com.z) - p))
+		inside = margin >= 0.0
+	var bones: Array = []
+	for id in named(ctx):
+		if id == "floor" or id == "bat_barrel":
+			continue
+		var s2: Dictionary = shapes[id]
+		var k: Dictionary = S["kin"][id]
+		var row := {"id": id, "pos": _qv(k["c"], FLOOR_P), "vel": _qv(k["v"], FLOOR_V), "angvel": _qv(k["w"], FLOOR_W)}
+		if String(s2["k"]) == "capsule":
+			row["axis"] = _qv((_v3(s2["b"]) - _v3(s2["a"])).normalized(), 0.001)
+		if sc.has("joint"):
+			var j: Dictionary = (sc["joint"] as Callable).call(id, t)
+			at(ctx, t)
+			if not j.is_empty():
+				row["joint"] = {"type": j["type"], "deg": _q(float(j["value"]), 0.01)}
+				if j.has("lo"):
+					row["joint"]["to_limit"] = _q(minf(float(j["value"]) - float(j["lo"]), float(j["hi"]) - float(j["value"])), 0.01)
+		bones.append(row)
+	var poly: Array = []
+	for p2 in hull:
+		poly.append([_q(p2.x, FLOOR_P), _q(p2.y, FLOOR_P)])
+	return {"scene": sc["name"], "t": _q(t), "feet": feet, "com": _qv(com, FLOOR_P), "poly_xz": poly, "airborne": hull.size() < 3,
+		"balanced": inside, "margin_mm": _q(margin * 1000.0, 0.01) if hull.size() >= 3 else null, "bones": bones}
+
+
+## Andrew's monotone chain, counter-clockwise, points are Vector2
+static func convex_hull(pts: Array) -> Array:
+	var p: Array = pts.duplicate()
+	if p.size() < 3:
+		return p
+	p.sort_custom(func(a, b): return a.x < b.x or (a.x == b.x and a.y < b.y))
+	var lower: Array = []
+	for q in p:
+		while lower.size() >= 2 and _cross2(lower[lower.size() - 2], lower[lower.size() - 1], q) <= 0.0:
+			lower.pop_back()
+		lower.append(q)
+	var upper: Array = []
+	for i in range(p.size() - 1, -1, -1):
+		var q2: Vector2 = p[i]
+		while upper.size() >= 2 and _cross2(upper[upper.size() - 2], upper[upper.size() - 1], q2) <= 0.0:
+			upper.pop_back()
+		upper.append(q2)
+	lower.pop_back()
+	upper.pop_back()
+	return lower + upper
+
+
+static func _cross2(o: Vector2, a: Vector2, b: Vector2) -> float:
+	return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)
+
+
+# ---------------------------------------------------------------- the one entry point (GDScript and MCP both call this)
+## p: {level 0|1|2|3, part, t, since, t1, step, ids, render, character}. Returns {ok, result, text, tokens} or {ok: false, error}.
+## view_sync = visible share by rays (no renderer needed, what the headless MCP session uses); view = by the id render pass (needs a renderer), awaited.
+static func view_sync(ctx: Dictionary, p: Dictionary) -> Dictionary:
+	var t := float(p.get("t", ctx["sc"].get("t0", 0.0)))
+	var Sb: Dictionary = {}
+	var Sa: Dictionary = {}
+	if int(p.get("level", 0)) != 3 or p.has("since"):
+		Sb = snap_ray(ctx, t)
+		if p.has("since"):
+			Sa = snap_ray(ctx, float(p["since"]))
+	return resolve(ctx, p, Sa, Sb)
+
+
+static func view(ctx: Dictionary, p: Dictionary) -> Dictionary:
+	if not bool(p.get("render", true)):
+		return view_sync(ctx, p)
+	var t := float(p.get("t", ctx["sc"].get("t0", 0.0)))
+	var Sb: Dictionary = {}
+	var Sa: Dictionary = {}
+	if int(p.get("level", 0)) != 3 or p.has("since"):
+		Sb = await snap(ctx, t, true)
+		if p.has("since"):
+			Sa = await snap(ctx, float(p["since"]), true)
+	return resolve(ctx, p, Sa, Sb)
+
+
+static func resolve(ctx: Dictionary, p: Dictionary, Sa: Dictionary, Sb: Dictionary) -> Dictionary:
+	var sc: Dictionary = ctx["sc"]
+	var t := float(p.get("t", sc.get("t0", 0.0)))
+	var level := int(p.get("level", 0))
+	var r: Dictionary
+	if p.has("since"):
+		r = delta_view(ctx, Sa, Sb)
+	elif bool(p.get("character", false)):
+		r = character(ctx, Sb)
+	elif level == 0:
+		r = level0(ctx, Sb)
+	elif level == 1:
+		r = level1(ctx, Sb)
+	elif level == 2:
+		var id := String(p.get("part", ""))
+		if id == "":
+			return {"ok": false, "error": "level 2 needs part"}
+		r = level2(ctx, Sb, id)
+		if r.has("error"):
+			return {"ok": false, "error": r["error"]}
+	elif level == 3:
+		var ids_a: Array = p.get("ids", [])
+		if ids_a.is_empty() and p.has("part"):
+			ids_a = [String(p["part"])]
+		if ids_a.is_empty():
+			return {"ok": false, "error": "level 3 needs ids (or part)"}
+		var t1 := float(p.get("t1", t + 1.0))
+		r = track(ctx, ids_a, t, t1, float(p.get("step", maxf((t1 - t) / 20.0, 0.01))))
+	else:
+		return {"ok": false, "error": "level is 0, 1, 2 or 3"}
+	var s := txt(r)
+	return {"ok": true, "result": r, "text": s, "tokens": int(ceil(s.length() / 4.0))}

@@ -104,9 +104,13 @@ static func asm_contacts(asm: Dictionary, xfs: Dictionary, only: Array = []) -> 
 
 static func _asm_scene(nm: String, asm: Dictionary, posefn: Callable, cam: Dictionary, t0: float, h: float, extra := {}) -> Dictionary:
 	var cur := {}
-	var sc := {"name": nm, "ids": [], "t0": t0, "h": h, "camera": cam}
+	var sc := {"name": nm, "ids": [], "t0": t0, "h": h, "camera": cam, "asm": asm}
+	var pid_of := {}
+	var part_of := {}
 	for p in asm["parts"]:
 		(sc["ids"] as Array).append(_id(p))
+		pid_of[_id(p)] = String(p["id"])
+		part_of[String(p["id"])] = p
 	sc["build"] = func(world: Node3D) -> void:
 		var i := 0
 		for p in asm["parts"]:
@@ -125,9 +129,85 @@ static func _asm_scene(nm: String, asm: Dictionary, posefn: Callable, cam: Dicti
 			((sc["nodes"] as Dictionary)[_id(p)] as MeshInstance3D).transform = cur[String(p["id"])]
 	sc["contacts"] = func() -> Array:
 		return asm_contacts(asm, cur, sc.get("named", []))
+	# L1 AI-COST: the exact distance between two parts at the pose set last (mm), solids replayed once and kept
+	var solids := {}
+	sc["gap"] = func(a: String, b: String) -> float:
+		var dmin := INF
+		var placed := {}
+		for pid in [pid_of[a], pid_of[b]]:
+			if not solids.has(pid):
+				solids[pid] = Part.replay(part_of[pid]["rec"], -1, {"keep": true, "errors_only": true}).get("ids", [])
+			placed[pid] = AssemblyMotion._place_all(solids[pid], cur[pid])
+		for sa in placed[pid_of[a]]:
+			for sb in placed[pid_of[b]]:
+				var d: Dictionary = KCad.distance(int(sa), int(sb))
+				if bool(d.get("ok", false)):
+					dmin = minf(dmin, float(d["d"]))
+		for pid in placed:
+			for sid in placed[pid]:
+				KCad.release(int(sid))
+		return 0.0 if dmin == INF else dmin * 1000.0
+	var mat_of := {}
+	for p in asm["parts"]:
+		var bm: Variant = (p["rec"] as Dictionary).get("bom", p.get("bom", {}))
+		mat_of[_id(p)] = String((bm as Dictionary).get("material", "unspecified")) if bm is Dictionary else "unspecified"
+	sc["material"] = mat_of
+	# joints: the drive's part (revolute or slide), then the loop joints (revolute: the turn about z since t = 0, slider: the travel along its dominant axis)
+	var tmap: Callable = extra.get("tmap", func(t: float) -> float: return t)
+	var limits: Dictionary = extra.get("joint_limits", {})
+	sc["joint"] = func(id: String, t: float) -> Dictionary:
+		if not pid_of.has(id):
+			return {}
+		var pid: String = pid_of[id]
+		var tt: float = tmap.call(t)
+		for dr in AssemblyMotion.drives(asm):
+			if String(dr["part"]) == pid and AN.driven(asm).has(String(dr["name"])):
+				var v := float(AN.values_at(asm, tt)[String(dr["name"])])
+				var rg: Array = dr["range"]
+				var j := {"type": "revolute" if String(dr["kind"]) == "rotate" else "prismatic", "value": v, "unit": "deg" if String(dr["kind"]) == "rotate" else "mm", "drive": dr["name"]}
+				if absf(float(rg[1]) - float(rg[0])) < 359.9:
+					j["lo"] = rg[0]
+					j["hi"] = rg[1]
+				return j
+		for jt in AssemblyLoop.joints(asm):
+			if String(jt["a"]) != pid or String(jt["kind"]) == "fixed":
+				continue
+			var x1: Transform3D = (posefn.call(t) as Dictionary)[pid]
+			var x0 := Assembly.xf_of(part_of[pid])
+			var jj := {}
+			if String(jt["kind"]) == "revolute":
+				var a1 := atan2(x1.basis.x.y, x1.basis.x.x)
+				var a0 := atan2(x0.basis.x.y, x0.basis.x.x)
+				jj = {"type": "revolute", "value": wrapf(rad_to_deg(a1 - a0), -180.0, 180.0), "unit": "deg"}
+			else:
+				var dv := x1.origin - x0.origin
+				jj = {"type": "prismatic", "value": dv[dv.abs().max_axis_index()], "unit": "m"}
+			if limits.has(id):
+				jj["lo"] = limits[id][0]
+				jj["hi"] = limits[id][1]
+			return jj
+		return {}
 	for k in extra:
-		sc[k] = extra[k]
+		if k != "tmap" and k != "joint_limits":
+			sc[k] = extra[k]
 	return sc
+
+
+## a live assembly (asm, with or without animation keys) as a scene: poses from AssemblyAnim.pose_at at t (clamped to [0, tmax])
+static func live(asm: Dictionary, cam: Dictionary, t0: float, h: float, nm := "live", tmax := 2.0, frozen := false, extra := {}) -> Dictionary:
+	var tm := func(t: float) -> float:
+		return t0 if frozen else clampf(t, 0.0, tmax)
+	var posefn := func(t: float) -> Dictionary:
+		var pa: Dictionary = AN.pose_at(asm, tm.call(t))
+		var mv: Dictionary = pa["moves"]
+		var out := {}
+		for p in asm["parts"]:
+			var pid := String(p["id"])
+			out[pid] = (mv[pid] as Transform3D) * Assembly.xf_of(p) if mv.has(pid) else Assembly.xf_of(p)
+		return out
+	var ex := {"tmap": tm}
+	ex.merge(extra)
+	return _asm_scene(nm, asm, posefn, cam, t0, h, ex)
 
 
 static func engine(frozen: bool) -> Dictionary:
@@ -136,17 +216,10 @@ static func engine(frozen: bool) -> Dictionary:
 	AN.set_key(asm, "Crank", 2.0, 720.0, "linear")
 	asm["anim"]["fps"] = 30
 	var t0 := 0.6
-	var posefn := func(t: float) -> Dictionary:
-		var tt := t0 if frozen else clampf(t, 0.0, 2.0)
-		var pa: Dictionary = AN.pose_at(asm, tt)
-		var mv: Dictionary = pa["moves"]
-		var out := {}
-		for p in asm["parts"]:
-			var pid := String(p["id"])
-			out[pid] = (mv[pid] as Transform3D) * Assembly.xf_of(p) if mv.has(pid) else Assembly.xf_of(p)
-		return out
 	var cam := {"pos": Vector3(0.157, 0.209, 0.293), "look": Vector3(0.0, 0.10, 0.04), "fov": 18.0}
-	return _asm_scene("s6_null" if frozen else "s1_engine", asm, posefn, cam, t0, 0.06, {"kind": "null" if frozen else "motion"})
+	var sc := live(asm, cam, t0, 0.06, "s6_null" if frozen else "s1_engine", 2.0, frozen, {"joint_limits": {"piston": [-2.0 * P13.R * 0.001, 0.0]}})
+	sc["kind"] = "null" if frozen else "motion"
+	return sc
 
 
 static func camera() -> Dictionary:
@@ -207,10 +280,36 @@ static func arm() -> Dictionary:
 			tt += 0.1
 		sc["t0"] = tb + 0.05
 		sc["named"] = top_by_mass(sc, 16)
+		for nid in sc["ids"]:
+			(sc["material"] as Dictionary)[nid] = "can (filled)" if String(nid).begins_with("can") else ("table top" if nid == "table" else "PLA print")
 	sc["set_time"] = func(t: float) -> void:
 		SC14.pose(holder["s"], clampf(t, 0.0, SC14.t_end(holder["s"])))
 	sc["contacts"] = func() -> Array:
 		return box_contacts(sc)
+	# L1 AI-COST: the gripper is the body plus its two jaws; the cans are the things that get held; joints are the arm's five axes (limits from the design)
+	sc["groups"] = {"gripper": ["gripper", "jaw_plus", "jaw_minus"]}
+	sc["holdable"] = ["can1", "can2", "can3", "can4", "can5", "can6"]
+	sc["joint"] = func(id: String, t: float) -> Dictionary:
+		if not holder.has("s"):
+			return {}
+		var s14: Dictionary = holder["s"]
+		var d: Dictionary = s14["d"]
+		var st: Dictionary = N14.state(d, s14["wp"], clampf(t, 0.0, SC14.t_end(s14)))
+		var lim: Dictionary = d["lim"]
+		match id:
+			"turntable":
+				return {"type": "revolute", "value": float(st["yaw"]), "unit": "deg", "lo": lim["ba"][0], "hi": lim["ba"][1]}
+			"upper_arm":
+				return {} if not st.has("th1") else {"type": "revolute", "value": float(st["th1"]), "unit": "deg", "lo": lim["sh"][0], "hi": lim["sh"][1]}
+			"forearm":
+				return {} if not st.has("th2") else {"type": "revolute", "value": float(st["th2"]), "unit": "deg", "lo": lim["el"][0], "hi": lim["el"][1]}
+			"gripper":
+				return {} if not st.has("psi") else {"type": "revolute", "value": float(st["psi"]), "unit": "deg", "lo": lim["wr"][0], "hi": lim["wr"][1]}
+			"jaw_plus", "jaw_minus":
+				return {"type": "prismatic", "value": float(st["g"]), "unit": "mm closing", "lo": 0.0, "hi": 41.1}
+		return {}
+	var mats := {}
+	sc["material"] = mats
 	return sc
 
 
@@ -334,6 +433,26 @@ static func walk() -> Dictionary:
 			if low <= 0.01:
 				out.append({"a": part, "b": "floor", "gap_mm": maxf(low, 0.0) * 1000.0, "pen_mm3": 0.0})
 		return out
+	# L1 AI-COST: a character scene. The bat is the only thing that can be held; elbow and knee flexion (0 = straight) with limits 0..150 deg
+	sc["char"] = true
+	sc["holdable"] = ["bat_barrel"]
+	var skel := {"lowerarm_l": "upperarm_l", "lowerarm_r": "upperarm_r", "calf_l": "thigh_l", "calf_r": "thigh_r"}
+	sc["skeleton"] = skel
+	sc["joint"] = func(id: String, t: float) -> Dictionary:
+		if not skel.has(id):
+			return {}
+		(sc["set_time"] as Callable).call(t)
+		var cc: Array = holder["caps"][id]
+		var cp: Array = holder["caps"][skel[id]]
+		var dc: Vector3 = ((cc[1] as Vector3) - (cc[0] as Vector3)).normalized()
+		var dp: Vector3 = ((cp[1] as Vector3) - (cp[0] as Vector3)).normalized()
+		return {"type": "flexion", "value": rad_to_deg(dc.angle_to(dp)), "unit": "deg", "lo": 0.0, "hi": 150.0}
+	var wmat := {}
+	for part in parts:
+		wmat[part] = "body segment (1000 kg/m3)"
+	wmat["floor"] = "floor"
+	wmat["bat_barrel"] = "bat (1000 kg/m3 nominal)"
+	sc["material"] = wmat
 	return sc
 
 
