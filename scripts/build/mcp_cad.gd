@@ -5,6 +5,8 @@
 ##   bom       {}                 the assembly's bill of materials
 ##   eval_gd   {code}             a short GDScript snippet in the live session (sandbox below)
 ##   cad_reset {cache, asm}
+##   look4d    {level, part, t, since, image}  the live assembly as a zoomable digest (scripts/build/look4d.gd): level 0 one line, 1 parts + contacts, 2 one part, 3 a track, since = a delta
+##   sweep     {drive|param, from, to, steps}  a drive or parameter sweep reduced to ONE summary (worst value, where, count over a threshold)
 ## Replies are terse by default (ids, not records; only what changed); detail: true gives everything. Numbers are rounded to prec decimals (3).
 ## Not in AgentTools.METHODS (the transcript's ready line); advertised by tools/mcp/poser_mcp.py with --cad.
 ##
@@ -466,6 +468,226 @@ static func bom(p: Dictionary) -> Dictionary:
 
 
 # ---------------------------------------------------------------- reset
+
+# ---------------------------------------------------------------- L1 AI-COST: look4d and sweep
+## look4d {level 0|1|2|3, part, t, since, t1, step, ids, parts, cam {pos, look, fov}, h, image}: the live assembly as the zoomable digest of scripts/build/look4d.gd.
+## level 0 (about 30 tokens) is the default way to look; 1 = parts + contacts; 2 = one part in full; 3 = a track; since = only what changed. Positions are the assembly's (m).
+## Poses come from the assembly's animation keys when it has them (t in s), else from the drive set by drive_to. Visible share by rays (the session has no renderer).
+## image: true returns the path of the annotated image C when the session has a renderer, else says it has none.
+static func serve_async(m: Node, method: String, p: Dictionary) -> Dictionary:
+	var t0 := Time.get_ticks_usec()
+	var r: Dictionary
+	match method:
+		"look4d":
+			r = await look4d(m, p)
+		"sweep":
+			r = sweep(p)
+		_:
+			r = {"ok": false, "error": "no async cad method '%s'" % method}
+	if r["ok"] and bool(p.get("detail", false)):
+		r["result"]["ms"] = snappedf((Time.get_ticks_usec() - t0) / 1000.0, 0.01)
+	if r["ok"] and method != "look4d":
+		r["result"] = rnd(r["result"], int(p.get("prec", 3)))
+	return r
+
+
+static func _auto_cam() -> Dictionary:
+	var box := AABB()
+	var first := true
+	for q in asm["parts"]:
+		var hh := rec_hash(q["rec"])
+		if not cache.has(hh) and ensure(q["rec"]).has("error"):
+			continue
+		var cc: Dictionary = cache[hh]
+		var xf := _xf(q)
+		for k in (cc["aabbs"] as Array).size():
+			var wb := _world_box(cc["aabbs"][k], xf)
+			box = wb if first else box.merge(wb)
+			first = false
+	var ctr := box.get_center()
+	var rad := maxf(box.size.length() * 0.5, 0.01)
+	return {"pos": ctr + Vector3(0.6, 0.45, 1.0).normalized() * rad * 3.2, "look": ctr, "fov": 30.0}
+
+
+static func live_scene(p: Dictionary) -> Dictionary:
+	var scn: Script = load("res://scripts/build/look4d_scenes.gd")
+	var cam: Dictionary = _auto_cam()
+	if p.get("cam") is Dictionary:
+		var cd: Dictionary = p["cam"]
+		cam = {"pos": Vector3(cd["pos"][0], cd["pos"][1], cd["pos"][2]), "look": Vector3(cd["look"][0], cd["look"][1], cd["look"][2]), "fov": float(cd.get("fov", 30.0))}
+	var t0 := float(p.get("t", 0.0))
+	var h := float(p.get("h", 0.1))
+	var sc: Dictionary
+	if not AssemblyAnim.driven(asm).is_empty():
+		var tmax := float(asm.get("anim", {}).get("length", 2.0))
+		sc = scn.live(asm, cam, t0, h, "live", maxf(tmax, 2.0))
+	else:
+		var posefn := func(_t: float) -> Dictionary:
+			var o := {}
+			for q in asm["parts"]:
+				o[String(q["id"])] = _xf(q)
+			return o
+		sc = scn._asm_scene("live", asm, posefn, cam, t0, h, {})
+	if p.get("parts") is Array and not (p["parts"] as Array).is_empty():
+		sc["named"] = (p["parts"] as Array).duplicate()
+	return sc
+
+
+static func look4d(m: Node, p: Dictionary) -> Dictionary:
+	if asm.is_empty() or (asm["parts"] as Array).is_empty():
+		return fail("no assembly: cad_asm first")
+	if not ClassDB.class_exists("KineCAD"):
+		return fail("the CAD kernel is missing")
+	for q in asm["parts"]:
+		if not cache.has(rec_hash(q["rec"])):
+			var e := ensure(q["rec"])
+			if e.has("error"):
+				return fail(String(e["error"]))
+	var sc := live_scene(p)
+	var pp := p.duplicate()
+	pp["render"] = false
+	if not pp.has("t"):
+		pp["t"] = float(sc["t0"])
+	if bool(p.get("image", false)):
+		var dir := OS.get_temp_dir().path_join("look4d_mcp")
+		DirAccess.make_dir_recursive_absolute(dir)
+		if DisplayServer.get_name() == "headless":
+			var ctx0 := Look4D.open(m, sc)
+			var r0 := Look4D.view_sync(ctx0, pp)
+			Look4D.close(ctx0)
+			if not bool(r0["ok"]):
+				return fail(String(r0["error"]))
+			var res0: Dictionary = r0["result"]
+			res0["image"] = null
+			res0["image_note"] = "this session has no renderer; start poser_mcp with a display to get the annotated image C"
+			return good(res0)
+		var sc2 := live_scene(p)
+		sc2["t0"] = float(pp["t"])
+		var pr: Dictionary = await Look4D.produce(m, sc2, dir)
+		var res1: Dictionary = Look4D.view_sync(pr["ctx"], pp)["result"]
+		Look4D.close(pr["ctx"])
+		res1["image"] = dir + "/C.png"
+		return good(res1)
+	var ctx := Look4D.open(m, sc)
+	var r := Look4D.view_sync(ctx, pp)
+	Look4D.close(ctx)
+	if not bool(r["ok"]):
+		return fail(String(r["error"]))
+	var out: Dictionary = r["result"]
+	if bool(p.get("tokens", false)):
+		out["tokens"] = r["tokens"]
+	return good(out)
+
+
+## sweep {drive, from, to, steps | values} or {param: {id, field: pos|rot, axis: 0..2}, from, to, steps}: one summary instead of every step.
+## metric overlap_mm3 (default: total overlap volume of all pairs; worst = the largest), n_overlaps (pairs overlapping), min_gap_mm (exact distance, slow; worst = the smallest).
+## threshold: overlap_mm3 / n_overlaps default 1 mm3 (hit_mm3), min_gap_mm default near_mm; over = steps beyond it (above for overlaps, below for the gap).
+## Returns {metric, by, n, worst: {value, at, pair}, threshold, over, over_at (first 8), min, max}.
+static func sweep(p: Dictionary) -> Dictionary:
+	if asm.is_empty() or (asm["parts"] as Array).is_empty():
+		return fail("no assembly: cad_asm first")
+	var vals: Array = []
+	if p.get("values") is Array and not (p["values"] as Array).is_empty():
+		vals = (p["values"] as Array).duplicate()
+	elif p.has("from") and p.has("to"):
+		var n := clampi(int(p.get("steps", 36)), 1, 721)
+		for i in n:
+			vals.append(float(p["from"]) + (float(p["to"]) - float(p["from"])) * (float(i) / float(maxi(n - 1, 1))))
+	else:
+		return fail("sweep needs {drive | param: {id, field, axis}, from, to, steps} or values")
+	var metric := String(p.get("metric", "overlap_mm3"))
+	if not ["overlap_mm3", "n_overlaps", "min_gap_mm"].has(metric):
+		return fail("metric is overlap_mm3, n_overlaps or min_gap_mm")
+	var near_mm := float(p.get("near_mm", 2.0))
+	var hit := float(p.get("hit_mm3", 1.0))
+	var thr := float(p.get("threshold", near_mm if metric == "min_gap_mm" else hit))
+	var by := ""
+	var saved_pose := pose.duplicate()
+	var part_ref: Dictionary = {}
+	var saved_field: Array = []
+	var axis := int(p.get("param", {}).get("axis", 0)) if p.get("param") is Dictionary else 0
+	if p.has("drive"):
+		by = "drive " + String(p["drive"])
+	elif p.get("param") is Dictionary:
+		var pr: Dictionary = p["param"]
+		for q in asm["parts"]:
+			if String(q["id"]) == String(pr.get("id", "")):
+				part_ref = q
+		if part_ref.is_empty():
+			return fail("param.id '%s' is not a placed part" % String(pr.get("id", "")))
+		var fld := String(pr.get("field", "pos"))
+		if not ["pos", "rot"].has(fld):
+			return fail("param.field is pos or rot")
+		saved_field = (part_ref[fld] as Array).duplicate()
+		by = "%s.%s[%d]" % [pr["id"], fld, axis]
+	else:
+		return fail("sweep needs drive or param")
+	var series: Array = []
+	var worst_v := NAN
+	var worst_at := 0.0
+	var worst_pair: Variant = null
+	var over := 0
+	var over_at: Array = []
+	var lo := INF
+	var hi := -INF
+	for v in vals:
+		var sub := {"near_mm": near_mm, "hit_mm3": hit, "cap": 64}
+		if p.has("drive"):
+			sub["drive"] = String(p["drive"])
+			sub["value"] = float(v)
+		else:
+			var arr: Array = part_ref[String(p["param"].get("field", "pos"))]
+			arr[axis] = float(v)
+		if metric == "min_gap_mm":
+			sub["distance"] = true
+		var r := check_fit(sub)
+		if not bool(r["ok"]):
+			pose = saved_pose
+			if not part_ref.is_empty():
+				part_ref[String(p["param"].get("field", "pos"))] = saved_field
+			return r
+		var res: Dictionary = r["result"]
+		var val := 0.0
+		var pair: Variant = null
+		match metric:
+			"overlap_mm3":
+				val = float(res["overlap_total_mm3"])
+				var bo := -1.0
+				for o in res["overlaps"]:
+					if float(o[2]) > bo:
+						bo = float(o[2])
+						pair = [o[0], o[1]]
+			"n_overlaps":
+				val = float((res["overlaps"] as Array).size())
+				if val > 0.0:
+					pair = [res["overlaps"][0][0], res["overlaps"][0][1]]
+			"min_gap_mm":
+				val = near_mm
+				for nr in res.get("near", []):
+					if float(nr[2]) < val:
+						val = float(nr[2])
+						pair = [nr[0], nr[1]]
+				for o in res["overlaps"]:
+					val = 0.0
+					pair = [o[0], o[1]]
+		series.append(val)
+		lo = minf(lo, val)
+		hi = maxf(hi, val)
+		var better := is_nan(worst_v) or (val < worst_v if metric == "min_gap_mm" else val > worst_v)
+		if better:
+			worst_v = val
+			worst_at = float(v)
+			worst_pair = pair
+		var beyond := val < thr if metric == "min_gap_mm" else val > thr
+		if beyond:
+			over += 1
+			if over_at.size() < 8:
+				over_at.append(float(v))
+	pose = saved_pose
+	if not part_ref.is_empty():
+		part_ref[String(p["param"].get("field", "pos"))] = saved_field
+	return good({"metric": metric, "by": by, "n": vals.size(), "worst": {"value": worst_v, "at": worst_at, "pair": worst_pair}, "threshold": thr, "over": over, "over_at": over_at, "min": lo, "max": hi})
+
 
 static func reset(p: Dictionary) -> Dictionary:
 	var dropped := 0
