@@ -31,7 +31,7 @@ const GREY := Color(0.55, 0.57, 0.62)
 
 ## role -> [azimuth deg (+ = camera left), elevation deg, energy, colour]; "amb" -> [energy, colour]
 const PRESETS := {
-	"three_point": {"key": [52.0, 30.0, 2.0, WARM], "fill": [0.0, 10.0, 0.5, COOL], "rim": [180.0, 50.0, 1.2, NEUTRAL], "amb": [0.01, GREY], "adj": [0.62, 3.6]},   # key:fill 3.6:1
+	"three_point": {"key": [55.0, 30.0, 2.0, WARM], "fill": [0.0, 10.0, 0.5, COOL], "rim": [180.0, 50.0, 1.2, NEUTRAL], "amb": [0.01, GREY], "adj": [0.58, 4.4]},   # key:fill 3.6:1
 	"rim": {"key": [30.0, 20.0, 0.3, WARM], "fill": [-30.0, 10.0, 0.15, COOL], "rim": [150.0, 25.0, 3.0, COOL], "amb": [0.03, GREY], "adj": [1.0, 1.6]},         # 2:1 front, the rim 10x the key: a bright edge, a dim front
 	"noir": {"key": [90.0, 15.0, 1.8, WARM], "fill": [-60.0, 0.0, 0.02, COOL], "rim": [160.0, 45.0, 0.5, NEUTRAL], "amb": [0.01, GREY], "adj": [1.0, 2.0]},       # 90:1: one hard side light in a black room
 	"daylight": {"key": [60.0, 35.0, 2.4, WARM], "fill": [-40.0, 15.0, 0.48, SKY], "rim": [180.0, 30.0, 0.0, NEUTRAL], "amb": [0.05, SKY], "adj": [0.85, 3.2]},   # sun : sky 5:1
