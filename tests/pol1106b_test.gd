@@ -115,7 +115,7 @@ func blocks() -> Dictionary:
 		"startup": Tok.c("fd_startup"),
 		"active": Tok.c("fd_active"),
 		"recovery": Tok.c("fd_recovery"),
-		"active_tint": over(Tok.c("fd_active"), 0.22, bg),
+		"active_tint": Tok.c("fd_tint"),   # the drawn wash of an active span (POL1106b: a token now; was fd_active at 0.22 over tl_bg)
 	}
 
 
