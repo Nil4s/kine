@@ -6759,6 +6759,7 @@ func _snapshot() -> Dictionary:
 		"cape": S.cape.duplicate(true),   # the cape (ROADMAP 86), undone like a card
 		"rigx": S.rigx.duplicate(true),   # the words-made rig (rig_words.gd), undone like a card
 		"bones": S.bones.duplicate(true),   # J01: the user's extra bones (bone_editor.gd), undone like a card
+		"spline": S.spline_chains.duplicate(true),   # L28: their spline-IK chains (spline_chain.gd), undone like a card
 		"hair": S.hair.duplicate(true),   # the hair strands' parameters (ROADMAP 87): undone like a card, the frames baked again
 		"skin_w": SkinPaint.snapshot(wp),   # WEIGHT PAINT (ROADMAP 72): every stroke is one step, undone with the weights
 		"body_gen": BaseBody.gen(self),   # G01: the body mesh applied from the model preview (scripts/base_body.gd)
@@ -6970,6 +6971,8 @@ func _restore(u: Dictionary) -> void:
 		ov.mark_dirty()
 	if u["scene"] == S and u.has("bones") and var_to_str(u["bones"]) != var_to_str(S.bones):
 		S.bones = u["bones"].duplicate(true)   # BONE EDITOR (J01), undone like a card
+	if u["scene"] == S and u.has("spline") and var_to_str(u["spline"]) != var_to_str(S.spline_chains):
+		S.spline_chains = u["spline"].duplicate(true)   # SPLINE IK on bone chains (L28), undone like a card
 	if u["scene"] == S and u.has("hair") and var_to_str(u["hair"]) != var_to_str(S.hair):
 		S.hair = u["hair"].duplicate(true)   # HAIR STRANDS (ROADMAP 87), undone like a card: the strands are baked again
 		_hair_bake()
@@ -9191,6 +9194,110 @@ func _spine_pin() -> void:
 	_do(func(): r.merge(SpineIK.pin(S, B, t)))
 	_dummy_hits()
 	_say("spline IK on the back at %.2f s: drag the hip, mid-back and chest handles to bend it along the curve (it matches the pose within %.1f mm now; Ctrl+Z takes it back)" % [t, float(r["err"]) * 1000.0])
+
+
+## SPLINE IK ON A BONE CHAIN (L28; scripts/spline_chain.gd): the picked bone of the bone editor and the chain below it follow a curve through
+## 4 handles. Each command is one undo step. Handles live in the rest space of the root bone's parent, so the chain rides with the body.
+func _spline_make(first := "") -> void:
+	var b := first if first != "" else (bed.cur if bed != null else "")
+	if b == "" or BoneEdit.find(S.bones, b) < 0:
+		_say("spline IK needs one of your bones: open Rig: bone editor, pick the first bone of the chain (a tail, a tentacle), then Spline IK")
+		return
+	var names := SplineChain.chain_from(S.bones, b)
+	if names.size() < 2:
+		_say("spline IK needs a chain of at least 2 bones: E in the bone editor grows the next one")
+		return
+	for n in names:
+		if SplineChain.index_of(S.spline_chains, n) >= 0:
+			_say("%s is already on a spline: turn that one off first" % n)
+			return
+	_step_hint = "Spline IK on a bone chain"
+	_do(func(): S.spline_chains.append(SplineChain.make(B, S.bones, names, SplineChain.free_name(S.spline_chains))))
+	if bed != null:
+		bed._sig = ""
+		bed.draw()
+	_say("spline IK on %d bones from %s: drag the handle balls in the bone editor; Stretch lets the bones grow to fit the curve (one undo step; Ctrl+Z takes it back)" % [names.size(), b])
+
+
+## move handle `hi` of chain `ci` to the posed-world point `pos`, WITHOUT an undo step (a drag does one step around many of these)
+func _spline_put(ci: int, hi: int, pos: Vector3) -> void:
+	if ci < 0 or ci >= S.spline_chains.size() or hi < 1 or hi >= (S.spline_chains[ci]["ctrl"] as Array).size():
+		return
+	var K := SplineChain.carry(B, S.bones, S.spline_chains[ci])
+	S.spline_chains[ci]["ctrl"][hi] = K.affine_inverse() * pos
+
+
+func _spline_handle(ci: int, hi: int, pos: Vector3) -> void:
+	if ci < 0 or ci >= S.spline_chains.size() or hi < 1 or hi >= (S.spline_chains[ci]["ctrl"] as Array).size():
+		_say("that spline handle cannot move (the first one is the root bone's head)")
+		return
+	_step_hint = "Move spline handle"
+	_do(func(): _spline_put(ci, hi, pos))
+	if bed != null:
+		bed.draw()
+
+
+func _spline_set(ci: int, field: String, v: Variant) -> void:
+	if ci < 0 or ci >= S.spline_chains.size() or not field in ["mode", "kind", "volume", "tw0", "tw1"]:
+		return
+	if field == "mode" and not v in SplineChain.MODES:
+		return
+	if field == "kind" and not v in SplineChain.KINDS:
+		return
+	_step_hint = "Spline IK " + field
+	_do(func(): S.spline_chains[ci][field] = v)
+	if bed != null:
+		bed.draw()
+
+
+func _spline_off(ci: int) -> void:
+	if ci < 0 or ci >= S.spline_chains.size():
+		_say("spline IK off: pick a bone of the chain first")
+		return
+	_step_hint = "Spline IK off"
+	_do(func(): S.spline_chains.remove_at(ci))
+	if bed != null:
+		bed._sig = ""
+		bed.draw()
+	_say("spline IK off: the bones are plain bones again (Ctrl+Z takes it back)")
+
+
+func _spline_pick_index() -> int:
+	return SplineChain.index_of(S.spline_chains, bed.cur) if bed != null and bed.cur != "" else -1
+
+
+func _spline_toggle(field: String) -> void:
+	var ci := _spline_pick_index()
+	if ci < 0:
+		_say("pick a bone of a spline chain in the bone editor first")
+		return
+	if field == "mode":
+		_spline_set(ci, "mode", "keep" if S.spline_chains[ci]["mode"] == "stretch" else "stretch")
+	else:
+		_spline_set(ci, field, not bool(S.spline_chains[ci][field]))
+
+
+## STRETCHY LIMB (L28): the picked hand / foot may reach past its length: bones grow up to x1.5 (and keep their volume when asked).
+## Needs the limb pinned (an IK key); written on its keys, off by default
+func _ik_stretch(vol := false) -> void:
+	var tip := _ik_tip()
+	if tip == "" or not S.ik.has(tip):
+		_say("a stretchy limb needs the limb pinned first: click a hand or a foot, use IK pin, then this")
+		return
+	var on_now: bool = float((S.ik[tip] as Array)[0].get("stretch", 0.0)) > 1.0
+	var turn_off := on_now and not vol
+	_step_hint = "Stretchy limb"
+	_do(func():
+		for k in S.ik[tip]:
+			if turn_off:
+				k.erase("stretch")
+				k.erase("vol")
+			else:
+				k["stretch"] = 1.5
+				if vol:
+					k["vol"] = not bool(k.get("vol", false))
+	)
+	_say("stretchy %s: %s (Ctrl+Z takes it back)" % [_ik_words(tip), "off, the limb stops at full reach again" if turn_off else "on, up to 1.5x its length%s" % (", keeping its volume" if vol else "")])
 
 
 func _spine_off() -> void:
@@ -16778,6 +16885,12 @@ func _commands() -> Array:
 	add.call("Snap to floor: all cards", "", _floor_snap.bind(true), "floor ground snap all cards every range sole foot knee lift sink", true, "every card moves straight up or down so its lowest point is on the floor; the joints stay; one undo step")
 	add.call("Key the part here", "K", _press.bind(KEY_K), "part key keyframe channel", true, "a part key: the picked part's 3 angles at the playhead, over the cards' blend (WW1)")
 	add.call("Spine IK: spline the back here", "", _spine_pin, "spine ik spline curve bezier back bend chest hip mid vertebrae twist", true, "the picked back part's spine becomes a curve through a hip, a mid-back and a chest handle: drag the handles and the back bends along it, bones keeping their length, twist spread from hip to chest, every joint inside its limits")
+	add.call("Rig: spline IK on the picked bone chain", "", _spline_make, "spline ik curve bezier catmull tail tentacle chain bones handles follow path rig", true, "the picked bone and the bones below it follow a curve through 4 handles you drag (Blender / Maya spline IK); keep length or stretch to fit; one undo step")
+	add.call("Rig: spline IK off (picked chain)", "", func(): _spline_off(_spline_pick_index()), "spline ik off remove chain curve tail tentacle", true, "the picked chain is plain bones again")
+	add.call("Rig: spline IK stretch to fit / keep length", "", func(): _spline_toggle("mode"), "spline ik stretch fit keep length squash tail tentacle", true, "toggle the picked spline chain between keeping every bone length and stretching to fit the curve")
+	add.call("Rig: spline IK volume (stretch keeps thickness)", "", func(): _spline_toggle("volume"), "spline ik volume preserve thickness squash stretch", true, "a stretched spline bone gets thinner across so its volume stays (opt-in)")
+	add.call("IK: stretchy limb on / off (picked limb)", "", _ik_stretch, "ik stretch stretchy limb arm leg reach elastic rubber long extend squash", true, "the pinned hand / foot may reach a target beyond its length: the bones grow up to 1.5x (off by default; the old solver is used when off)")
+	add.call("IK: stretchy limb keeps volume (picked limb)", "", _ik_stretch.bind(true), "ik stretch stretchy limb volume thickness preserve", true, "a stretched limb's cross-scale goes as 1/sqrt(stretch) so its volume stays")
 	add.call("Spine IK: spline off here", "", _spine_off, "spine ik spline off release curve back unlock", true, "the back follows the cards again from the playhead (over the last frame)")
 	add.call("Prop: attach on this card (move the pick-up here)", "", PropAttach.attach_here.bind(self), "prop attach pick up grab hold frame time timeline hand early late carry", true, "the picked prop is taken by the hand(s) from the selected card's arrival instead of the card it is attached on now (one undo step; the status line names the frames)")
 	add.call("Prop: let go on this card (move the let-go here)", "", PropAttach.detach_here.bind(self), "prop detach let go drop release frame time timeline hand carry", true, "the picked prop is let go at the selected card's arrival instead of the card it is let go on now (one undo step)")
@@ -17072,7 +17185,7 @@ func _commands() -> Array:
 	add.call("Pose: copy to the other fighter, mirrored", "", _pose_to_other.bind(true), "copy pose fighter actor other mirror flip left right", true, "the same, reflected left <-> right: the app's own mirror of the pose; one Ctrl+Z")
 	add.call("Actor: remove this fighter", "", _actor_remove, "actor fighter character opponent delete", true, "the active fighter leaves the scene (not the hero: the hero is the scene itself); Ctrl+Z brings it back")
 	add.call("Ragdoll: fall from here (pins: picked parts)", "", _ragdoll_fall, "ragdoll fall limp knockout drop gravity collapse faint pin hang", false, "the body goes limp and falls from the current pose under gravity, the picked parts held in place; baked as editable cards into a NEW scene in scenes/_wip (ROADMAP 27)")
-	add.call("Ragdoll: hit, fall, get back up", "", _ragdoll_hit, "ragdoll hit knock down fall limp blend back get up recover animation physics hurt punch", false, "the body at the playhead is hit (pushed), falls limp for 2 s, then blends back onto its own pose over 1 s; baked as editable cards into a NEW scene in scenes/_wip (Friday plan 147)")
+	add.call("Ragdoll: hit, fall, get back up", "", _ragdoll_hit, "ragdoll hit knock down fall limp blend back get up recover animation physics hurt punch", true, "the body at the playhead is hit (pushed), falls limp for 2 s, then blends back onto its own pose over 1 s; baked as editable cards into a NEW scene in scenes/_wip (Friday plan 147)")
 	add.call("Hits: make the struck fighter react", "", _hit_react, "hit hits react reaction struck fighter impact knock momentum recoil shove", true, "the first hit in the fighters' report on a body part turns the struck fighter by its momentum (0.3-0.6 s), baked as editable cards on its scene; one undo step (ROADMAP 14)")
 	add.call("Hit reactions: physics default / my usual", "Alt+H", _hit_physics_key, "hit reaction physics default usual habit amplitude delay recovery learned my edits plain", false, "one key: the next hit reaction is the plain physics (not shaped by your usual amplitude, start and recovery learned from your edits of earlier ones); press again for your usual (ROADMAP I46)")
 	add.call("Add marker at the playhead", "", _marker_add, "cue event hit step swoosh note flag sound", true, "a named moment (m1, m2, ...) on the timeline at the playhead; the game export lists it as an event")
@@ -26346,6 +26459,8 @@ const HIT_BLEND_S := 1.0    # s, from the fall's pose back onto the animation's 
 func _ragdoll_hit() -> void:
 	_say("hit: falling, then back up...")
 	await get_tree().process_frame
+	_step_hint = "Ragdoll: hit, fall, get back up"
+	_push_undo()   # the step is taken BEFORE the solver touches the body: the snapshot is the body as the user left it, to the byte
 	var keep := B.state()
 	var keep_ang: Dictionary = B.ang.duplicate()
 	var keep_off: Vector3 = B.offset
@@ -26368,6 +26483,9 @@ func _ragdoll_hit() -> void:
 	while FileAccess.file_exists(out):   # never over an earlier hit: _hit_2, _hit_3 ...
 		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
+	# opening the hit scene REPLACES the open one, so it is ONE undo step (a whole-scene swap, as New from template): Ctrl+Z puts the
+	# scene that was open back whole (the new file in scenes/_wip stays on disk), Ctrl+Y the hit scene
+	undo[-1]["swap"] = true
 	_write(out, d)
 	_load_scene(out, true)
 	_rebuild_cards()

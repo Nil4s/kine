@@ -76,15 +76,27 @@ static func _low(B: Body, p: String) -> float:
 
 
 ## the clip at 60 Hz: [{"t", "com", "top", "low": {part: lowest surface y}, "chin", "el": {"_l", "_r"}, "lat"}]
+static var memo_pose := true   # false: every frame played on the clone, as before (tests/i16fast_test.gd compares the two)
+
+
 static func frames(S: Scene) -> Array:
-	var sc := S.clone()
-	sc.baker = null
+	# L21: inside a realism pass (FrameMemo.on, a plain scene, the main thread) the frames come from the shared pose memo, so a re-score poses each
+	# time once; the scene itself is the same one the other judges pose (apply_true: no baked table). Anywhere else: the clone, as it was.
+	var shared := memo_pose and FrameMemo.on and FrameMemo.plain(S) and OS.get_thread_caller_id() == OS.get_main_thread_id()
+	var sc := S if shared else S.clone()
+	if not shared:
+		sc.baker = null
 	var B := DistanceKeeper.new_body()
+	if shared and B.body != S.body:
+		B.set_proportions(S.body)
 	var out := []
 	var n := int(sc.length() * HZ) + 1
 	for k in n:
 		var t := k / HZ
-		sc.apply(B, t)
+		if shared:
+			FrameMemo.pose(sc, B, t)
+		else:
+			sc.apply(B, t)
 		var low := {}
 		for p in PARTS:
 			low[p] = _low(B, p)

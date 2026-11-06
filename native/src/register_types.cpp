@@ -13,6 +13,7 @@
 #include "kine_retopo_native.h"
 #include "kine_solve_native.h"
 #include "kine_autorig_native.h"
+#include "kine_spline_native.h"
 #include "kine_skin_native.h"
 #include "kine_clock_native.h"
 
@@ -22,6 +23,7 @@
 #include "kine_seat_native.h"
 #include "kine_wood_native.h"
 #include "kine_fastener_native.h"
+#include "kine_ik_native.h"
 
 using namespace godot;
 
@@ -39,6 +41,7 @@ void kine_native_initialize(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(KineRetopoNative);
 	GDREGISTER_ABSTRACT_CLASS(KineSolveNative);
 	GDREGISTER_ABSTRACT_CLASS(KineAutoRigNative);
+	GDREGISTER_ABSTRACT_CLASS(KineSplineNative);
 	GDREGISTER_ABSTRACT_CLASS(KineSkinNative);
 	GDREGISTER_ABSTRACT_CLASS(KineClockNative);
 
@@ -48,6 +51,7 @@ void kine_native_initialize(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(KineSeatNative);
 	GDREGISTER_ABSTRACT_CLASS(KineWoodNative);
 	GDREGISTER_ABSTRACT_CLASS(KineFastenerNative);
+	GDREGISTER_ABSTRACT_CLASS(KineIKNative);
 }
 
 void kine_native_terminate(ModuleInitializationLevel p_level) {

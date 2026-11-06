@@ -560,6 +560,33 @@
      },
      "additionalProperties": false
     },
+    "spline_chains": {
+     "type": "object",
+     "description": "L28 SPLINE IK (scripts/spline_chain.gd): bone chains of the bone editor that follow a curve through 3-5 handles; only when any. v = the format version (1). Each chain: bones = names root first, ctrl = the handles in the root bone's parent's REST space (metres), kind = catmull | bezier, mode = keep (bones keep their length) | stretch (stretch to fit the curve), tw0 / tw1 = twist degrees at the root / tip, volume = cross-scale 1/sqrt(s) when stretched",
+     "required": ["v", "chains"],
+     "properties": {
+      "v": {"type": "integer", "minimum": 1},
+      "chains": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "required": ["name", "bones", "ctrl"],
+        "properties": {
+         "name": {"type": "string"},
+         "bones": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+         "ctrl": {"type": "array", "items": {"$ref": "#/$defs/vec3"}, "minItems": 3, "maxItems": 5},
+         "kind": {"type": "string", "enum": ["catmull", "bezier"]},
+         "mode": {"type": "string", "enum": ["keep", "stretch"]},
+         "tw0": {"type": "number"},
+         "tw1": {"type": "number"},
+         "volume": {"type": "boolean"}
+        },
+        "additionalProperties": false
+       }
+      }
+     },
+     "additionalProperties": false
+    },
     "bones": {
      "type": "array",
      "description": "J01 BONE EDITOR (scripts/bone_editor.gd): the user's extra bones under the UE5 skeleton or each other; only when any. head / tail = metres in the parent's rest frame (its head the origin), roll = degrees about the bone (armature space), connect = the head stays on the parent's tail",
@@ -595,7 +622,9 @@
         "pole": {"$ref": "#/$defs/vec3"},
         "w": {"type": "number", "minimum": 0, "maximum": 1},
         "rot": {"$ref": "#/$defs/quat"},
-        "twist": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}
+        "twist": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+        "stretch": {"type": "number", "exclusiveMinimum": 1, "description": "L28 STRETCHY LIMB (opt-in): the largest length factor the limb may grow to reach a target beyond its reach; absent = off"},
+        "vol": {"type": "boolean", "description": "L28: keep the volume of a stretched limb (cross scale 1/sqrt(s))"}
        },
        "additionalProperties": false
       }

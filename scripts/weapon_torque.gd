@@ -77,7 +77,7 @@ static func swings(S: Scene, B: Body) -> Array:
 
 ## one sample of the arm and the weapon at time t: {"sh", "el", "wr", "gr" (grip), "kn" (knob), "u" (weapon axis), "side"}
 static func _pose(S: Scene, B: Body, t: float) -> Dictionary:
-	S.apply_true(B, t)
+	FrameMemo.pose(S, B, t)   # L21: the frame the other judges played at this time is put on the body (plain apply_true when the memo is off)
 	B.fk()
 	var hand := B.wep_hand if B.wep_hand != "" else "hand_r"
 	var sfx := hand.substr(4)   # "_r" / "_l"
