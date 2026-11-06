@@ -17,6 +17,7 @@
 #include "kine_spline_native.h"
 #include "kine_skin_native.h"
 #include "kine_clock_native.h"
+#include "kine_render_native.h"
 
 
 #include "kine_field_native.h"
@@ -47,6 +48,7 @@ void kine_native_initialize(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(KineSplineNative);
 	GDREGISTER_ABSTRACT_CLASS(KineSkinNative);
 	GDREGISTER_ABSTRACT_CLASS(KineClockNative);
+	GDREGISTER_ABSTRACT_CLASS(KineRenderNative);
 
 
 	GDREGISTER_ABSTRACT_CLASS(KineFieldNative);
