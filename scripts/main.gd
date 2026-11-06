@@ -21233,9 +21233,14 @@ func _save_scene_now(nm: String) -> void:
 	BodyFile.before_save(self, safe_file(H.name).get_file())   # G07: an applied body with no file yet: a NEW .kbody first
 	var d := _scene_dict()   # TC3: the hero's file with its actors (lossless: the body kept, round 8)
 	var fname := safe_file(H.name) if safe_file(H.name) != "" else "scene_" + _stamp()
+	var tpv: Node = get_node_or_null(KMeshVPaintUI.NODE)   # L55: the painted texture goes beside the scene (PNG) and is recorded in its JSON
+	var tps: Dictionary = tpv.texture_source() if tpv != null else {}
+	KMeshTPaintFile.record(d, tps, "%s_tpaint.png" % fname)
 	if not _write("res://scenes/%s.json" % fname, d):   # S271: say it was skipped; the old file and scene_path stay as they were
 		_say("not saved: a test run may not overwrite the shipped scene %s (save under another name, or a zz_ name)" % fname)
 		return
+	if not tps.is_empty():
+		KMeshTPaintFile.write_png(tps, ProjectSettings.globalize_path(UserPaths.w("res://scenes/%s_tpaint.png" % fname)))
 	if np.loaded:
 		np.update_file(UserPaths.w("res://scenes/%s.json" % fname))   # R27: the index of your habits learns the saved scene
 	_clean = _doc_key()
@@ -25604,6 +25609,7 @@ func _open_scene_dict(path: String, d: Dictionary, work: bool, built := false) -
 		BodyFile.from_scene(self, d)   # G07: the body the scene was saved with back on the fighter
 		ArmourFromBody.from_scene(self, d)   # B23: the armour plates the scene was saved with (none when the file has none)
 		CharImportApp.from_scene(self, d)   # L9: the imported character the scene was saved with (none: the Kine body)
+		KMeshTPaintFile.from_scene(self, d, path)   # L55: the painted texture the scene was saved with (its PNG beside the file), held for Texture mode
 		camx.from_scene(d)   # C01: the cube's Top the scene was saved with
 	else:   # an old move file: its keys become cards
 		var prev := 0.0

@@ -17,9 +17,13 @@ const SCENE_DIR := "user://tpaint2_scene"
 var m: Node
 
 
+var oks := 0
+
 func ok(c: bool, what: String) -> void:
 	print(("ok   " if c else "FAIL ") + what)
-	if not c:
+	if c:
+		oks += 1
+	else:
 		fails += 1
 
 
@@ -125,7 +129,7 @@ func run() -> void:
 	# e APP
 	await app_bars(dir_abs)
 
-	print("tpaint2: %d fail, %d ok" % [fails, 0])
+	print("tpaint2: %d fail, %d ok" % [fails, oks])
 	quit(1 if fails > 0 else 0)
 
 
@@ -153,8 +157,12 @@ func app_bars(dir_abs: String) -> void:
 	var blank_app := tpa.hash() if tpa != null else ""
 	ok(pu.tex_mode and tpa != null and uv_app != "none", "e1 Texture mode on the model preview (engine %s, UV hash %s)" % [tpa.engine if tpa != null else "-", uv_app.left(12)])
 	var px := tpa.data()
-	for i in 4000:
-		px[i * 7] = 0
+	for yy in range(300, 700):   # a visible green patch in the middle of the texture (the picture below shows it); RGBA bytes
+		for xx in range(300, 700):
+			var o := (yy * tpa.size + xx) * 4
+			px[o] = 20
+			px[o + 1] = 204
+			px[o + 2] = 20
 	tpa.set_data(px)
 	var sha_app := tpa.hash()
 	var src := pu.texture_source()
