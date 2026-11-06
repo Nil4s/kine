@@ -2243,7 +2243,10 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "", opts := {}) -
 					await RenderingServer.frame_post_draw
 					sub_imgs.append(_shot_blast_image(shot, get_viewport().get_texture().get_image()))
 			if hq:
-				FinalHQ.to_rgb8(FinalHQ.accumulate(sub_imgs)).save_png("%s/frame_%04d.png" % [gdir, f - first_f])
+				var hq_img: Image = FinalHQ.accumulate(sub_imgs)
+				if bool(opts.get("denoise", FinalHQ.PRESET["denoise"])):
+					hq_img = FinalHQ.denoise(hq_img, hq_img)   # self-guided: the averaged frame says where its own edges are
+				FinalHQ.to_rgb8(hq_img).save_png("%s/frame_%04d.png" % [gdir, f - first_f])
 			else:
 				(sub_imgs[0] if sub_imgs.size() == 1 else PlayblastExport.average(sub_imgs)).save_png("%s/frame_%04d.png" % [gdir, f - first_f])
 			wt.render_active = false
