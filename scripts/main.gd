@@ -205,6 +205,12 @@ var sf_ui: SafetyUI   # SAFETY SHEET (ROADMAP I28): scripts/safety_ui.gd
 var ml_ui: MomentumUI   # MOMENTUM LEDGER (ROADMAP I36): scripts/momentum_ui.gd + momentum.gd
 var rmc_ui: MocapCheckUI   # REAL-MOCAP POSE CHECK (ROADMAP I48): scripts/mocap_check_ui.gd + mocap_check.gd
 var sp_ui: SpinCheckUI   # AIRBORNE SPIN CHECK (ROADMAP I43): scripts/spin_check_ui.gd + spin_check.gd
+var lr_ui: LightRigUI   # LIGHT RIG PANEL (L25): scripts/light_rig_ui.gd
+var lr_hdri_id := ""   # L25: the sky map behind the figure ("" = none); a VIEW setting like the shading, not saved in the scene
+var lr_rot := 0.0
+var lr_int := 1.0
+var lr_link := {"key": false, "fill": false, "rim": false}   # L25: true = that light lights the character only (not the floor)
+var _lr_sky_on := false
 var fp_ui: FloorPlanUI   # FLOOR PLAN (ROADMAP I42): scripts/floor_plan_ui.gd
 var fa_ui: ExertionUI   # FATIGUE (ROADMAP I34): scripts/exertion_ui.gd + exertion.gd
 var rh_ui: FightRhythmUI   # FIGHT RHYTHM (ROADMAP I19): scripts/fight_rhythm_ui.gd
@@ -3884,6 +3890,7 @@ func _world() -> void:
 	floor_mat = fm
 	floor.material_override = fm
 	floor.position.y = -0.002
+	floor.layers = LightRig.WORLD_BIT   # L25 light linking: the floor is "the world", on its own layer (a light linked to the character skips it)
 	stage_root.add_child(floor)
 	stage_marks.append(floor)
 	for lab in [["X  his left", Vector3(0.72, 0.01, 0), AXES[0][1]], ["Y  up", Vector3(0, AXIS_Y + 0.05, 0), AXES[1][1]], ["Z  he faces this way", Vector3(0, 0.01, 0.74), AXES[2][1]]]:
@@ -13324,6 +13331,9 @@ func _ui() -> void:
 	ui_ribbon["SET"].add_child(_button("Library", _library_toggle, "Open the object library: weapons, furniture, sports, everyday things, armour and your own models. Click one to place it"))
 	for lid in LightRig.IDS:   # ROADMAP R1: the lighting presets on the shot camera (light_rig.gd), one click each
 		ui_ribbon["SET"].add_child(_button(LightRig.NAMES[lid], _light_preset.bind(lid), LightRig.tip(lid)))
+	if lr_ui == null:
+		lr_ui = LightRigUI.new(self)
+	ui_ribbon["SET"].add_child(_button("Light rig", lr_ui.show, "the light rig panel: studio, dramatic, overcast, sunset and night looks, a sky map with rotation and intensity, and a per-light switch for lighting the character only"))
 	ui_ribbon["SET"].add_child(_button("Crowd: make 20 copies of this fighter", _crowd_make, "20 copies of this fighter's clip around it: each its own time, speed, slight joint noise, mirror and stature (ANSUR II). Ctrl+Z undoes"))
 	if tcat_ui == null:
 		tcat_ui = ThrowCatchUI.new(self)
@@ -17024,6 +17034,9 @@ func _commands() -> Array:
 	add.call("Crowd: re-roll (new seed)", "", _crowd_reroll, "crowd reroll seed random new variation", true, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures; one Ctrl+Z")
 	for lid in LightRig.IDS:
 		add.call(LightRig.NAMES[lid], "", _light_preset.bind(lid), "light lighting lights preset shot camera key fill rim back " + lid.replace("_", " ") + " noir daylight three point", true, LightRig.tip(lid))
+	if lr_ui == null:
+		lr_ui = LightRigUI.new(self)
+	lr_ui.commands(add)   # L25: the new looks, the sky maps, the link switches, the panel
 	add.call("Light: back to the default lights", "", _light_preset.bind(""), "light lighting lights preset default off clear remove reset", true, "the shot on at the playhead goes back to the stage's two default lights (one undo step)")
 	add.call("Crowd: remove", "", _crowd_remove, "crowd remove delete clear copies", true, "the copies go and the fighter stays; one Ctrl+Z")
 	add.call("Actor: switch to the next fighter", "", _actor_next, "actor fighter character opponent other active swap", false, "the next fighter becomes the one you pose: its own cards, its own body, its own Ctrl+Z")
@@ -24982,6 +24995,7 @@ func _light_apply() -> void:
 		world_env.adjustment_brightness = 1.0
 		world_env.adjustment_contrast = 1.0
 		shading.apply_lights(self)   # K02: back to the studio lights the view had chosen (none: the default above)
+		_lr_view_apply()
 		return
 	_body_outline_show(false)
 	var r := LightRig.rig(id, k["pos"], k["aim"])
@@ -24996,6 +25010,72 @@ func _light_apply() -> void:
 	world_env.adjustment_enabled = true
 	world_env.adjustment_brightness = r["adjust"]["brightness"]
 	world_env.adjustment_contrast = r["adjust"]["contrast"]
+	_lr_view_apply()
+
+
+## L25: the view-side half of the light rig: the link masks on the three lights and the sky map on the world environment
+func _lr_view_apply() -> void:
+	for pair in [[light_key, "key"], [light_fill, "fill"], [light_rim, "rim"]]:
+		LightRig.set_link(pair[0], bool(lr_link[pair[1]]))
+	if lr_hdri_id != "":
+		LightRig.apply_hdri(world_env, lr_hdri_id, lr_rot, lr_int)
+		_lr_sky_on = true
+	elif _lr_sky_on:
+		_lr_sky_on = false
+		LightRig.apply_hdri(world_env, "", 0.0, 1.0)
+		shading.apply_sky(self)   # the flat colour (or the View menu's sky / picture) as before
+	if lr_ui != null:
+		lr_ui.sync()
+
+
+## L25: a look from the panel or the palette. With no shot camera yet the view is keyed as one (the same step), because the rig is
+## placed relative to the shot camera. One undo step.
+func lr_preset(id: String) -> bool:
+	if not LightRig.PRESETS.has(id) or _hero_scene() == null:
+		return false
+	if _hero_scene().cards.is_empty():
+		_say("the lights follow the shot camera: add a pose card first (or open a scene), then pick a look")
+		return false
+	var had := not _shot_keys().is_empty()
+	if had and _light_id() == id:
+		_say("this shot already has %s" % LightRig.PANEL_NAMES.get(id, id))
+		return true
+	var t := clampf(playhead, 0.0, S.length())
+	var key := {} if had else _shot_view_key(t)
+	if not had:
+		key["t"] = t
+	_do(func():
+		if not had:
+			_shot_ensure()
+			ShotCam.put(_shot_keys(), key)
+		_shot_shots()[shot_now_index()]["light"] = id)
+	_light_apply()
+	_say("%s: %s%s (Ctrl+Z takes it back)" % [LightRig.PANEL_NAMES.get(id, id), LightRig.tip(id), "" if had else "; the view was keyed as the shot camera"])
+	return true
+
+
+func lr_hdri(id: String) -> void:
+	lr_hdri_id = id if LightRig.SKIES.has(id) else ""
+	_lr_view_apply()
+	_say("sky map: %s" % (LightRig.SKY_NAMES[lr_hdri_id] if lr_hdri_id != "" else "none (the flat world colour)"))
+
+
+func lr_hdri_rot(deg: float) -> void:
+	lr_rot = fposmod(deg, 360.0)
+	_lr_view_apply()
+
+
+func lr_hdri_int(x: float) -> void:
+	lr_int = clampf(x, 0.0, 4.0)
+	_lr_view_apply()
+
+
+func lr_set_link(role: String, on: bool) -> void:
+	if not lr_link.has(role):
+		return
+	lr_link[role] = on
+	_lr_view_apply()
+	_say("%s light: %s" % [role, "lights the character only" if on else "lights everything"])
 
 
 func _light_preset(id: String) -> void:
