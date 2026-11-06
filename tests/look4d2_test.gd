@@ -150,7 +150,7 @@ func bars_fields() -> void:
 	var Rc := P13.R
 	var Lr := P13.L
 	var yp := ((Rc * cos(th) + sqrt(Lr * Lr - Rc * Rc * sin(th) * sin(th))) - (Rc + Lr)) * 0.001
-	var pj := L4.level2(ctx, S, "piston")["joint"]
+	var pj: Dictionary = L4.level2(ctx, S, "piston")["joint"]
 	ok(close_to(float(pj["value"]), yp, 0.0051, 1e-7), "2 piston joint = the crank-slider formula (%.6f m vs %.6f m), distance to the nearest limit %s m, limits %s" % [float(pj["value"]), yp, str(pj["to_limit"]), str([pj["lo"], pj["hi"]])])
 	ok(close_to(float(pj["to_limit"]), minf(yp - float(pj["lo"]), float(pj["hi"]) - yp), 0.0051, 1e-7), "2 piston distance to limit = min(v - lo, hi - v)")
 	# the kcad distance of the three nearest gaps
@@ -465,7 +465,6 @@ func bars_character() -> void:
 			var m := float(sc["mass"][id])
 			ms += m
 			var cap: Dictionary = sh[id]
-			com += (((cap["a"] as Array).size() == 3 and true) as bool) and Vector3.ZERO or Vector3.ZERO
 			com += L4.kinematics(ctx, t)[id]["c"] * m
 			if id.begins_with("foot") or id.begins_with("ball"):
 				var a := Vector3(cap["a"][0], cap["a"][1], cap["a"][2])
