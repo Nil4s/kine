@@ -59,6 +59,11 @@ func _cw() -> float:
 	return (size.x - 2.0 * PAD) / float(maxi(n, 1))
 
 
+## L45 bar hook: the x the playhead marker is drawn at (-INF until the marker exists)
+func marker_x() -> float:
+	return -INF
+
+
 func x_of_frame(f: int) -> float:
 	return PAD + (float(f) + 0.5) * _cw()
 
