@@ -70,5 +70,7 @@ func _draw() -> void:
 		var kf := int(r.get("frame", -1))
 		if kf >= 0 and not fr.is_empty():
 			var rr := ribbon_rect(i, kf)
-			draw_line(Vector2(rr.position.x + rr.size.x * 0.5, rr.position.y - 4.0), Vector2(rr.position.x + rr.size.x * 0.5, rr.end.y + 8.0), COL_TXT, 2.0)
+			var cx := rr.position.x + rr.size.x * 0.5
+			draw_line(Vector2(cx, rr.position.y - 8.0), Vector2(cx, rr.position.y - 1.0), COL_TXT, 2.0)   # a tick above and below, never over the ribbon's colour
+			draw_line(Vector2(cx, rr.end.y + 1.0), Vector2(cx, rr.end.y + 8.0), COL_TXT, 2.0)
 		draw_multiline_string(font, Vector2(X0, y + 166.0), String(r.get("text", "")), HORIZONTAL_ALIGNMENT_LEFT, 840.0, 12, 3, color_of(String(r.get("verdict", ""))))

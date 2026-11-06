@@ -54,16 +54,12 @@ func control(claim: bool, what: String) -> void:
 		fails += 1
 
 
-func cards_json(sc: Scene) -> String:
-	return JSON.stringify(sc.to_dict().get("cards", []))
-
-
 func hero_cards(S: Scene) -> String:
-	return JSON.stringify(S.to_dict()["cards"])
+	return JSON.stringify(S.cards)
 
 
 func partner_cards(S: Scene) -> String:
-	return JSON.stringify((S.actors[0]["scene"] as Scene).to_dict()["cards"])
+	return JSON.stringify((S.actors[0]["scene"] as Scene).cards)
 
 
 ## the test's own read of the partner at frame f (hero space numbers not needed: own space is a rigid move): {out, thr_margin}
@@ -309,11 +305,9 @@ func _pictures(clips: Array, rA: Dictionary, A: Scene, rO: Dictionary, O: Scene)
 		var want_c := ThrowTruthStrip.COL_WORKS if case[0] == "osoto" else ThrowTruthStrip.COL_FALLS
 		var redn := 0
 		for y in range(0, im.get_height(), 1):
-			for x in range(int(PLAN.position.x), 890):
+			for x in range(int(ThrowTruthPair.PLAN.position.x), 890):
 				if im.get_pixel(x, y).is_equal_approx(ThrowTruthStrip.COL_FALLS):
 					redn += 1
 		ok(pc.is_equal_approx(want_c) and (case[0] != "osoto" or redn > 20),
 			"9 pair %s: thrower's plan dot %s (want %s); red pixels in the plan %d" % [case[0], pc.to_html(false), want_c.to_html(false), redn])
 
-
-const PLAN := ThrowTruthPair.PLAN
