@@ -168,6 +168,13 @@ func rel(v0: float, v1: float) -> float:
 	return absf(v1 - v0) / maxf(v0, 1e-9)
 
 
+func pose() -> Dictionary:
+	var R := Body.new()
+	R.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	R.fk()
+	return R.to_dict()
+
+
 func _init() -> void:
 	stage()
 	await idle(4)
@@ -210,6 +217,7 @@ func _init() -> void:
 	var S := Scene.new()
 	S.name = "zz_lightrig2"
 	S.fps = 24
+	S.add("c0", pose())
 	m.S = S
 	m._rebuild_cards()
 	m.sel_card = 0
