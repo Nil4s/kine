@@ -1072,3 +1072,4 @@ EXTRA="$EXTRA tpaint:w"   # L53 TPAINT: texture paint across UV seams with scree
 EXTRA="$EXTRA tpaint2:w"   # L55 TPAINT2: texture paint saved beside the scene (SHA-256 round trip, PNG missing = warning), the auto-unwrap is one undo step (tests/tpaint2_test.gd)
 EXTRA="$EXTRA perfscout:w"   # L54 PERF SCOUT: measures user-visible stalls (tools/perf_scout.gd), no speed bars
 EXTRA="$EXTRA fastsave:w"   # L56 FASTSAVE: save/USD with 1000 props <= 300 ms warm, file byte-identical (tests/fastsave_test.gd)
+EXTRA="$EXTRA propsgrid:w"   # L58 PROPSGRID: Props.settle in C++ with a grid (GDScript twin), undo without re-settle, _props_show keeps nodes per prop (tests/propsgrid_test.gd)

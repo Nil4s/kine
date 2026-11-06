@@ -662,7 +662,66 @@ static func rests(p: Dictionary, a: Vector3, b: Vector3, r: float) -> bool:
 
 ## SETTLING (round 39, GATES UU1): every prop stands on the highest top under it that is not above it, or on the
 ## floor; lowest first, so a box on a table follows the table. Moves the props in place; returns how many moved
+static var _force_gd := false
+
+
+## L58: the native settle (KinePropsNative, a uniform grid) when the DLL is there, else the GDScript twin below
+static func has_native_settle() -> bool:
+	return (ClassDB.class_exists("KinePropsNative") or NativeExt.ensure("kine_native", "KinePropsNative")) and not _force_gd
+
+
+## test switch: true = never use the DLL
+static func force_gd(on: bool) -> void:
+	_force_gd = on
+
+
 static func settle(props: Array, skip := {}) -> int:   # skip: prop index -> true, a prop held in the air by a grip (C36) stays where it was put
+	if props.size() < 2 or not has_native_settle():
+		return settle_gd(props, skip)
+	var n := props.size()
+	var xf := PackedFloat64Array()
+	xf.resize(12 * n)
+	var start := PackedInt32Array()
+	start.resize(n + 1)
+	var sup := PackedFloat64Array()
+	var skp := PackedByteArray()
+	skp.resize(n)
+	var cnt := 0
+	for i in n:
+		var p: Dictionary = props[i]
+		var t: Transform3D = p["xf"]
+		var o := 12 * i
+		xf[o] = t.basis.x.x; xf[o + 1] = t.basis.x.y; xf[o + 2] = t.basis.x.z
+		xf[o + 3] = t.basis.y.x; xf[o + 4] = t.basis.y.y; xf[o + 5] = t.basis.y.z
+		xf[o + 6] = t.basis.z.x; xf[o + 7] = t.basis.z.y; xf[o + 8] = t.basis.z.z
+		xf[o + 9] = t.origin.x; xf[o + 10] = t.origin.y; xf[o + 11] = t.origin.z
+		start[i] = cnt
+		skp[i] = 1 if skip.has(i) else 0
+		var k := scale_of(p)
+		for s in kind_of(p["kind"])["supports"]:
+			var c: Vector2 = (s[1] as Vector2) * k
+			var h: Vector2 = (s[2] as Vector2) * (0.5 * k)
+			sup.append(float(s[0]) * k)
+			sup.append(c.x)
+			sup.append(c.y)
+			sup.append(h.x)
+			sup.append(h.y)
+			cnt += 1
+	start[n] = cnt
+	var door = load("res://scripts/props_native_door.gd")
+	var ys: PackedFloat64Array = door.settle(xf, start, sup, skp)
+	var moved := int(ys[n])
+	for i in n:
+		if skip.has(i):
+			continue
+		var t: Transform3D = props[i]["xf"]
+		if t.origin.y != ys[i]:
+			t.origin.y = ys[i]
+			props[i]["xf"] = t
+	return moved
+
+
+static func settle_gd(props: Array, skip := {}) -> int:   # skip: prop index -> true, a prop held in the air by a grip (C36) stays where it was put
 	var order := range(props.size())
 	order.sort_custom(func(a, b): return (props[a]["xf"] as Transform3D).origin.y < (props[b]["xf"] as Transform3D).origin.y)
 	var done := []
