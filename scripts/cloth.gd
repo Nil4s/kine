@@ -136,9 +136,11 @@ static func radii(B: Body, names: Array) -> PackedFloat64Array:
 
 
 ## a cape baked on this thread: sample, then simulate (pose_at(t) puts the body at time t; fk is run here)
-static func bake(B: Body, n_frames: int, fps: int, pose_at: Callable, name := "cape") -> Dictionary:
+static func bake(B: Body, n_frames: int, fps: int, pose_at: Callable, name := "cape", ctl = null) -> Dictionary:
 	var sm := sample_frames(B, n_frames, fps, pose_at)
-	var out := simulate(sm["A"], sm["C"], radii(B, sm["names"]), fps, null)
+	var out := simulate(sm["A"], sm["C"], radii(B, sm["names"]), fps, ctl)
+	if out.is_empty():
+		return out   # cancelled through ctl
 	out["name"] = name
 	return out
 
@@ -381,13 +383,13 @@ static func _lerp_into(F: Array, u: float, out: PackedVector3Array) -> void:
 
 
 ## BAKE THE SCENE on this thread (the tests and any caller off the UI; the app bakes through ClothJob)
-static func bake_scene(S: Scene, B: Body, n_frames := -1) -> Dictionary:
+static func bake_scene(S: Scene, B: Body, n_frames := -1, ctl = null) -> Dictionary:
 	var keep := B.state()
 	var fps := S.fps
 	var nf := n_frames
 	if nf < 0:
 		nf = maxi(int(ceil(S.length() * float(fps) - 1e-6)), 1) + 1
-	var cape := bake(B, nf, fps, func(t: float) -> void: S.apply(B, minf(t, S.length())))
+	var cape := bake(B, nf, fps, func(t: float) -> void: S.apply(B, minf(t, S.length())), "cape", ctl)
 	B.set_state(keep)
 	B.fk()
 	return cape
