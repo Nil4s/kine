@@ -234,8 +234,12 @@ func store_bars() -> void:
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
 	var ws := WorkLayouts.new(p1)
 	ok(WorkLayouts.factory().has("detached") and (WorkLayouts.factory()["detached"] as Dictionary).is_empty(), "6 the factory layout detaches nothing")
+	# (the raw factory's Part bottom split 84 is below SPLIT_MIN 100: sanitize moves it, a pre-existing quirk)
 	ws.cur["detached"] = {"timeline": [-1500, 40, 900, 300], "graph": [100, 100, 640, 360]}
 	ok(ws.is_factory(), "6 a detached panel alone does not make the layout non-factory (the app's own placement stands)")
+	var rawd: Dictionary = ws.cur["detached"]
+	ws.cur = WorkLayouts.sanitize(ws.cur)   # the raw factory's Part bottom split 84 is below SPLIT_MIN 100: sanitize moves it (a pre-existing quirk), so start the byte bar from a sanitized layout
+	ws.cur["detached"] = rawd
 	ok(ws.save_as("Two screens"), "6 saved as 'Two screens'")
 	var b1 := FileAccess.get_file_as_string(p1)
 	var ws2 := WorkLayouts.new(p1)

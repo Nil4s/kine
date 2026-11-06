@@ -639,6 +639,8 @@ var ui_bp: PanelContainer   # the bottom panel (the scene)
 var ui_card_row: ScrollContainer
 var ui_play_row: HBoxContainer
 var _band_sig := ""   # YY7: what the curve editor's people band was measured on (part + the scene's cards and keys)
+var detach: PanelDetach   # L37: timeline / graph editor / second view in their own OS windows (scripts/panel_detach.gd)
+var view2: SecondView     # L37: the second 3D view, made on first use
 var ui_curve: CurveEditor   # CURVE EDITOR (XX2): the picked part's part keys as curves, made on first use
 var ui_graph: Control       # SPEED GRAPH: tip / hips / head speed over the scene, cards marked, click to scrub
 var ui_tools: MenuButton
@@ -10610,6 +10612,8 @@ func _kr_text(r: Dictionary) -> String:
 ## CURVE EDITOR (round 42, XX2, UPGRADES_300 #240): opens / closes the panel (scripts/curve_editor.gd) that draws the
 ## picked part's part keys as curves; dragging a key there is one undo step
 func _curve_toggle() -> void:
+	if detach != null and detach.is_detached("graph"):
+		detach.redock("graph")   # closing a detached graph editor brings it home first
 	if ui_curve == null:
 		ui_curve = GraphEditor.new()   # GE: the curve editor plus channels, pivot scale, normalize, cycles (graph_editor.gd)
 		ui_curve.anchor_top = 1.0
@@ -10623,11 +10627,65 @@ func _curve_toggle() -> void:
 		ui_curve.changed = func(): S.apply(B, playhead); _refresh()
 		ui_curve.say = func(t): _say(t)
 		ui_root.add_child(ui_curve)
+		ui_curve.add_child(_detach_button("graph"))
 	ui_curve.visible = not ui_curve.visible
 	_curve_sync()
 	if ui_curve.visible:
 		ui_curve.frame_all()
 	_say("curve editor open: drag a key to change its angle and time (Ctrl+Z takes a drag back)" if ui_curve.visible else "curve editor closed")
+
+
+## L37: the small Detach button a floating panel carries in its top-right corner (hidden while it is detached; the window has Re-dock)
+func _detach_button(id: String) -> Button:
+	var b := Button.new()
+	b.name = "detach_" + id
+	b.text = "Detach"
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", 11)
+	b.tooltip_text = "move this panel into its own window (for a second monitor); Re-dock or closing the window brings it back"
+	b.anchor_left = 1.0
+	b.anchor_right = 1.0
+	b.offset_left = -64.0
+	b.offset_right = -4.0
+	b.offset_top = 3.0
+	b.offset_bottom = 23.0
+	b.pressed.connect(func(): detach.detach(id))
+	return b
+
+
+func _curve_for_detach() -> Control:
+	if ui_curve == null or not ui_curve.visible:
+		_curve_toggle()
+	return ui_curve
+
+
+## SECOND VIEW (L37): a second camera on the same world, opened / closed here, detachable like the timeline
+func _view2_make() -> Control:
+	if view2 == null:
+		view2 = SecondView.new()
+		view2.setup(self)
+		view2.anchor_left = 1.0
+		view2.anchor_right = 1.0
+		view2.anchor_top = 1.0
+		view2.anchor_bottom = 1.0
+		view2.offset_right = -12.0
+		view2.offset_left = -372.0
+		view2.offset_bottom = -float(BOTTOM_H) - 110.0
+		view2.offset_top = view2.offset_bottom - 240.0
+		ui_root.add_child(view2)
+		view2.add_child(_detach_button("view2"))
+	view2.visible = true
+	return view2
+
+
+func _view2_toggle() -> void:
+	if view2 != null and detach.is_detached("view2"):
+		detach.redock("view2")
+		view2.visible = false
+	elif view2 != null and view2.visible:
+		view2.visible = false
+	else:
+		_view2_make()
 
 
 ## GRAPH EDITOR (round 51, GE1-GE4; scripts/graph_editor.gd): the channels view, the normalized view, the Cycles modifier
@@ -10670,8 +10728,9 @@ func _curve_sync() -> void:
 	ui_curve.playhead = playhead
 	ui_curve.fps = S.fps
 	ui_curve.card_times = S.times().map(func(x): return float(x[1]))   # DD0: Ctrl-snap to the cards
-	ui_curve.offset_left = lw() + 12
-	ui_curve.offset_right = -rw() - 12
+	if not PanelDetach.in_window(ui_curve):   # in its own window the panel fills it
+		ui_curve.offset_left = lw() + 12
+		ui_curve.offset_right = -rw() - 12
 	var sig := "%s|%d" % [sel, hash(var_to_str([S.cards, S.part_keys]))]
 	if sig != _band_sig and not ui_curve._dragging:   # YY7: the people's band, measured again only when the scene changed
 		_band_sig = sig   # (never mid-drag, and the view is refitted only for a new part: a refit under the mouse moved the key)
@@ -13243,6 +13302,9 @@ func _ui() -> void:
 	_build_page_bar()
 	for t in RIBBON_ALL:
 		tb.add_child(ui_ribbon[t])
+	detach = PanelDetach.new()
+	detach.name = "detach"
+	add_child(detach)
 	bld = BuildUI.new()
 	add_child(bld)
 	touch_in = TouchInput.new()   # Friday 173 + 174: touch, pen and gamepad drive the camera and the draw tools (scripts/touch_input.gd)
@@ -14082,6 +14144,14 @@ func _ui() -> void:
 	ui_timeline.custom_minimum_size = Vector2(0, 34)
 	ui_timeline.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	ph.add_child(ui_timeline)
+	detach.register("timeline", func(): return ui_timeline, "Timeline")   # L37
+	detach.register("graph", _curve_for_detach, "Graph editor")
+	detach.register("view2", _view2_make, "Second view")
+	var tdb := _button("Detach", func(): detach.toggle("timeline"), "move the timeline into its own window (for a second monitor); the same button, or closing that window, brings it back")
+	tdb.name = "detach_timeline"
+	tdb.add_theme_font_size_override("font_size", 12)
+	ph.add_child(tdb)
+	detach.changed.connect(func(): tdb.text = "Re-dock" if detach.is_detached("timeline") else "Detach")
 	var ob := _button("Clips", _fold.bind("bottom", false), "open the scene panel again: the clips and the scene's buttons")
 	ob.name = "open_bottom"
 	ob.visible = false
@@ -16952,6 +17022,14 @@ func _commands() -> Array:
 	_shot_commands(add)   # THE SHOT CAMERA (shot_camera.gd)
 	if clips_ui == null:
 		clips_ui = ClipsUI.new(self)
+	add.call("Window: detach the timeline", "", func(): detach.toggle("timeline"), "window detach timeline second monitor screen float re-dock",
+		false, "the timeline into its own window, or back")
+	add.call("Window: detach the graph editor", "", func(): detach.toggle("graph"), "window detach graph curve editor second monitor screen float re-dock",
+		false, "the graph editor into its own window, or back")
+	add.call("Window: second 3D view", "", _view2_toggle, "window second view camera viewport extra 3d open close",
+		false, "a second camera on the same scene, in a panel you can detach to another monitor")
+	add.call("Window: re-dock all windows", "", detach.redock_all, "window re-dock all detach bring back",
+		false, "every detached panel back in the main window")
 	clips_ui.commands(add)   # CLIPS placed as strips (GAP row 12; scripts/clips_ui.gd)
 	if face_ui == null:
 		face_ui = FaceUI.new(self)

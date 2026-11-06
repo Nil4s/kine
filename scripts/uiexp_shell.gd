@@ -54,6 +54,9 @@ var _live := false          # a non-factory layout is in use
 var _ws_hold := {}          # control instance id -> true: hidden by the layout (closed), shown again when it opens or the layout is the factory one
 
 
+var _det_pending := true   # the saved layout's windows are not opened yet (the panels do not exist before main finishes its UI)
+
+
 func setup(b: BuildUI) -> void:
 	bu = b
 	m = b.m
@@ -69,6 +72,9 @@ func setup(b: BuildUI) -> void:
 	m.ui_root.add_child(rail)
 	m.ui_root.add_child(self)
 	ws = WorkLayouts.new()
+	if m.get("detach") != null:
+		m.detach.layouts = ws
+		m.detach.changed.connect(sync_detached)
 	layouts_ui = WorkLayoutsUI.new(self)
 	m.ui_root.add_child(layouts_ui)
 	_live = not ws.is_factory()
@@ -133,6 +139,7 @@ func ws_live() -> bool:
 
 ## the layout in `ws` changed (loaded, edited, reset): re-place everything
 func ws_changed() -> void:
+	apply_detached()
 	_live = not ws.is_factory()
 	if not _live:
 		_unhide()
@@ -406,9 +413,34 @@ func _row_all_proxied(row: Control) -> bool:
 	return true
 
 
+## L37: the detached windows as they are now go into the working layout (and its file) when they differ
+func sync_detached() -> void:
+	var d: PanelDetach = m.get("detach") if m != null else null
+	if d == null or ws == null or _det_pending:
+		return
+	var r := d.rects()
+	if not WorkLayouts.same(r, ws.cur.get("detached", {})):
+		ws.cur["detached"] = r
+		ws.save_file()
+
+
+## L37: the working layout's detached rects make the windows
+func apply_detached() -> void:
+	var d: PanelDetach = m.get("detach") if m != null else null
+	if d == null or ws == null:
+		return
+	_det_pending = false
+	d.apply(ws.cur.get("detached", {}))
+
+
 func _process(_dt: float) -> void:
 	if bu == null or m == null:
 		return
+	var dd: PanelDetach = m.get("detach")
+	if dd != null and _det_pending and dd.has("timeline") and dd.has("view2"):
+		apply_detached()   # the first time the panels exist: the saved windows open
+	elif dd != null and not _det_pending:
+		sync_detached()
 	var k := screen_kind() if wide() else ""
 	if k != kind or (k != "" and labelled() != _lab):
 		_restore_rows()
