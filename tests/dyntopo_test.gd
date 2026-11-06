@@ -235,6 +235,14 @@ func _init() -> void:
 		ok(outside_hash(res["verts"], res["tris"], c, r) == h_out0 or cs[0].contains("then"), "(2) OUTSIDE %s: edges outside the brush are the same set (hash %d)" % [cs[0], h_out0]) if not cs[0].contains("then") else null
 		ok(tp["non2"] == 0 and tp["dup"] == 0 and tp["euler"] == 2 and tp["flips"] == 0 and tp["degen"] == 0, "(3) MANIFOLD %s: non-2 edges %d, repeated directed edges %d, euler %d, flipped %d, degenerate %d" % [cs[0], tp["non2"], tp["dup"], tp["euler"], tp["flips"], tp["degen"]])
 	ok(outside_hash(fc["verts"], fc["tris"], c, r) == h_out0 and outside_hash(both["verts"], both["tris"], c, r) == h_out0, "(2) OUTSIDE after two strokes in a row: still the same set")
+	# ---- bar 1b (ADDED after the first run showed the r 0.12 / n > 20 guard of the COARSE cases was too small a sample: 14 and 16 edges; those two
+	# bars above are left as they were and reported as a flag). A bigger brush gives the coarsening a real sample.
+	var rb := 0.30
+	var cb: Dictionary = KMeshDyntopo.refine(v0, t0, c, rb, 0.5)
+	var bb := band(cb["verts"], cb["tris"], c, rb, 0.5 * rb)
+	var tpb := topo(cb["verts"], cb["tris"])
+	ok(bb["n"] > 60 and bb["bad"] == 0 and (cb["tris"] as PackedInt32Array).size() / 3 < nt0 and tpb["non2"] == 0 and tpb["flips"] == 0 and outside_hash(cb["verts"], cb["tris"], c, rb) == outside_hash(v0, t0, c, rb),
+		"(1b) BAND COARSE big brush r 300 mm detail 0.5: %d in-brush edges, %d outside the band, range %.1f..%.1f mm, tris %d -> %d (collapses %d), non-2 %d, flipped %d, outside hash same" % [bb["n"], bb["bad"], bb["min"] * 1000.0, bb["max"] * 1000.0, nt0, (cb["tris"] as PackedInt32Array).size() / 3, cb["collapses"], tpb["non2"], tpb["flips"]])
 	# ---- bar 4 speed
 	var sh := sheet(316)
 	var sv: PackedVector3Array = sh["verts"]
@@ -273,8 +281,8 @@ func _init() -> void:
 					d = maxf(d, (a["verts"][i] - g["verts"][i]).length())
 			worst = maxf(worst, d)
 			all_eq = all_eq and same and d <= TOL and int(a["splits"]) + int(a["collapses"]) > 0
-			print("     %s detail %.2f: native splits %d collapses %d | gd splits %d collapses %d | verts %d/%d tris %d/%d maxdiff %.2e" % [mm[0], det, a["splits"], a["collapses"], g["splits"], g["collapses"], (a["verts"] as PackedVector3Array).size(), (g["verts"] as PackedVector3Array).size(), (a["tris"] as PackedInt32Array).size() / 3, (g["tris"] as PackedInt32Array).size() / 3, d])
-	ok(all_eq and worst <= TOL, "(5) EQUAL native == GDScript on 3 meshes x 2 strokes, worst position diff %.2e (bar %.0e)" % [worst, TOL])
+			print("     %s detail %.2f: native splits %d collapses %d | gd splits %d collapses %d | verts %d/%d tris %d/%d maxdiff %.8f" % [mm[0], det, a["splits"], a["collapses"], g["splits"], g["collapses"], (a["verts"] as PackedVector3Array).size(), (g["verts"] as PackedVector3Array).size(), (a["tris"] as PackedInt32Array).size() / 3, (g["tris"] as PackedInt32Array).size() / 3, d])
+	ok(all_eq and worst <= TOL, "(5) EQUAL native == GDScript on 3 meshes x 2 strokes, worst position diff %.8f (bar 1e-5)" % [worst])
 	# ---- bar 6 undo
 	var km := KMesh.new().from_arrays(v0, tri_faces(t0))
 	var h0 := mesh_hash(km.verts, km.faces)

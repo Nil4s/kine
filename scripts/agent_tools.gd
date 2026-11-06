@@ -15,7 +15,7 @@ const POINTS := ["head", "pelvis", "spine_03", "upperarm_l", "upperarm_r", "lowe
 const METHODS := ["commands", "open", "new", "run", "pose", "state", "measure", "describe", "ask", "check", "diff", "validate", "save", "quit", "assert", "events", "where", "place", "facts", "brief", "dry", "text_view", "lint", "frame_data"]
 ## C06: the methods the MCP server advertises on top of METHODS. They are NOT in METHODS: its list is the "ready" line and the -32601 text of the
 ## byte-for-byte transcript (refs/agent/serve_transcript.jsonl), which tests/agent_tools_test.gd replays. tools/mcp/poser_mcp.py names each of these (advertised with --math / POSER_MCP_MATH=1)
-const MCP_EXTRA := ["cancel_windows", "reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix"]
+const MCP_EXTRA := ["cancel_windows", "reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "dyntopo"]
 ## MCPFAST: the CAD tools (scripts/build/mcp_cad.gd); advertised with --cad
 const MCP_CAD := ["cad_part", "cad_asm", "check_fit", "bom", "eval_gd", "cad_reset"]
 
@@ -469,6 +469,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# its -32601 message is in the byte-for-byte transcript (refs/agent/serve_transcript.jsonl)
 			var fa := FrameAdvantage.serve(m, p)
 			return _ok(id, fa["result"]) if fa["ok"] else _err(id, -32602, String(fa["error"]))
+		"dyntopo":   # L52: one dynamic-topology step (split long / collapse short edges under the brush) on a test sphere, with the band numbers {radius?, detail?, levels?} (scripts/dyntopo_serve.gd). Not in METHODS
+			var dtr := DyntopoServe.serve(m, p)
+			return _ok(id, dtr["result"]) if dtr["ok"] else _err(id, -32602, String(dtr["error"]))
 		"blend_matrix":   # N084: every clip-to-clip crossfade of a moveset checked for limit breaks, self-clash and foot skate {clips?, blend_s?, a?, b?, full?, top?} (scripts/blend_matrix_serve.gd). Not in METHODS
 			var bmr := BlendMatrixServe.serve(m, p)
 			return _ok(id, bmr["result"]) if bmr["ok"] else _err(id, -32602, String(bmr["error"]))
