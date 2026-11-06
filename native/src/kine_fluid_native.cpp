@@ -1009,12 +1009,9 @@ void KineFluidNative::apply_wall_friction(double dt) {
 				if (nw > 0) {
 					double au = std::fabs(*f);
 					if (au > 1e-12) {
-						// sub-cell layer depth: the fluid in the wall cell fills cnt/ppc of it, so a thin front (a film thinner than one cell) feels the stress over its own depth
-						// a seeded full cell reads 4..10 of 8 particles (random jitter), so a count of half the rest density or more is a FULL cell; below it the depth scales down
-						double fill = 2.0 * (double)cnt[c] / (double)ppc;
-						double dep = h * (fill > 1.0 ? 1.0 : (fill < 0.1 ? 0.1 : fill));
-						double ut = wall_utau(au, 0.5 * dep, wnu);
-						double fac = 1.0 - dt * nw * ut * ut / (dep * au);
+						// depth = the cell height. Tried and reverted (l44 round 2): depth = fill of the wall cell, L1 1.633 but W1 0.043 vs 0.022; 2 x fill, L1 1.674, W1 0.026 (bar 15 %)
+						double ut = wall_utau(au, 0.5 * h, wnu);
+						double fac = 1.0 - dt * nw * ut * ut / (h * au);
 						*f *= fac > 0.0 ? fac : 0.0;
 					}
 				}
