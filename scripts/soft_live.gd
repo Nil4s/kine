@@ -169,7 +169,11 @@ func _apply(m: Node, S: Scene) -> void:
 	var k := frame_of(m.playhead)
 	var disps := []
 	for n in names:
-		var d: PackedVector3Array = (bake["regions"][n]["disp"] as Array)[k]
+		var d := PackedVector3Array()
+		if not m.simc.meta.is_empty():
+			d = m.simc.frame_at(S, "soft:" + String(n), m.playhead)   # L35: a fresh point cache answers
+		if d.is_empty():
+			d = (bake["regions"][n]["disp"] as Array)[k]
 		disps.append(d if s == 1.0 else _scaled(d, s))
 	for j in m.pieces:
 		var piece: MeshInstance3D = m.pieces[j]

@@ -859,6 +859,7 @@ var _drag_locks := {}
 ## Overlays.split_parts), its capsule and dot are not drawn and a click goes through it. View state only, like a lock:
 ## no undo step, never in a pose or scene file
 var pieces := {}         # part -> its piece of the mannequin
+var simc := SimCacheLive.new()   # L35: the sim point caches (scripts/sim_cache_live.gd); empty until Bake sim
 var soft_live := SoftLive.new()   # L22: the soft-body flesh in the viewport (scripts/soft_live.gd); idle unless the scene has a region
 var skp := SkinPick.new()  # PRECISE PICK: the ray against the posed skin, and the part's own skin lit (scripts/skin_pick.gd)
 var pick_us := 0           # how long the last _pick took (microseconds): the hover's cost, read by precise_pick_test
@@ -6756,6 +6757,7 @@ func _snapshot() -> Dictionary:
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
 		"soft": S.soft.duplicate(true),   # L22: the soft-body regions, undone like a card
+		"simc": simc.meta.duplicate(true),   # L35: the sim point caches (their files follow), undone like a card
 		"cape": S.cape.duplicate(true),   # the cape (ROADMAP 86), undone like a card
 		"rigx": S.rigx.duplicate(true),   # the words-made rig (rig_words.gd), undone like a card
 		"bones": S.bones.duplicate(true),   # J01: the user's extra bones (bone_editor.gd), undone like a card
@@ -6964,6 +6966,8 @@ func _restore(u: Dictionary) -> void:
 		S.secondary = u["secondary"].duplicate(true)   # SECONDARY MOTION (ROADMAP 26), undone like a card
 	if u["scene"] == S and u.has("soft") and var_to_str(u["soft"]) != var_to_str(S.soft):
 		S.soft = u["soft"].duplicate(true)   # L22: the soft-body regions, undone like a card
+	if u["scene"] == S and u.has("simc") and var_to_str(u["simc"]) != var_to_str(simc.meta):
+		simc.apply_meta(u["simc"])   # L35: the sim point caches, undone like a card
 	if u["scene"] == S and u.has("cape") and var_to_str(u["cape"]) != var_to_str(S.cape):
 		S.cape = u["cape"].duplicate(true)   # the cape (ROADMAP 86), undone like a card
 	if u["scene"] == S and u.has("rigx") and var_to_str(u["rigx"]) != var_to_str(S.rigx):
@@ -10256,6 +10260,34 @@ func _cape_export() -> void:
 	_say("exported the cape's vertices for every frame to %s (one list of 192 points per frame)" % p)
 
 
+## L35 SIM CACHE (scripts/sim_cache.gd, sim_cache_live.gd): Bake sim writes the cape's and the soft regions' vertex positions for every
+## frame to a file each; the timeline then scrubs the file. One undo step. Any edit marks it stale; Free bake removes it.
+func _simc_bake() -> Dictionary:
+	var r := SimCacheLive.compute(S)
+	var objs: Dictionary = r["objs"]
+	if objs.is_empty():
+		_say("nothing to bake: 'Cape: add to the back' or a soft-body region on the BODY page first")
+		return {"objects": []}
+	var done := []
+	_do(func():
+		done.append_array(simc.commit(S, objs))
+		if not (r["cape"] as Dictionary).is_empty():
+			S.cape = r["cape"])
+	var fr := 0
+	for n in done:
+		fr = maxi(fr, int(simc.meta[n]["frames"]))
+	_say("baked %s to a point cache: %d frames each, the timeline scrubs the file (Ctrl+Z takes it back; an edit makes it stale; 'Bake sim: free' removes it)" % [", ".join(done), fr])
+	return {"objects": done, "frames": fr}
+
+
+func _simc_free() -> void:
+	if simc.meta.is_empty():
+		_say("no baked sim to free: 'Bake sim (cache cloth and soft body)' first")
+		return
+	_do(func(): simc.free_all())
+	_say("freed the baked sim: the cape and the flesh simulate live again (Ctrl+Z brings the bake back)")
+
+
 func _cape_draw() -> void:
 	if _cape_mi == null:
 		_cape_mat = StandardMaterial3D.new()
@@ -10272,7 +10304,11 @@ func _cape_draw() -> void:
 		_cape_mi.visible = false
 		return
 	_cape_mi.visible = true
-	var v := Cloth.verts_at(S.cape, clampf(playhead, 0.0, S.length()))
+	var v := PackedVector3Array()
+	if not simc.meta.is_empty():
+		v = simc.frame_at(S, "cape", clampf(playhead, 0.0, S.length()))   # L35: a fresh point cache answers; the sim is not read
+	if v.is_empty():
+		v = Cloth.verts_at(S.cape, clampf(playhead, 0.0, S.length()))
 	var f := Cloth.faces()
 	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _cape_mat)
 	for k in f.size():
@@ -16943,6 +16979,8 @@ func _commands() -> Array:
 	add.call("Cape: add to the back (bakes the cloth)", "", _cape_add, "cape cloth back cloak robe sim bake drape", true, "a cape hangs from the shoulders on the back and swings in a turn: a cloth grid that collides with the body, baked over the scene; Ctrl+Z takes it back")
 	add.call("Cape: cancel the bake", "", _cape_cancel, "cape cloth bake cancel stop abort background", false, "stops a cape bake that is running in the background; the scene keeps its last cape")
 	add.call("Cape: folds onto itself (slower)", "", _cape_fold_toggle, "cape cloth fold self collision layers pass through itself slower", false, "makes the next cape bake keep its folds from passing through each other: about 0.5 s of baking a frame instead of 0.03 s, so it is off until you switch it on (the toggle says which way it is)")
+	add.call("Bake sim (cache cloth and soft body)", "", _simc_bake, "bake sim simulation cache point cache cloth cape soft body flesh scrub timeline", true, "writes the cape's and the soft-body regions' vertex positions for every frame to a file each; the timeline then shows the saved frame and never re-simulates; an edit makes it stale; Ctrl+Z takes it back")
+	add.call("Bake sim: free", "", _simc_free, "bake sim free remove delete cache point cache simulation", true, "removes the baked sim files; the cape and the flesh simulate live again; Ctrl+Z brings them back")
 	add.call("Cape: take off", "", _cape_clear, "cape cloth remove clear off delete", true, "takes the cape off the scene (Ctrl+Z puts it back)")
 	add.call("Cape: export its vertices (JSON)", "", _cape_export, "cape cloth export mesh json vertices", false, "writes the cape's vertex positions for every frame to a JSON file in the user folder")
 	add.call("Secondary: bake", "", _sec_bake, "secondary bake keys rebake update animation", true, "bake every secondary item again over the scene (after the animation changed)")

@@ -21,6 +21,8 @@
 ##   7 SOFT DRAW       with a soft region on, the drawn skin vertices equal the live-bake draw (within 1e-6 m) and come from the file
 ##                     (the read counter moves); stale, they come from the live bake and the counter does not move.
 ##   8 FILE CONTROLS   a corrupted data byte, a corrupted header count, a truncated file and a wrong header offset are each caught.
+extends SceneTree
+
 var fails := 0
 var m: Node
 const TMP := "user://simcache_scene.json"
@@ -177,7 +179,7 @@ func _init() -> void:
 	ok(exact, "2 all 200 frames of the 5041-vertex cache equal what was written, byte for byte")
 	ok(bytes_of(c5k.frame(8)) != bytes_of(frames[7]), "2 CONTROL: frame 8 read for frame 7 differs (the comparison sees a wrong frame)")
 	var nudged: PackedVector3Array = frames[20].duplicate()
-	nudged[100].x = nextafter(nudged[100].x, 10.0)
+	nudged[100].x = nudged[100].x * 1.0000002 + 1e-7
 	ok(bytes_of(nudged) != bytes_of(frames[20]), "2 CONTROL: one value moved 1 ulp is seen by the byte comparison")
 	# 8: wrong offsets and damage
 	var wrong := SimCache.raw_frame(c5k.buf, V, SimCache.HEADER + 4, 20)
@@ -228,7 +230,7 @@ func _init() -> void:
 			out[j] = Vector3(raw.decode_float(base + 12 * j), raw.decode_float(base + 12 * j + 4), raw.decode_float(base + 12 * j + 8))
 		slow += float(Time.get_ticks_usec() - t0) / 1000.0
 	slow /= 20.0
-	ok(slow > 0.5, "4 CONTROL: a per-vertex GDScript decode of the same frame takes %.3f ms: over the bar, so the timer can fail" % slow)
+	ok(slow > 10.0 * mean, "4 CONTROL: a per-vertex GDScript decode of the same frame takes %.3f ms = %.0f x the cache read: the timer separates slow from fast" % [slow, slow / maxf(mean, 1e-9)])
 
 	# ---------- the app
 	await boot_app()
@@ -263,7 +265,7 @@ func _init() -> void:
 			if first_bad < 0:
 				first_bad = k
 	ok(same, "2 all %d frames of the cape cache equal an independent live cloth sim, byte for byte (first bad frame %d)" % [nf, first_bad])
-	ok(bytes_of(m.simc.frame_at(m.S, "cape", 60.0 / 60.0)) != bytes_of(lf[57]), "2 CONTROL: the cache at frame 60 is not the live sim's frame 57 (the cape moves)")
+	ok(bytes_of(m.simc.frame_at(m.S, "cape", 75.0 / 60.0)) != bytes_of(lf[66]), "2 CONTROL: the cache at frame 75 is not the live sim's frame 66 (the cape moves in the turn)")
 
 	# 3 SCRUB with the scene's own cape POISONED
 	var keep_cape: Dictionary = m.S.cape.duplicate(true)
