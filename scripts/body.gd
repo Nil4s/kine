@@ -1052,6 +1052,60 @@ func depth(x: String, y: String) -> float:
 	return float(rad[x]) + float(rad[y]) - seg_seg(a[0], a[1], b[0], b[1])
 
 
+## L12 PERF60: the parts that touch another now (the capsule pairs deeper than their allowance by 1 mm), as the set the view
+## tints. Same test as the loop it replaces in main.gd (_refresh): each part's capsule is worked out ONCE for the frame (it was
+## twice per pair), and each pair's weapon flags and "x|y" key once per pairs list (they were an array scan and a string join per
+## pair per frame). touching_parts_ref() is the old loop, kept as the equality reference.
+var _tp_n := -1
+var _tp_w: PackedByteArray
+var _tp_key: PackedStringArray
+
+
+func touching_parts() -> Dictionary:
+	if _tp_n != pairs.size():
+		_tp_n = pairs.size()
+		_tp_w = PackedByteArray()
+		_tp_key = PackedStringArray()
+		for pr in pairs:
+			_tp_w.append((1 if (pr[0] in WEAPON or pr[1] in WEAPON) else 0) | (2 if (pr[0] in WEAPON2 or pr[1] in WEAPON2) else 0))
+			_tp_key.append(pr[0] + "|" + pr[1])
+	var out := {}
+	var caps := {}
+	for i in _tp_n:
+		var f: int = _tp_w[i]
+		if not wep_on and (f & 1):
+			continue
+		if not wep2_on and (f & 2):
+			continue
+		var pr: Array = pairs[i]
+		var x: String = pr[0]
+		var y: String = pr[1]
+		if not caps.has(x):
+			caps[x] = cap(x)
+		if not caps.has(y):
+			caps[y] = cap(y)
+		var a: Array = caps[x]
+		var b: Array = caps[y]
+		var d := float(rad[x]) + float(rad[y]) - seg_seg(a[0], a[1], b[0], b[1])
+		if d - float(allow.get(_tp_key[i], 0.0)) > 0.001:
+			out[x] = true
+			out[y] = true
+	return out
+
+
+func touching_parts_ref() -> Dictionary:
+	var touching := {}
+	for pr in pairs:
+		if not wep_on and (pr[0] in WEAPON or pr[1] in WEAPON):
+			continue
+		if not wep2_on and (pr[0] in WEAPON2 or pr[1] in WEAPON2):
+			continue
+		if depth(pr[0], pr[1]) - float(allow.get(pr[0] + "|" + pr[1], 0.0)) > 0.001:
+			touching[pr[0]] = true
+			touching[pr[1]] = true
+	return touching
+
+
 ## every contact now: [[part, part, depth beyond the allowance], ...]
 func contacts() -> Array:
 	var out := []

@@ -65,10 +65,61 @@ inline V3 qrot(Q q, V3 v) {
 
 void KineSkinNative::_bind_methods() {
 	ClassDB::bind_static_method("KineSkinNative", D_METHOD("version"), &KineSkinNative::version);
+	ClassDB::bind_static_method("KineSkinNative", D_METHOD("skin_points", "rest", "bo", "w", "per", "mats"), &KineSkinNative::skin_points);
+	ClassDB::bind_static_method("KineSkinNative", D_METHOD("points_aabb", "pos", "vix"), &KineSkinNative::points_aabb);
 	ClassDB::bind_static_method("KineSkinNative", D_METHOD("correct", "vs", "nn", "nt", "bo", "w", "fr", "k", "multi", "msk"), &KineSkinNative::correct);
 }
 
-int KineSkinNative::version() { return 1; }
+int KineSkinNative::version() { return 2; }
+
+PackedVector3Array KineSkinNative::skin_points(const PackedVector3Array &p_rest, const PackedInt32Array &p_bo, const PackedFloat32Array &p_w,
+		int per, const PackedVector3Array &p_mats) {
+	PackedVector3Array out;
+	int64_t n = p_rest.size();
+	out.resize(n);
+	int64_t nm = p_mats.size() / 4;
+	if (per < 1 || p_bo.size() < n * per || p_w.size() < n * per) {
+		return out;
+	}
+	const Vector3 *rest = p_rest.ptr();
+	const int32_t *bo = p_bo.ptr();
+	const float *w = p_w.ptr();
+	const Vector3 *mt = p_mats.ptr();
+	Vector3 *o = out.ptrw();
+	for (int64_t i = 0; i < n; i++) {
+		V3 v = mk(rest[i]);
+		V3 p;
+		for (int q = 0; q < per; q++) {
+			double x = w[i * per + q];
+			if (x > 0.0) {
+				int64_t b = bo[i * per + q];
+				if (b < 0 || b >= nm) {
+					continue;
+				}
+				const Vector3 *m = mt + b * 4;
+				V3 t = mk(m[0]) * v.x + mk(m[1]) * v.y + mk(m[2]) * v.z + mk(m[3]);
+				p = p + t * x;
+			}
+		}
+		o[i] = Vector3((real_t)p.x, (real_t)p.y, (real_t)p.z);
+	}
+	return out;
+}
+
+AABB KineSkinNative::points_aabb(const PackedVector3Array &p_pos, const PackedInt32Array &p_vix) {
+	if (p_vix.size() == 0) {
+		return AABB();
+	}
+	const Vector3 *pos = p_pos.ptr();
+	const int32_t *vix = p_vix.ptr();
+	Vector3 lo = pos[vix[0]], hi = lo;
+	for (int64_t i = 1; i < p_vix.size(); i++) {
+		const Vector3 &p = pos[vix[i]];
+		lo = Vector3(std::fmin(lo.x, p.x), std::fmin(lo.y, p.y), std::fmin(lo.z, p.z));
+		hi = Vector3(std::fmax(hi.x, p.x), std::fmax(hi.y, p.y), std::fmax(hi.z, p.z));
+	}
+	return AABB(lo, hi - lo);
+}
 
 Dictionary KineSkinNative::correct(const PackedVector3Array &p_vs, const PackedVector3Array &p_nn, const PackedFloat32Array &p_nt,
 		const PackedInt32Array &p_bo, const PackedFloat32Array &p_w, const Dictionary &fr, double k,
