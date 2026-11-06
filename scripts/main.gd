@@ -22857,6 +22857,7 @@ var face_geo_mask: MeshInstance3D
 var face_geo_eye_nodes: Array = []
 var face_geo_head0: Mesh           # the head piece's own mesh, put back when the geometry goes off
 var face_geo_key := ""
+var face_geo_viseme := ""          # L23: a viseme name (rest A E I O U MBP FV L TH, or a lip-sync letter) that overrides the lip-sync shape; "" = follow the lip sync
 
 
 func _face_make() -> void:
@@ -23011,6 +23012,16 @@ func _face_geo_set(on: bool) -> void:
 						mi.mesh = FaceGeo.nose_mesh(face_geo_data, FaceGeo.SKIN)
 						mi.material_override = FaceGeo.mask_material(hp.material_override)
 				face_geo_root.add_child(mi)
+			for pd in FaceGeo.head_parts(face_geo_data, FaceGeo.SKIN):   # L23: the ears
+				var ei := MeshInstance3D.new()
+				ei.name = String(pd["name"])
+				ei.mesh = pd["mesh"]
+				ei.material_override = FaceGeo.mask_material(hp.material_override)
+				face_geo_root.add_child(ei)
+			var chn := MeshInstance3D.new()   # L23: the chin and the jaw line under the mask, riding the jaw (no hollow under the chin)
+			chn.name = "chin"
+			chn.material_override = FaceGeo.mask_material(hp.material_override)
+			face_geo_root.add_child(chn)
 		face_geo_key = ""
 		face_geo_on = true
 	else:
@@ -23031,12 +23042,17 @@ func _face_geo_draw(P: Dictionary) -> void:
 	face_geo_root.transform = Transform3D(Basis(g), face_at(Vector3.ZERO))
 	var bv := (float(P["brow_l"]) + float(P["brow_r"])) * 0.5
 	var au := {"AU1": maxf(bv, 0.0), "AU4": maxf(-bv, 0.0), "AU45": float(P["blink"]), "AU6": float(P["squint"])}
-	var vz := FaceGeo.viseme_au(String(P.get("mouth", "")))   # the viseme shape drives the mouth AUs (E = wide = AU12)
+	# the viseme shape drives the mouth AUs (L23: the full set; the lip sync's own jaw channel keeps the jaw, an override brings its own)
+	var vname := face_geo_viseme if face_geo_viseme != "" else String(P.get("mouth", ""))
+	var vp := FaceGeo.viseme_pose(vname)
+	var vz: Dictionary = vp.get("au", {})
 	for k in vz:
 		au[k] = float(au.get(k, 0.0)) + float(vz[k])
 	for k in face_geo_au:
 		au[k] = float(au.get(k, 0.0)) + float(face_geo_au[k])
-	var st := {"au": au, "jaw_deg": float(P["jaw_deg"]), "eye_pitch_deg": float(P["eye_pitch_deg"]), "eye_yaw_deg": float(P["eye_yaw_deg"])}
+	var st := {"au": au, "jaw_deg": float(P["jaw_deg"]), "eye_pitch_deg": float(P["eye_pitch_deg"]), "eye_yaw_deg": float(P["eye_yaw_deg"]), "viseme": String(vp.get("viseme", ""))}
+	if face_geo_viseme != "":
+		st["jaw_deg"] = float(vp.get("jaw_deg", 0.0))
 	var key := str(st)
 	if key != face_geo_key:
 		face_geo_key = key
@@ -23050,7 +23066,8 @@ func _face_geo_draw(P: Dictionary) -> void:
 			(face_geo_eye_nodes[i] as Node3D).transform = tf[i]
 		var jx := FaceGeo.jaw_transform(d, st)   # the lower teeth and the tongue ride the jaw bone
 		(face_geo_root.get_node("teeth_lo") as Node3D).transform = jx
-		(face_geo_root.get_node("tongue") as Node3D).transform = jx
+		(face_geo_root.get_node("tongue") as Node3D).transform = FaceGeo.tongue_transform(d, st)
+		(face_geo_root.get_node("chin") as MeshInstance3D).mesh = FaceGeo.chin_mesh(d, st, skin)
 		var nose_mi := face_geo_root.get_node("nose") as MeshInstance3D
 		var nsk := FaceGeo.SKIN
 		if hm is StandardMaterial3D:

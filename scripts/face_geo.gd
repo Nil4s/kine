@@ -32,8 +32,12 @@ extends RefCounted
 
 const REGION := {"face": 0, "lid_up_l": 1, "lid_lo_l": 2, "lid_up_r": 3, "lid_lo_r": 4, "lip_up": 5, "lip_lo": 6, "jaw": 7,
 	"brow_l": 8, "brow_r": 9, "cheek_l": 10, "cheek_r": 11, "forehead": 12}
-const AUS := ["AU1", "AU4", "AU6", "AU12", "AU26", "AU45"]
+const AUS := ["AU1", "AU4", "AU6", "AU10", "AU12", "AU16", "AU18", "AU20", "AU22", "AU23", "AU24", "AU26", "AU28", "AU45"]   # AU25 (lips part) is the lens of posed()
+const VISEMES := ["rest", "A", "E", "I", "O", "U", "MBP", "FV", "L", "TH"]
 const JAW_MAX_DEG := 27.5
+const LIP_ARCH := 0.0036        # m x s: the upper lip's arch when the lips part (AU25)
+const LIP_TUCK := 0.0042        # m x s: the lower lip rises toward the incisors by this much per unit jaw fraction
+const LIP_PULL := 0.0018        # m x s: each mouth corner draws in by this much per unit jaw fraction
 const H := 0.001               # m: the lattice
 const MASK_OFF := 0.002        # m: the mask stands this far proud of the head skin
 const GLOBE_PROUD := 0.0035    # m: the front pole of an eyeball stands this far in front of the skin plane
@@ -65,7 +69,7 @@ static func _kern(dist: float, r: float) -> float:
 
 
 ## ---- the height field of the head's front: z(x, y), rasterised from the triangles (pts: corners, three per triangle)
-static func _hf_make(pts: PackedVector3Array, x0: float, y0: float, x1: float, y1: float, res: float) -> Dictionary:
+static func _hf_make(pts: PackedVector3Array, x0: float, y0: float, x1: float, y1: float, res: float, blur: bool = true) -> Dictionary:
 	var nx := int((x1 - x0) / res) + 1
 	var ny := int((y1 - y0) / res) + 1
 	var z := PackedFloat32Array()
@@ -97,6 +101,8 @@ static func _hf_make(pts: PackedVector3Array, x0: float, y0: float, x1: float, y
 					var zz := l1 * a.z + l2 * b.z + l3 * c.z
 					if zz > z[j * nx + i]:
 						z[j * nx + i] = zz
+	if not blur:
+		return {"z": z, "nx": nx, "ny": ny, "x0": x0, "y0": y0, "res": res}
 	# the head is a coarse polyhedron: a box blur (+-5 mm, two passes, valid cells only) so the mask does not copy its facets
 	var raw := z.duplicate()
 	for pass_i in 3:
@@ -159,6 +165,22 @@ static func _zsym(hf: Dictionary, x: float, y: float) -> float:
 	if a < -1.0e8 or b < -1.0e8:
 		return -1.0e9
 	return 0.5 * (a + b)
+
+
+## the jaw weight at (x, y): hard between the lips, smooth round the corners, fading to 0 at the footprint's side. Used by the mask and by
+## the chin part, so the two rotate alike at their seam
+static func _jaw_w(x: float, y: float, my: float) -> float:
+	var lip_hard := 0.0262
+	var ax := absf(x)
+	var dym := y - my
+	var wx := 1.0 - _ss(0.026, 0.050, ax)
+	var wy := 1.0 if dym < -1.0e-9 else (0.5 if absf(dym) <= 1.0e-9 else 0.0)
+	if dym < -1.0e-9:
+		# the lower lip lifts toward the corners, so an open mouth is a lens, not a box
+		wy = 1.0 - 0.65 * _ss(0.010, 0.026, ax) * (1.0 - _ss(0.004, 0.010, absf(dym)))
+	var wys := _ss(0.0, 1.0, clampf((my + 0.010 - y) / 0.020, 0.0, 1.0))
+	var bl := _ss(lip_hard, 0.031, ax)
+	return lerpf(wy, wys, bl) * (1.0 if ax < lip_hard else wx)
 
 
 ## ---- BUILD
@@ -393,6 +415,8 @@ static func build(head_pts: PackedVector3Array, anchors_in: Dictionary = {}, opt
 	lip_lift.resize(nv)
 	var lip_roll := PackedFloat32Array()
 	lip_roll.resize(nv)
+	var lip_pull := PackedFloat32Array()   # per vertex, per unit jaw fraction: the corners draw in (the mouth narrows a little when the jaw drops)
+	lip_pull.resize(nv)
 	var lip_hard := 0.0262
 	for v in nv:
 		var p := verts[v]
@@ -464,7 +488,11 @@ static func build(head_pts: PackedVector3Array, anchors_in: Dictionary = {}, opt
 		var axm := absf(p.x)
 		var arch := maxf(1.0 - (axm / 0.026) * (axm / 0.026), 0.0)
 		if dym > 0.0:
-			lip_lift[v] = 0.0038 * s * arch * (1.0 - _ss(0.0, 0.007, dym))
+			lip_lift[v] = LIP_ARCH * s * arch * (1.0 - _ss(0.0, 0.007, dym))
+		else:
+			# the lower lip tucks up toward the lower incisors as the mouth opens: the lips follow the teeth, not the whole chin
+			lip_lift[v] = LIP_TUCK * s * (1.0 - _ss(0.0, 0.006, -dym)) * (1.0 - _ss(0.012, 0.026, axm))
+		lip_pull[v] = -signf(p.x) * LIP_PULL * s * _ss(0.012, 0.026, axm) * (1.0 - _ss(0.026, 0.040, axm)) * (1.0 - _ss(0.004, 0.014, absf(dym)))
 		lip_roll[v] = -0.0030 * s * (1.0 - _ss(0.0, 0.005, absf(dym))) * (1.0 - _ss(0.020, 0.027, axm))
 		var ab2 := absf(p.x)
 		var yb2 := by + 0.004 - 0.012 * ((ab2 - 0.026) / 0.022) * ((ab2 - 0.026) / 0.022)
@@ -475,15 +503,7 @@ static func build(head_pts: PackedVector3Array, anchors_in: Dictionary = {}, opt
 		tint[v * 4 + 2] = lid_g[v]
 		var cd := Vector2((ab2 - 0.032) / 0.022, (p.y - (cy - 0.026)) / 0.020).length()
 		tint[v * 4 + 3] = (1.0 - _ss(0.4, 1.0, cd)) * tf
-		# the jaw weight: hard between the lips, smooth round the corners; fades to 0 at the footprint's side
-		var wx := 1.0 - _ss(0.026, 0.050, absf(p.x))
-		var wy := 1.0 if dym < -1.0e-9 else (0.5 if absf(dym) <= 1.0e-9 else 0.0)
-		if dym < -1.0e-9:
-			# the lower lip lifts toward the corners, so an open mouth is a lens, not a box
-			wy = 1.0 - 0.65 * _ss(0.010, 0.026, absf(p.x)) * (1.0 - _ss(0.004, 0.010, absf(dym)))
-		var wys := _ss(0.0, 1.0, clampf((my + 0.010 - p.y) / 0.020, 0.0, 1.0))
-		var bl := _ss(lip_hard, 0.031, absf(p.x))
-		jaw_w[v] = lerpf(wy, wys, bl) * (1.0 if absf(p.x) < lip_hard else wx)
+		jaw_w[v] = _jaw_w(p.x, p.y, my)
 
 	# ---- the blendshapes
 	var au := {}
@@ -493,6 +513,22 @@ static func build(head_pts: PackedVector3Array, anchors_in: Dictionary = {}, opt
 	var d12 := PackedVector3Array()
 	var d26 := PackedVector3Array()
 	var d45 := PackedVector3Array()
+	var d10 := PackedVector3Array()
+	d10.resize(nv)
+	var d16 := PackedVector3Array()
+	d16.resize(nv)
+	var d18 := PackedVector3Array()
+	d18.resize(nv)
+	var d20 := PackedVector3Array()
+	d20.resize(nv)
+	var d22 := PackedVector3Array()
+	d22.resize(nv)
+	var d23 := PackedVector3Array()
+	d23.resize(nv)
+	var d24 := PackedVector3Array()
+	d24.resize(nv)
+	var d28 := PackedVector3Array()
+	d28.resize(nv)
 	d1.resize(nv)
 	d4.resize(nv)
 	d6.resize(nv)
@@ -525,6 +561,30 @@ static func build(head_pts: PackedVector3Array, anchors_in: Dictionary = {}, opt
 		# AU12: corners up, out, back
 		var k12 := _kern(Vector2(ab - 0.027, p.y - my).length(), 0.017)
 		d12[v] = Vector3(sx * 0.006 * k12, 0.005 * k12, -0.0015 * k12)
+		# the mouth AUs of the visemes (FACS, Ekman, Friesen & Hager 2002). Profiles: cen = central (the mid 20 mm), nr = near the slit
+		# vertically, cor = the corner zone; the upper and the lower lip are separate sheets (the slit rows are +- 0.3 mm)
+		var dyv := p.y - my
+		var adv := absf(dyv)
+		var up_s := 1.0 if dyv > 0.0 else 0.0
+		var lo_s := 1.0 - up_s
+		var cen := 1.0 - _ss(0.010, 0.024, ab)
+		var nr := 1.0 - _ss(0.0, 0.012, adv)
+		var nr2 := 1.0 - _ss(0.008, 0.018, adv)
+		var cor := _ss(0.012, 0.026, ab) * (1.0 - _ss(0.030, 0.042, ab))
+		var cor2 := _ss(0.008, 0.026, ab) * (1.0 - _ss(0.026, 0.038, ab))
+		var fwd := (1.0 - _ss(0.012, 0.030, ab)) * (1.0 - _ss(0.006, 0.016, adv))
+		d10[v] = Vector3(0.0, 0.0035 * s * up_s * cen * nr, 0.0005 * up_s * cen * nr)
+		d16[v] = Vector3(0.0, -0.0045 * s * lo_s * cen * nr, 0.0)
+		d18[v] = Vector3(-sx * 0.0095 * s * cor2 * nr2, 0.0, 0.0095 * s * fwd)
+		d22[v] = Vector3(-sx * 0.0030 * s * cor2 * nr2, 0.0030 * s * (up_s - lo_s) * cen * nr, 0.0045 * s * fwd)
+		d20[v] = Vector3(sx * 0.0055 * s * cor * nr2, 0.0, -0.0020 * s * cor * nr2)
+		d23[v] = Vector3(-sx * 0.0020 * s * cor2 * nr2, 0.0, -0.0010 * s * cen * (1.0 - _ss(0.004, 0.012, adv)))
+		# AU24 presses the lips together: the two rim rows (+- 0.3 mm) meet exactly (the pressure fades over 4 mm)
+		var prs := (1.0 - _ss(0.029, 0.036, ab)) * (1.0 - _ss(0.0003, 0.004, adv))
+		d24[v] = Vector3(-sx * 0.0012 * s * cor2 * nr2, -0.0003 * prs * (up_s - lo_s), -0.0010 * s * cen * (1.0 - _ss(0.004, 0.012, adv)))
+		# AU28 lip suck (the lower lip): back to the incisors and up to their edge
+		var suck := lo_s * (1.0 - _ss(0.008, 0.020, ab)) * (1.0 - _ss(0.0003, 0.014, adv))
+		d28[v] = Vector3(0.0, 0.0010 * suck, -0.0095 * s * suck)
 		# AU26: the jaw bone at its maximum, sampled
 		var jw := jaw_w[v]
 		if jw > 0.0:
@@ -580,15 +640,255 @@ static func build(head_pts: PackedVector3Array, anchors_in: Dictionary = {}, opt
 	au["AU12"] = d12
 	au["AU26"] = d26
 	au["AU45"] = d45
+	au["AU10"] = d10
+	au["AU16"] = d16
+	au["AU18"] = d18
+	au["AU20"] = d20
+	au["AU22"] = d22
+	au["AU23"] = d23
+	au["AU24"] = d24
+	au["AU28"] = d28
 
 	var nose := _nose(hf, s, my)
-	return {"anchors": an, "scale": s, "verts": verts, "blink_z": blink_z, "lip_lift": lip_lift, "lip_roll": lip_roll, "nose": nose, "tris": tris, "region": region, "jaw_w": jaw_w, "rim": rim,
+	var ears := _ears(head_pts, an, s)
+	var cutd := {"y_max": my + 0.012, "x_max": 0.072, "z_min": zs_m - 0.06}
+	var chin_d := _chin_data(head_pts, verts, cutd, my)
+	return {"ears": ears, "chin": chin_d, "anchors": an, "scale": s, "verts": verts, "blink_z": blink_z, "lip_lift": lip_lift, "lip_roll": lip_roll, "lip_pull": lip_pull, "nose": nose, "tris": tris, "region": region, "jaw_w": jaw_w, "rim": rim,
 		"lid_gain": lid_gain, "tint": tint, "au": au, "eyes": eyes, "eye_r": gr,
 		"bones": {"head": {"o": Vector3.ZERO, "parent": ""}, "jaw": {"o": hinge, "parent": "head"},
 			"eye_l": {"o": (eyes[0] as Dictionary)["c"], "parent": "head"}, "eye_r": {"o": (eyes[1] as Dictionary)["c"], "parent": "head"}},
 		"teeth_up": teeth_up, "teeth_lo": teeth_up,
-		"cavity": {"c": Vector3(0.0, my - 0.011, zs_m - 0.036), "r": Vector3(0.031, 0.033, 0.030)},
-		"cut": {"y_max": my + 0.012, "x_max": 0.072, "z_min": zs_m - 0.06}}
+		"cavity": {"c": Vector3(0.0, my - 0.018, zs_m - 0.030), "r": Vector3(0.031 * s, 0.033 * s, 0.030), "vest": {"c": Vector3(0.0, my - 0.002, zs_m - 0.028), "r": Vector3(0.043 * s, 0.018, 0.030)}},
+		"cut": cutd}
+
+
+
+## ---- L23: THE EARS. A simple ear (helix, antihelix, lobe) on each side of the head, from anthropometry: length 60 mm x s (Farkas 1994,
+## FROM MEMORY: ear length 59-63 mm, width 32-35 mm), the top at brow level, the front edge about 85 mm x s behind the eye (tragion to
+## ectocanthus, from memory), the long axis leaning back 10 deg, the rear rim standing ~15 mm off the head (ears flare 20-30 deg).
+## A polar grid (rings x angles) over the ear outline: the height above the head's own side surface is a tilted plane plus a dome, the
+## helix ridge on the rim, the antihelix ridge inside it (upper rear), the concha dip, the tragus bump; the lobe is a fleshy dome with
+## no rim. The rim ring is joined to a skirt ring just under the head's skin, so the ear is a shell standing ON the head. The side
+## surface is the average of the two sides (the head is not exactly symmetric), so the two ears mirror exactly.
+static func _ears(head_pts: PackedVector3Array, an: Dictionary, s: float) -> Array:
+	var by := float((an["brow_l"] as Vector3).y)
+	var ez := float((an["eye_l"] as Vector3).z)
+	var swl := PackedVector3Array()
+	var swr := PackedVector3Array()
+	for v in head_pts:
+		swl.append(Vector3(v.z, v.y, v.x))
+		swr.append(Vector3(v.z, v.y, -v.x))
+	var hl := _hf_make(swl, -0.080, by - 0.12, 0.080, by + 0.04, 0.001, false)
+	var hr := _hf_make(swr, -0.080, by - 0.12, 0.080, by + 0.04, 0.001, false)
+	var ep := {"cy": by - 0.030 * s, "cz": ez - 0.085 * s - 0.0165 * s, "ay": 0.030 * s, "b": 0.0165 * s}
+	var e: Dictionary = {}
+	for it in 5:
+		e = _ear_build(hl, hr, ep, s)
+		var vs: PackedVector3Array = e["verts"]
+		var mn := Vector3(9, 9, 9)
+		var mx := Vector3(-9, -9, -9)
+		for v in vs:
+			mn = Vector3(minf(mn.x, v.x), minf(mn.y, v.y), minf(mn.z, v.z))
+			mx = Vector3(maxf(mx.x, v.x), maxf(mx.y, v.y), maxf(mx.z, v.z))
+		ep["ay"] = float(ep["ay"]) * 0.060 * s / (mx.y - mn.y)
+		ep["b"] = float(ep["b"]) * 0.033 * s / (mx.z - mn.z)
+		ep["cy"] = float(ep["cy"]) + (by - mx.y)
+		ep["cz"] = float(ep["cz"]) + (ez - 0.085 * s - mx.z)
+	e = _ear_build(hl, hr, ep, s)
+	var vl: PackedVector3Array = e["verts"]
+	var tl: PackedInt32Array = e["tris"]
+	var vr := PackedVector3Array()
+	for v in vl:
+		vr.append(Vector3(-v.x, v.y, v.z))
+	var tr := PackedInt32Array()
+	for t in range(0, tl.size() - 2, 3):
+		tr.append_array([tl[t], tl[t + 2], tl[t + 1]])   # a mirror flips the winding
+	return [{"side": "l", "verts": vl, "tris": tl, "col": e["col"]}, {"side": "r", "verts": vr, "tris": tr, "col": e["col"]}]
+
+
+static func _g(r: float, c: float, w: float) -> float:
+	return exp(-((r - c) / w) * ((r - c) / w))
+
+
+static func _ear_build(hl: Dictionary, hr: Dictionary, ep: Dictionary, s: float) -> Dictionary:
+	var nr := 24
+	var na := 64
+	var cy := float(ep["cy"])
+	var cz := float(ep["cz"])
+	var ay := float(ep["ay"])
+	var bb := float(ep["b"])
+	var tilt := deg_to_rad(10.0)
+	var vs := PackedVector3Array()
+	var col := PackedColorArray()
+	var skirt0 := 1 + nr * na
+	for i in 1 + nr * na + na:
+		vs.append(Vector3.ZERO)
+		col.append(Color(1, 1, 1))
+	for k in range(0, nr + 1):
+		var rho := float(k) / float(nr)
+		for j in (1 if k == 0 else na):
+			var th := TAU * float(j) / float(na)
+			var xn := rho * cos(th)
+			var yn := rho * sin(th)
+			var wf := 1.0 - 0.30 * _ss(-0.1, -1.0, yn) - 0.08 * _ss(0.5, 1.0, yn)
+			var xl := bb * xn * wf
+			var yl := ay * yn
+			var z := cz + xl * cos(tilt) - yl * sin(tilt)
+			var y := cy + xl * sin(tilt) + yl * cos(tilt)
+			var a := _hz(hl, z, y)
+			var b := _hz(hr, z, y)
+			var hsf := 0.07
+			if a > -1.0e8 and b > -1.0e8:
+				hsf = 0.5 * (a + b)
+			elif a > -1.0e8:
+				hsf = a
+			elif b > -1.0e8:
+				hsf = b
+			var lobe := _ss(-0.35, -0.85, yn)
+			var rear := clampf((1.0 - xn) * 0.5, 0.0, 1.0)
+			var plane := (0.001 + 0.012 * s * _ss(-1.0, 1.0, -xn)) * (1.0 - 0.4 * lobe)
+			var dome := pow(maxf(1.0 - rho * rho, 0.0), 0.6) * (0.004 * s * (1.0 - lobe) + 0.008 * s * lobe)
+			var helix := _g(rho, 0.86, 0.075) * 0.0045 * s * (1.0 - lobe)
+			var anti := _g(rho, 0.52, 0.09) * 0.0035 * s * _ss(-0.5, 0.2, yn) * (0.4 + 0.6 * rear)
+			var cdist := Vector2(xn - 0.1, yn + 0.15).length()
+			var conch := -0.004 * s * (1.0 - _ss(0.1, 0.35, cdist))
+			var trag := 0.003 * s * exp(-pow(Vector2(xn - 0.80, yn + 0.12).length() / 0.12, 2.0))
+			var hh := maxf(plane + dome + helix + anti + conch + trag, 0.0015)
+			var idx := 0 if k == 0 else 1 + (k - 1) * na + j
+			vs[idx] = Vector3(hsf + hh, y, z)
+			col[idx] = Color(1, 1, 1).lerp(Color(0.93, 0.74, 0.76), 0.55 * (1.0 - _ss(0.1, 0.45, cdist)))
+			if k == nr:
+				vs[skirt0 + j] = Vector3(hsf - 0.0008, y, z)
+	var tl := []
+	for j in na:
+		tl.append([0, 1 + j, 1 + (j + 1) % na])
+	for k in range(1, nr):
+		for j in na:
+			var j2 := (j + 1) % na
+			var a0 := 1 + (k - 1) * na + j
+			var a1 := 1 + (k - 1) * na + j2
+			var b0 := 1 + k * na + j
+			var b1 := 1 + k * na + j2
+			tl.append([a0, b0, a1])
+			tl.append([a1, b0, b1])
+	var rim0 := 1 + (nr - 1) * na
+	for j in na:
+		var j2 := (j + 1) % na
+		tl.append([rim0 + j, skirt0 + j, rim0 + j2])
+		tl.append([rim0 + j2, skirt0 + j, skirt0 + j2])
+	# the winding is by construction: (radial x tangential) points into the head for the left ear = clockwise from outside
+	var tris := PackedInt32Array()
+	for t in tl:
+		tris.append_array([t[0], t[1], t[2]])
+	return {"verts": vs, "tris": tris, "col": col}
+
+
+static func ear_mesh(d: Dictionary, side: int, skin: Color = SKIN) -> ArrayMesh:
+	var e: Dictionary = (d["ears"] as Array)[side]
+	var vs: PackedVector3Array = e["verts"]
+	var cl: PackedColorArray = e["col"]
+	var col := PackedColorArray()
+	col.resize(vs.size())
+	for i in vs.size():
+		col[i] = Color(skin.r * cl[i].r, skin.g * cl[i].g, skin.b * cl[i].b, 1.0)
+	var ar := []
+	ar.resize(Mesh.ARRAY_MAX)
+	ar[Mesh.ARRAY_VERTEX] = vs
+	ar[Mesh.ARRAY_NORMAL] = _normals(vs, e["tris"])
+	ar[Mesh.ARRAY_COLOR] = col
+	ar[Mesh.ARRAY_INDEX] = e["tris"]
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, ar)
+	return am
+
+
+## the static extra parts riding the head: [{"name", "mesh"}] (the ears). The chin rides the jaw: chin_mesh()
+static func head_parts(d: Dictionary, skin: Color = SKIN) -> Array:
+	return [{"name": "ear_l", "mesh": ear_mesh(d, 0, skin)}, {"name": "ear_r", "mesh": ear_mesh(d, 1, skin)}]
+
+
+## ---- L23: THE CHIN. cut_head() removes the head's lower front (so the mask's jaw can open without a second chin staying behind), but the
+## mask only covers it down to 12 mm over the chin: the chin tip, the jaw line and the underside were a hole (a low camera saw into the
+## head). The removed triangles that the mask does NOT cover (nothing of the mask within 4 mm over / beside them) are kept here as a
+## piece of skin that rides the jaw: each vertex turns about the hinge by the jaw weight of the mask at the same (x, y) (so the two
+## sheets turn alike at their seam) times a fade to 0 toward the back of the cut (z), where it meets the static head again.
+static func _chin_data(head_pts: PackedVector3Array, mverts: PackedVector3Array, cutd: Dictionary, my: float) -> Dictionary:
+	var ymn := {}     # x bin (2 mm) -> the lowest mask y
+	var xmx := {}     # y bin (1 mm) -> the largest mask |x|
+	for v in mverts:
+		var kx := int(floor((v.x + 0.2) / 0.002))
+		if not ymn.has(kx) or v.y < float(ymn[kx]):
+			ymn[kx] = v.y
+		var ky := int(floor((v.y - 1.0) / 0.001))
+		if not xmx.has(ky) or absf(v.x) > float(xmx[ky]):
+			xmx[ky] = absf(v.x)
+	var keyd := {}
+	var vs := PackedVector3Array()
+	var ix := PackedInt32Array()
+	for t in range(0, head_pts.size() - 2, 3):
+		var a := head_pts[t]
+		var b := head_pts[t + 1]
+		var c := head_pts[t + 2]
+		var cc := (a + b + c) / 3.0
+		if not (cc.y < float(cutd["y_max"]) and absf(cc.x) < float(cutd["x_max"]) and cc.z > float(cutd["z_min"])):
+			continue
+		var covered := true
+		for q in [a, b, c]:
+			var qv: Vector3 = q
+			var kx := int(floor((qv.x + 0.2) / 0.002))
+			var ky := int(floor((qv.y - 1.0) / 0.001))
+			if not (ymn.has(kx) and xmx.has(ky)) or qv.y < float(ymn[kx]) + 0.004 or absf(qv.x) > float(xmx[ky]) - 0.004:
+				covered = false
+				break
+		if covered:
+			continue
+		for q in [a, b, c]:
+			var qv2: Vector3 = q
+			var key := Vector3i(int(round(qv2.x * 20000.0)), int(round(qv2.y * 20000.0)), int(round(qv2.z * 20000.0)))
+			if not keyd.has(key):
+				keyd[key] = vs.size()
+				vs.append(qv2)
+			ix.append(int(keyd[key]))
+	var w := PackedFloat32Array()
+	w.resize(vs.size())
+	for i in vs.size():
+		w[i] = _jaw_w(vs[i].x, vs[i].y, my) * _ss(float(cutd["z_min"]), float(cutd["z_min"]) + 0.040, vs[i].z)
+	return {"verts": vs, "tris": ix, "w": w}
+
+
+## the chin part's mesh for a state (the jaw bone's angle plus the AU26 blendshape, weighted like the mask's jaw)
+static func chin_mesh(d: Dictionary, st: Dictionary, skin: Color = SKIN) -> ArrayMesh:
+	var cd: Dictionary = d["chin"]
+	var v0: PackedVector3Array = cd["verts"]
+	var w: PackedFloat32Array = cd["w"]
+	var hinge: Vector3 = d["bones"]["jaw"]["o"]
+	var au: Dictionary = st.get("au", {})
+	var a26 := float(au.get("AU26", 0.0))
+	var jd := deg_to_rad(float(st.get("jaw_deg", 0.0)))
+	var th := deg_to_rad(JAW_MAX_DEG)
+	var vs := PackedVector3Array()
+	vs.resize(v0.size())
+	for i in v0.size():
+		var rel := v0[i] - hinge
+		if a26 != 0.0 and w[i] > 0.0:
+			var a := th * w[i]
+			rel += (Vector3(rel.x, rel.y * cos(a) - rel.z * sin(a), rel.y * sin(a) + rel.z * cos(a)) - rel) * a26
+		if jd != 0.0 and w[i] > 0.0:
+			var b := jd * w[i]
+			rel = Vector3(rel.x, rel.y * cos(b) - rel.z * sin(b), rel.y * sin(b) + rel.z * cos(b))
+		vs[i] = hinge + rel
+	var col := PackedColorArray()
+	col.resize(vs.size())
+	col.fill(skin)
+	var ar := []
+	ar.resize(Mesh.ARRAY_MAX)
+	ar[Mesh.ARRAY_VERTEX] = vs
+	ar[Mesh.ARRAY_NORMAL] = _normals(vs, cd["tris"])
+	ar[Mesh.ARRAY_COLOR] = col
+	ar[Mesh.ARRAY_INDEX] = cd["tris"]
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, ar)
+	return am
 
 
 ## the dz a lid vertex p needs to stand at height ny: where the globe sphere (radius + the lid thickness) is in front of it there, the
@@ -632,9 +932,10 @@ static func posed(d: Dictionary, st: Dictionary) -> PackedVector3Array:
 	if jf != 0.0 and lsh != 0.0:
 		var ll: PackedFloat32Array = d["lip_lift"]
 		var lr: PackedFloat32Array = d["lip_roll"]
+		var lpl: PackedFloat32Array = d["lip_pull"]
 		for i in n:
-			if ll[i] != 0.0 or lr[i] != 0.0:
-				v[i] += Vector3(0.0, ll[i], lr[i]) * (jf * lsh)
+			if ll[i] != 0.0 or lr[i] != 0.0 or lpl[i] != 0.0:
+				v[i] += Vector3(lpl[i], ll[i], lr[i]) * (jf * lsh)
 	var pit := deg_to_rad(float(st.get("eye_pitch_deg", 0.0)))
 	if pit != 0.0 and bool(st.get("lid_follow", true)):
 		var lg: PackedFloat32Array = d["lid_gain"]
@@ -792,27 +1093,40 @@ static func eye_mesh(radius: float) -> ArrayMesh:
 ## the dark inside of the mouth (and the throat seen when the jaw drops): a closed ellipsoid in head space, placed by d["cavity"]
 static func cavity_mesh(d: Dictionary) -> ArrayMesh:
 	var cv: Dictionary = d["cavity"]
-	var r: Vector3 = cv["r"]
-	var ar := _sphere_arrays(r, 16, 24, false, 0.01)
-	var vs: PackedVector3Array = ar[Mesh.ARRAY_VERTEX]
-	for i in vs.size():
-		vs[i] += cv["c"]
-	ar[Mesh.ARRAY_VERTEX] = vs
-	# the colour: bright red-pink at the front, deep wine at the sides and back (the material is lit: never a black box)
+	var vs := PackedVector3Array()
 	var col := PackedColorArray()
-	col.resize(vs.size())
-	var cc: Vector3 = cv["c"]
-	for i in vs.size():
-		# seen from inside (the material culls the FRONT faces): the back wall is the light end, the rim of the oval the dark
-		var rr := sqrt(pow((vs[i].x - cc.x) / r.x, 2.0) + pow((vs[i].y - cc.y) / r.y, 2.0))
-		col[i] = Color(0.66, 0.22, 0.25).lerp(Color(0.40, 0.11, 0.14), _ss(0.3, 1.0, rr))
-	ar[Mesh.ARRAY_COLOR] = col
-	var nmv: PackedVector3Array = ar[Mesh.ARRAY_NORMAL]
-	for i in nmv.size():
-		nmv[i] = -nmv[i]   # lit from inside
-	ar[Mesh.ARRAY_NORMAL] = nmv
+	var nmv := PackedVector3Array()
+	var ix := PackedInt32Array()
+	# the vault, and a flat vestibule right behind the lips (rays that enter the slit at a low angle must not leave through the vault's
+	# side into the cut-away head: L23 low-camera bar)
+	for part in [cv, cv.get("vest", {})]:
+		if (part as Dictionary).is_empty():
+			continue
+		var pc: Vector3 = part["c"]
+		var r: Vector3 = part["r"]
+		var ar := _sphere_arrays(r, 16, 24, false, 0.01)
+		var pv: PackedVector3Array = ar[Mesh.ARRAY_VERTEX]
+		var pn: PackedVector3Array = ar[Mesh.ARRAY_NORMAL]
+		var pi: PackedInt32Array = ar[Mesh.ARRAY_INDEX]
+		var base := vs.size()
+		for i in pv.size():
+			var q := pv[i] + pc
+			vs.append(q)
+			nmv.append(-pn[i])   # lit from inside
+			# seen from inside (the material culls the FRONT faces): the back wall is the lighter end, the rim of the oval the dark; deeper
+			# red toward the throat, never a flat wall
+			var rr := sqrt(pow((q.x - pc.x) / r.x, 2.0) + pow((q.y - pc.y) / r.y, 2.0))
+			col.append(Color(0.56, 0.19, 0.22).lerp(Color(0.32, 0.09, 0.11), _ss(0.2, 1.0, rr)))
+		for i in pi:
+			ix.append(base + i)
+	var ar2 := []
+	ar2.resize(Mesh.ARRAY_MAX)
+	ar2[Mesh.ARRAY_VERTEX] = vs
+	ar2[Mesh.ARRAY_COLOR] = col
+	ar2[Mesh.ARRAY_NORMAL] = nmv
+	ar2[Mesh.ARRAY_INDEX] = ix
 	var am := ArrayMesh.new()
-	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, ar)
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, ar2)
 	return am
 
 
@@ -883,7 +1197,9 @@ static func cavity_material() -> StandardMaterial3D:
 
 static func tooth_material() -> StandardMaterial3D:
 	var tm := StandardMaterial3D.new()
-	tm.albedo_color = Color(0.94, 0.92, 0.85)
+	tm.albedo_color = Color(1, 1, 1)
+	tm.vertex_color_use_as_albedo = true   # cream crowns, pink gum (teeth_mesh)
+	tm.vertex_color_is_srgb = true
 	tm.roughness = 0.35
 	return tm
 
@@ -911,6 +1227,50 @@ static func jaw_transform(d: Dictionary, st: Dictionary) -> Transform3D:
 ## the viseme's AU weights (cheap wiring: the E shape is the lips drawn wide = AU12; M, A, O act through the jaw channel)
 static func viseme_au(vname: String) -> Dictionary:
 	return {"AU12": 0.6} if vname == "E" else {}
+
+
+## L23: the full viseme set as a pose {"au": {...}, "jaw_deg": deg, "viseme": canonical name, "tongue": {"up", "fwd", "pitch"}}; {} for an
+## unknown name. rest, A, E, I, O, U, MBP (M B P), FV (F V), L, TH; the lip-sync letters M B P F V and S (a fricative, drawn as I) map
+## on them. The jaw is the viseme's own SPEECH jaw (a few degrees, nothing like the 27.5 deg of a yawn); in the app the lip sync's own
+## jaw channel replaces it. Weights are artist's choices tuned until the measured aperture / width / protrusion sit in the ranges of
+## tests/face_geo3_test.gd (Fromkin 1964, Linker 1982: from memory).
+const VISEME_POSE := {
+	"rest": {"au": {}, "jaw_deg": 0.0},
+	"A": {"au": {"AU10": 0.3, "AU16": 0.4, "AU25": 0.2}, "jaw_deg": 10.0},
+	"E": {"au": {"AU12": 0.6, "AU20": 0.35, "AU25": 0.25}, "jaw_deg": 4.0},
+	"I": {"au": {"AU12": 0.4, "AU20": 0.8, "AU25": 0.2}, "jaw_deg": 2.5},
+	"O": {"au": {"AU18": 0.55, "AU22": 0.7, "AU25": 0.2}, "jaw_deg": 6.0},
+	"U": {"au": {"AU18": 1.0, "AU22": 0.25}, "jaw_deg": 2.5},
+	"MBP": {"au": {"AU24": 1.0, "AU23": 0.15}, "jaw_deg": 0.0},
+	"FV": {"au": {"AU10": 0.8, "AU28": 1.0}, "jaw_deg": 0.0},
+	"L": {"au": {"AU25": 0.15}, "jaw_deg": 5.0, "tongue": {"up": 0.0125, "fwd": -0.0035, "pitch": -15.0}},
+	"TH": {"au": {"AU10": 0.2, "AU25": 0.1}, "jaw_deg": 3.5, "tongue": {"up": 0.0025, "fwd": 0.0080, "pitch": 0.0}}}
+const VISEME_ALIAS := {"M": "MBP", "B": "MBP", "P": "MBP", "F": "FV", "V": "FV", "S": "I", "Th": "TH", "R": "rest", "": "rest"}
+
+
+static func viseme_pose(vname: String) -> Dictionary:
+	var k := String(VISEME_ALIAS.get(vname, vname))
+	if not VISEME_POSE.has(k):
+		return {}
+	var o: Dictionary = (VISEME_POSE[k] as Dictionary).duplicate(true)
+	o["viseme"] = k
+	return o
+
+
+## the tongue's transform in head space for a state: the jaw bone's (jaw_transform), then the viseme's own move (st["viseme"]):
+## L raises the tip behind the upper incisors, TH pushes it forward between the teeth
+static func tongue_transform(d: Dictionary, st: Dictionary) -> Transform3D:
+	var jt := jaw_transform(d, st)
+	var vp := viseme_pose(String(st.get("viseme", "")))
+	if not vp.has("tongue"):
+		return jt
+	var tg: Dictionary = vp["tongue"]
+	var s := float(d["scale"])
+	var tl: Vector3 = d["teeth_lo"]
+	var pivot := tl + Vector3(0.0, -0.002 * s, -0.016 * s)   # the tongue's centre
+	var pb := Basis(Vector3.RIGHT, deg_to_rad(float(tg["pitch"])))
+	var pt := Transform3D(pb, pivot - pb * pivot)
+	return Transform3D(Basis.IDENTITY, Vector3(0.0, float(tg["up"]), float(tg["fwd"]))) * pt * jt
 
 
 ## THE NOSE: a heightfield patch standing on the mask. Farkas 1994 (Anthropometry of the Head and Face), adult male, FROM MEMORY:
@@ -1005,21 +1365,27 @@ static func _box(vs: PackedVector3Array, nm: PackedVector3Array, ix: PackedInt32
 				ix.append_array([tt[0], tt[1], tt[2]])
 
 
-## six teeth of a row along a parabolic arch (Wheeler's crown widths, FROM MEMORY: upper central 8.5, lateral 6.5, canine 7.5 mm;
-## lower 5.0, 5.5, 7.0; heights 10.5 / 9 / 10 and 9 / 9.5 / 11). Upper: the incisal edge 2 mm under the lip line, hanging from
-## above. Lower: the edge 0.5 mm over it, standing up. (Closed, the slit shows neither row: the upper edge is above the lip line, the
-## lower edge below it; the upper lip's arch uncovers the upper row when the mouth opens.) Rest space; the lower row rides jaw_transform()
-static func teeth_mesh(d: Dictionary, upper: bool) -> ArrayMesh:
+## six crowns of a row along a parabolic arch (Wheeler's crown widths, FROM MEMORY: upper central 8.5, lateral 6.5, canine 7.5 mm;
+## lower 5.0, 5.5, 7.0; heights 10.5 / 9 / 10 and 9 / 9.5 / 11). Each crown is a rounded superellipsoid (flat-ish incisal edge, rounded
+## corners, thicker toward the root) with 3.5 mm x s of GUM beyond it: vertex colours cream above the gum line (a scallop, higher
+## between the teeth) and pink under it. Neighbours overlap by 10 % (o["crown_w"] = 1.10) so no gap shows. The upper incisal edge is
+## at the lip line, hanging from above; the lower edge stands 0.6 mm under it. Rest space; the lower row rides jaw_transform().
+## o: {"crown_w": the crown width factor, "gum": false = no gum colour} (the tests' controls)
+static func teeth_mesh(d: Dictionary, upper: bool, o: Dictionary = {}) -> ArrayMesh:
 	var s := float(d["scale"])
+	var cw := float(o.get("crown_w", 1.10))
+	var with_gum: bool = bool(o.get("gum", true))
 	var tu: Vector3 = d["teeth_up"] if upper else d["teeth_lo"]
 	var wid := [0.0085, 0.0065, 0.0075] if upper else [0.0050, 0.0055, 0.0070]
 	var hei := [0.0105, 0.0090, 0.0100] if upper else [0.0090, 0.0095, 0.0110]
 	var thick := 0.0070 if upper else 0.0060
 	var vs := PackedVector3Array()
 	var nm := PackedVector3Array()
+	var cl := PackedColorArray()
 	var ix := PackedInt32Array()
 	var z0 := tu.z + 0.006
-	var edge_y := tu.y + 0.0004 if upper else tu.y - 0.0006
+	var edge_y := tu.y + 0.0004 if upper else tu.y + 0.0009
+	var dirv := 1.0 if upper else -1.0      # toward the root
 	for side in [-1.0, 1.0]:
 		var x := 0.0
 		for i in 3:
@@ -1028,16 +1394,94 @@ static func teeth_mesh(d: Dictionary, upper: bool) -> ArrayMesh:
 			var xs: float = (x + w * 0.5) * float(side)
 			x += w
 			var zc := z0 - thick * s * 0.5 - 22.0 * xs * xs
-			var cy := edge_y + h * 0.5 if upper else edge_y - h * 0.5
-			_box(vs, nm, ix, Vector3(xs, cy, zc), Vector3(w * 0.96, h, thick * s), atan(44.0 * xs))
+			_crown(vs, nm, cl, ix, Vector3(xs, edge_y, zc), w * 0.5 * cw, thick * s * 0.5, h, 0.0035 * s, dirv, atan(44.0 * xs), with_gum)
 	var ar := []
 	ar.resize(Mesh.ARRAY_MAX)
 	ar[Mesh.ARRAY_VERTEX] = vs
 	ar[Mesh.ARRAY_NORMAL] = nm
+	ar[Mesh.ARRAY_COLOR] = cl
 	ar[Mesh.ARRAY_INDEX] = ix
 	var am := ArrayMesh.new()
 	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, ar)
 	return am
+
+
+## one crown + gum: a closed superellipsoid whose axis runs from the incisal edge (at `edge`) toward the root (dirv = +1 up, -1 down);
+## half width a (x), half thickness b (z), crown height h, gum length g. Smooth normals; clockwise from outside
+static func _crown(vs: PackedVector3Array, nm: PackedVector3Array, cl: PackedColorArray, ix: PackedInt32Array, edge: Vector3, a: float, b: float,
+		h: float, g: float, dirv: float, yaw: float, with_gum: bool) -> void:
+	var nl := 16
+	var nlon := 24
+	var tot := h + g
+	var tg := h / tot
+	var bas := Basis(Vector3.UP, yaw)
+	var first := vs.size()
+	var cream := Color(0.94, 0.92, 0.85)
+	var pink := Color(0.80, 0.42, 0.46)
+	var centre := edge + bas * Vector3(0.0, dirv * tot * 0.5, 0.0)
+	var ring_start := PackedInt32Array()
+	# pole at the edge (t = 0)
+	for k in range(0, nl + 1):
+		var t := 0.5 - 0.5 * cos(PI * float(k) / float(nl))
+		var sf := pow(maxf(1.0 - pow(absf(2.0 * t - 1.0), 5.0), 0.0), 0.2)
+		var bf := (0.45 + 0.55 * t) * sf
+		if k == 0 or k == nl:
+			ring_start.append(vs.size())
+			var pp := edge + bas * Vector3(0.0, dirv * tot * t, 0.0)
+			vs.append(pp)
+			nm.append(Vector3.ZERO)
+			cl.append(cream if k == 0 else (pink if with_gum else cream))
+			continue
+		ring_start.append(vs.size())
+		for j in nlon:
+			var ph := TAU * float(j) / float(nlon)
+			var cx := cos(ph)
+			var sz := sin(ph)
+			var px := a * sf * signf(cx) * pow(absf(cx), 2.0 / 2.6)
+			var pz := b * bf * signf(sz) * pow(absf(sz), 2.0 / 2.6)
+			vs.append(edge + bas * Vector3(px, dirv * tot * t, pz))
+			nm.append(Vector3.ZERO)
+			var xn := px / maxf(a, 1.0e-9)
+			var line := tg - 0.07 * xn * xn
+			var gk := _ss(line - 0.02, line + 0.02, t) if with_gum else 0.0
+			cl.append(cream.lerp(pink, gk))
+	# triangles, oriented away from the centre
+	var tris := []
+	for k in range(0, nl):
+		var r0 := ring_start[k]
+		var r1 := ring_start[k + 1]
+		if k == 0:
+			for j in nlon:
+				tris.append([r0, r1 + (j + 1) % nlon, r1 + j])
+		elif k == nl - 1:
+			for j in nlon:
+				tris.append([r0 + j, r0 + (j + 1) % nlon, r1])
+		else:
+			for j in nlon:
+				var j2 := (j + 1) % nlon
+				tris.append([r0 + j, r0 + j2, r1 + j])
+				tris.append([r0 + j2, r1 + j2, r1 + j])
+	for tr in tris:
+		var pa := vs[tr[0]]
+		var pb := vs[tr[1]]
+		var pc := vs[tr[2]]
+		var cr := (pb - pa).cross(pc - pa)
+		var outv := (pa + pb + pc) / 3.0 - centre
+		# clockwise from outside = the cross product points inward
+		if cr.dot(outv) > 0.0:
+			ix.append_array([tr[0], tr[2], tr[1]])
+		else:
+			ix.append_array([tr[0], tr[1], tr[2]])
+	# smooth normals over this crown's triangles
+	var nn := PackedVector3Array()
+	nn.resize(vs.size())
+	var start_ix := ix.size() - tris.size() * 3
+	for t in range(start_ix, ix.size() - 2, 3):
+		var fn := (vs[ix[t + 1]] - vs[ix[t]]).cross(vs[ix[t + 2]] - vs[ix[t]])
+		for q in 3:
+			nn[ix[t + q]] += fn
+	for i in range(first, vs.size()):
+		nm[i] = -nn[i].normalized() if nn[i].length() > 1.0e-14 else Vector3(0, 0, 1)
 
 
 ## the tongue: a flattened ellipsoid on the floor of the mouth behind the lower teeth, riding the jaw

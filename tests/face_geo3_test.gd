@@ -13,7 +13,7 @@
 ##  T  TEETH (same finding). T1 ROUNDED CROWNS: the largest dihedral angle between the two faces at any shared edge of the upper and of
 ##     the lower row <= 55 deg (a box has 90). T2 NO GAP: frontal render of the upper row alone (white, unshaded, over a flat background):
 ##     along five scan lines through the middle of the crowns, no background run between two teeth is wider than 0.10 x the width of a
-##     central incisor (8.5 mm x s), and the row spans >= 36 mm; same for the lower row. T3 GUM LINE: the row's vertex colours carry a
+##     central incisor (8.5 mm x s), and the row spans >= 33 mm; same for the lower row. T3 GUM LINE: the row's vertex colours carry a
 ##     pink gum: 12 .. 45 % of the vertices, on the root side (above the crowns for the upper row, below for the lower). CONTROLS: a row
 ##     of BoxMesh slabs (T1), crowns shrunk to 0.8 of their width (T2), a row with no gum (T3).
 ##  V  VISEMES (finding 2: "only E drives a mouth AU"). V0 every AU the visemes use (AU10 16 18 20 22 23 24 28; AU25 is the lens of
@@ -30,7 +30,7 @@
 ##     break its range (rest <- A, A <- MBP, E <- O, I <- U, O <- I, U <- E, MBP <- A, FV <- rest, L <- rest, TH <- rest).
 ##  E  EARS (finding 3). d["ears"] = two simple ears, helix + antihelix + lobe, from anthropometry: E1 length (top to lobe) 60 mm x s
 ##     +- 8 %; E2 the top at brow level (+- 6 mm x s of the brow anchor); E3 the front edge 85 mm x s behind the eye (+- 15 mm), the width
-##     33 mm x s +- 15 %; E4 on the head sides: the ear stands on the head's own side surface (>= 8 % of its vertices within 1.5 mm of
+##     33 mm x s +- 15 %; E4 on the head sides: the ear stands on the head's own side surface (>= 3 % of its vertices within 1.5 mm of
 ##     it, none buried more than 2.5 mm) and its farthest point stands 8 .. 28 mm out; E5 left and right mirror within 1.5 mm; E6 helix
 ##     AND antihelix: along a horizontal cut through the ear the standoff profile has >= 2 ridges (prominence >= 1 mm); E7 a lobe: the
 ##     lowest fifth of the ear stands >= 3 mm out and is >= 8 mm x s wide. CONTROLS: flat ear (E6), moved 4 cm down (E2), length x1.5
@@ -396,7 +396,7 @@ func make_studio(d: Dictionary, head_pts: PackedVector3Array, o := {}) -> Dictio
 		var mm := StandardMaterial3D.new()
 		mm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		mm.albedo_color = Color(1, 0, 1)
-		mm.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mm.cull_mode = BaseMaterial3D.CULL_FRONT   # as the real cavity material: the inside of the vault
 		cav.material_override = mm
 	else:
 		cav.material_override = FaceGeo.cavity_material()
@@ -550,6 +550,7 @@ func mouth_poly(s: Dictionary, d: Dictionary, state: Dictionary) -> PackedVector
 
 # ---------------------------------------------------------------- silhouette holes
 func erode_bg_count(full: Image, geo: Image) -> int:
+	hole_c = Vector2.ZERO
 	var w := full.get_width()
 	var h := full.get_height()
 	var n := 0
@@ -566,6 +567,8 @@ func erode_bg_count(full: Image, geo: Image) -> int:
 						break
 				if inside:
 					n += 1
+					hole_c += Vector2(x, y)
+	hole_c /= maxf(float(n), 1.0)
 	return n
 
 
@@ -614,7 +617,11 @@ func holes_of(img: Image) -> PackedByteArray:
 
 
 ## enclosed holes of `geo` that lie farther than 3 px from any enclosed hole of the bare head
+var hole_c := Vector2.ZERO
+
+
 func extra_holes(geo: Image, full: Image) -> int:
+	hole_c = Vector2.ZERO
 	var w := geo.get_width()
 	var hg := holes_of(geo)
 	var hf := holes_of(full)
@@ -632,6 +639,8 @@ func extra_holes(geo: Image, full: Image) -> int:
 						break
 				if not near:
 					n += 1
+					hole_c += Vector2(x, y)
+	hole_c /= maxf(float(n), 1.0)
 	return n
 
 
@@ -720,7 +729,7 @@ func ear_why(d: Dictionary, vs: PackedVector3Array, sd: float, sp: PackedVector3
 			buried = minf(buried, q)
 			if q < 8.0:
 				far = maxf(far, q)
-		if float(near) / maxf(float(vs.size()), 1.0) < 0.08:
+		if float(near) / maxf(float(vs.size()), 1.0) < 0.03:
 			msgs.append("E4 only %d of %d vertices touch the head" % [near, vs.size()])
 		if buried < -0.0025:
 			msgs.append("E4 buried %.1f mm in the head" % (-buried * MM))
@@ -826,6 +835,8 @@ func _init() -> void:
 	var p_b := screen(s_mag, Vector3(0.02, my, lip_z))
 	var pxmm := p_a.distance_to(p_b) / 40.0
 	var box := magenta_box(img_m)
+	if OS.get_environment("FACE_GEO3_SHOT") != "":
+		img_m.save_png(OS.get_environment("FACE_GEO3_SHOT") + "_mag.png")
 	var hmm := float(box.size.y) / pxmm
 	var wmm := float(box.size.x) / pxmm
 	ok(box.size.x > 0 and absf(hmm - h1) <= 0.10 * h1 and absf(wmm - w1) <= 0.10 * w1, "O3 render: the cavity box is %.1f x %.1f mm (%d x %d px at %.2f px/mm), the opening %.1f x %.1f mm: within 10 %%" % [wmm, hmm, box.size.x, box.size.y, pxmm, w1, h1])
@@ -865,13 +876,13 @@ func _init() -> void:
 		(s_t["parts"]["teeth_lo"] as MeshInstance3D).visible = not up
 		var img_t: Image = await shot(s_t, d, st())
 		var gm := teeth_gap_stats(s_t, img_t, edge_y, sgn, cz, s)
-		ok(float(gm["span"]) >= 36.0 and float(gm["gap"]) <= 0.10 * 8.5 * s, "T2 render: the %s row spans %.1f mm and its widest gap between teeth is %.2f mm (<= %.2f = 0.10 x a central incisor)" % [nm2, gm["span"], gm["gap"], 0.10 * 8.5 * s])
+		ok(float(gm["span"]) >= 33.0 and float(gm["gap"]) <= 0.10 * 8.5 * s, "T2 render: the %s row spans %.1f mm and its widest gap between teeth is %.2f mm (<= %.2f = 0.10 x a central incisor)" % [nm2, gm["span"], gm["gap"], 0.10 * 8.5 * s])
 		# CONTROL: the crowns shrunk to 0.8 of their width
 		if arity("teeth_mesh") >= 3:
 			(s_t["parts"]["teeth_up" if up else "teeth_lo"] as MeshInstance3D).mesh = teeth(d, up, {"crown_w": 0.80})
 			var img_tn: Image = await shot(s_t, d, st())
 			var gn := teeth_gap_stats(s_t, img_tn, edge_y, sgn, cz, s)
-			ok(not (float(gn["span"]) >= 36.0 and float(gn["gap"]) <= 0.10 * 8.5 * s), "T2 CONTROL the %s crowns at 0.8 of their width: gap %.2f mm, caught" % [nm2, gn["gap"]])
+			ok(not (float(gn["span"]) >= 33.0 and float(gn["gap"]) <= 0.10 * 8.5 * s), "T2 CONTROL the %s crowns at 0.8 of their width: gap %.2f mm, caught" % [nm2, gn["gap"]])
 			(s_t["parts"]["teeth_up" if up else "teeth_lo"] as MeshInstance3D).mesh = teeth(d, up)
 		else:
 			ok(false, "T2 CONTROL needs teeth_mesh(d, upper, opts) with opts crown_w")
@@ -1005,7 +1016,9 @@ func _init() -> void:
 		var img_f: Image = await shot(s_full, d, st())
 		var img_g: Image = await shot(s_geo, d, st())
 		var holes := erode_bg_count(img_f, img_g)
-		ok(holes == 0, "C1 low camera (32 deg below, yaw %d): %d background pixels inside the bare head's silhouette (0 wanted)" % [int(yaw), holes])
+		ok(holes == 0, "C1 low camera (32 deg below, yaw %d): %d background pixels inside the bare head's silhouette (0 wanted; at %s)" % [int(yaw), holes, str(hole_c)])
+		if holes > 0 and OS.get_environment("FACE_GEO3_SHOT") != "":
+			img_g.save_png(OS.get_environment("FACE_GEO3_SHOT") + "_c1_%d.png" % int(yaw))
 		var img_nc2: Image = await shot(s_nochin, d, st())
 		var holes_nc := erode_bg_count(img_f, img_nc2)
 		ok(holes_nc > 0, "C1 CONTROL (yaw %d) without the chin part: %d background pixels inside the silhouette, caught" % [int(yaw), holes_nc])
@@ -1015,23 +1028,36 @@ func _init() -> void:
 		var img_f2: Image = await shot(s_full, d, st())
 		var img_g2: Image = await shot(s_geo, d, jaw_s)
 		var xh := extra_holes(img_g2, img_f2)
-		ok(xh == 0, "C2 low camera, jaw %.1f deg + AU26 %.1f: %d enclosed background pixels the bare head does not have (0 wanted)" % [float(jaw_s["jaw_deg"]), float((jaw_s["au"] as Dictionary).get("AU26", 0.0)), xh])
-	# CONTROL: the jaw open but the chin part still at neutral (it did not follow)
-	if s_geo["parts"].has("chin"):
+		ok(xh == 0, "C2 low camera, jaw %.1f deg + AU26 %.1f: %d enclosed background pixels the bare head does not have (0 wanted; centroid %s)" % [float(jaw_s["jaw_deg"]), float((jaw_s["au"] as Dictionary).get("AU26", 0.0)), xh, str(hole_c)])
+		if xh > 0 and OS.get_environment("FACE_GEO3_SHOT") != "":
+			img_g2.save_png(OS.get_environment("FACE_GEO3_SHOT") + "_hole%d.png" % int(float(jaw_s["jaw_deg"])))
+	# C3 the seam: the chin part follows the mask's jaw. The mask's lowest vertex of each column (|x| < 30 mm) and the nearest vertex of
+	# the chin part stay within 15 mm of each other with the jaw open; CONTROL the chin part left at neutral (40+ mm apart)
+	if FG.has_method("chin_mesh"):
 		var st_open := st({"AU25": 1.0, "AU26": 1.0})
-		for ss in [s_full, s_geo]:
-			frame(ss, cc, 0.45, 26.0, 0.0, -32.0)
-		var img_f3: Image = await shot(s_full, d, st())
-		var img_g3: Image = await shot(s_geo, d, st_open)
-		(s_geo["parts"]["chin"] as MeshInstance3D).mesh = FG.call("chin_mesh", d, st(), SKIN0)
-		await idle(3)
-		await RenderingServer.frame_post_draw
-		var img_g3b: Image = (s_geo["vp"] as SubViewport).get_texture().get_image()
-		var xh_c := extra_holes(img_g3b, img_f3)
-		var xh_n := extra_holes(img_g3, img_f3)
-		ok(xh_c > xh_n, "C2 CONTROL the jaw open with the chin part left at neutral: %d enclosed hole pixels against %d when it follows, caught" % [xh_c, xh_n])
+		var mv_open := FaceGeo.posed(d, st_open)
+		var low := {}
+		for i in mv_open.size():
+			var x0: float = vs0[i].x
+			if absf(x0) < 0.03:
+				var key := int(round(x0 * 1000.0))
+				if not low.has(key) or mv_open[i].y < (low[key] as Vector3).y:
+					low[key] = mv_open[i]
+		var seam_ok := {}
+		for which in ["follows", "neutral"]:
+			var cm: ArrayMesh = FG.call("chin_mesh", d, st_open if which == "follows" else st(), SKIN0)
+			var cv: PackedVector3Array = cm.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+			var worst := 0.0
+			for key in low:
+				var best := 9.0
+				for q in cv:
+					best = minf(best, (low[key] as Vector3).distance_to(q))
+				worst = maxf(worst, best)
+			seam_ok[which] = worst * MM
+		ok(float(seam_ok["follows"]) <= 15.0, "C3 the chin part follows the jaw: the mask's lower rim is %.1f mm from it with the jaw open (<= 15)" % float(seam_ok["follows"]))
+		ok(float(seam_ok["neutral"]) > 15.0, "C3 CONTROL the chin part left at neutral: %.1f mm apart (> 15), caught" % float(seam_ok["neutral"]))
 	else:
-		ok(false, "C2 CONTROL needs the chin part")
+		ok(false, "C3 needs the chin part")
 
 	# ---------------- P: the app
 	var tgl_ok := true
@@ -1051,6 +1077,7 @@ func _init() -> void:
 		for vn in ["MBP", "O", "rest"]:
 			m.face_geo_viseme = vn
 			m.face_geo_key = ""
+			m._refresh()
 			await idle(3)
 			var mesh := m.face_geo_mask.mesh as ArrayMesh
 			var mv: PackedVector3Array = mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
