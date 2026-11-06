@@ -11834,6 +11834,11 @@ func _hands_dock_tick() -> void:
 		_hands_refresh()
 
 
+var _hd_last_key := 0   # L58: the hands card's last placement inputs and where it went
+var _hd_last_pos := Vector2(INF, INF)
+var _props_gen := 0   # L58: counts the prop redraws (the hands card avoids props)
+
+
 func _hands_refresh() -> void:
 	if B == null:
 		return
@@ -11879,16 +11884,22 @@ func _hands_refresh() -> void:
 				if not d0["easy"] and d0.has("both"):
 					hb_flow = (d0["both"] as Control).get_parent()
 					(d0["state"] as Label).text = st   # its wrapped height is part of the card's size
-			_hk = PerfDoc.t()
-			var docked: bool = hb_flow != null and HandsDock.place(ui_hands_panel, hb_flow, vrect, HandsDock.blockers(self, ui_hands_panel, vrect, [ui_status, ui_mouse, ui_bar, ui_cube]), body, HandsDock.points(self))
-			PerfDoc.add("h_dock", _hk)
-			if not docked:
-				var pick := Vector2(x1, y1)
-				for c in [Vector2(x1, y1), Vector2(x0, y0), Vector2(x0, y1), Vector2(x1, y0)]:
-					if not Rect2(c, ps).intersects(body):
-						pick = c
-						break
-				ui_hands_panel.position = PickDodge.fit(ui_hands_panel, pick, Rect2(float(LEFT_W) + 8.0, float(TOP_H) + 8.0, vs.x - float(LEFT_W) - float(RIGHT_W) - 16.0, vs.y - float(TOP_H) - 16.0 - float(BOTTOM_H) - 56.0), PickDodge.points(self))   # C29: never over a body pick point
+			var _hd_key := hash([body, vrect, ps, x0, x1, y0, y1, _props_gen, sel, cur_page, held, B.wep_hand, B.wep_kind, on_h])   # L58: the same inputs place the card in the same spot
+			if _hd_key == _hd_last_key and _hd_last_pos.is_finite():
+				ui_hands_panel.position = _hd_last_pos
+			else:
+				_hk = PerfDoc.t()
+				var docked: bool = hb_flow != null and HandsDock.place(ui_hands_panel, hb_flow, vrect, HandsDock.blockers(self, ui_hands_panel, vrect, [ui_status, ui_mouse, ui_bar, ui_cube]), body, HandsDock.points(self))
+				PerfDoc.add("h_dock", _hk)
+				if not docked:
+					var pick := Vector2(x1, y1)
+					for c in [Vector2(x1, y1), Vector2(x0, y0), Vector2(x0, y1), Vector2(x1, y0)]:
+						if not Rect2(c, ps).intersects(body):
+							pick = c
+							break
+					ui_hands_panel.position = PickDodge.fit(ui_hands_panel, pick, Rect2(float(LEFT_W) + 8.0, float(TOP_H) + 8.0, vs.x - float(LEFT_W) - float(RIGHT_W) - 16.0, vs.y - float(TOP_H) - 16.0 - float(BOTTOM_H) - 56.0), PickDodge.points(self))   # C29: never over a body pick point
+				_hd_last_key = _hd_key
+				_hd_last_pos = ui_hands_panel.position
 		ui_hands_panel.position = ui_hands_panel.position.clamp(Vector2.ZERO, (vs - ui_hands_panel.size).max(Vector2.ZERO))   # no candidate fits a short window: it still stays on the view
 	var _hk2 := PerfDoc.t()
 	for d in ui_hands:
@@ -12161,8 +12172,7 @@ func _toast(t: String) -> void:
 	elif easy != null and easy.on:
 		_easy_toast_place(ui_toast)
 		_easy_toast_place.call_deferred(ui_toast)   # again once the strip has its new size (an undo can grow or shrink it this frame)
-	_toast_off_buttons(ui_toast)   # S252: whatever the mode placed, the toast never sits on a button
-	_toast_off_buttons.call_deferred(ui_toast)
+	_toast_off_buttons.call_deferred(ui_toast)   # S252: whatever the mode placed, the toast never sits on a button (L58: at the end of the frame, not inside an Undo)
 	_toast_gen += 1
 	var g := _toast_gen
 	get_tree().create_timer(hold).timeout.connect(func():
@@ -22400,6 +22410,7 @@ func _props_show(resettle := true) -> void:
 				(mi as MeshInstance3D).material_overlay = tint
 		ui_props_root.add_child(n)
 		_pn[key] = [sig, [n]]
+		_props_gen += 1
 	for g0 in shared:   # M3: one MultiMeshInstance3D per mesh of the kind, one instance per copy (scripts/prop_instances.gd)
 		var g: Array = g0.filter(func(i): return not hid.get(i, false))   # L36: hidden copies are left out
 		if g.is_empty():
@@ -22419,6 +22430,7 @@ func _props_show(resettle := true) -> void:
 			parts_mm[j].name = "shared_%d_%d" % [g[0], j]
 			ui_props_root.add_child(parts_mm[j])
 		_pn[key] = [sig, parts_mm]
+		_props_gen += 1
 	for key in _pn.keys():
 		if not live.has(key):
 			_pn_drop(key)
@@ -22448,6 +22460,7 @@ func _props_show(resettle := true) -> void:
 
 
 func _pn_drop(key: String) -> void:
+	_props_gen += 1
 	var old = _pn.get(key)
 	_pn.erase(key)
 	if old == null:

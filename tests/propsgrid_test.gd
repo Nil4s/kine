@@ -205,7 +205,6 @@ func _initialize() -> void:
 		ok(m.S.props.size() == n, "U3 %d props after the undo/redo run" % n)
 		# P: one-prop change
 		m._props_show()
-		var pick0: Array = m._pick_prop(Vector2(640, 360))
 		var k := [0]
 		var pt: float = med(func():
 			k[0] += 1
@@ -225,18 +224,32 @@ func _initialize() -> void:
 		ok(not same_drawn(bad, full), "P4 control: a planted wrong transform is caught")
 		var n5a: Node = m.ui_props_root.get_node_or_null("prop_5")
 		var id5a := n5a.get_instance_id() if n5a != null else 0
-		var pick_a: Array = m._pick_prop(Vector2(640, 360))
+		# P3 (changed after results: the first version compared the pick at one pixel while the MOVED prop 0 stood there). The intent:
+		# a prop that was NOT touched, picked at its own pixel, answers the same id after a one-prop change
+		var seen := -1
+		var px := Vector2.ZERO
+		for i in range(1, n):
+			var wp: Vector3 = (m.S.props[i]["xf"] as Transform3D).origin + Vector3(0, 0.15, 0)
+			if m.cam.is_position_behind(wp):
+				continue
+			var sp: Vector2 = m.cam.unproject_position(wp)
+			if sp.x < 0 or sp.y < 0 or sp.x > 1280 or sp.y > 720:
+				continue
+			if int(m._pick_prop(sp)[0]) == i:
+				seen = i
+				px = sp
+				break
+		ok(seen >= 0, "P3 a visible untouched prop was found to pick @%d (prop %d)" % [n, seen])
 		m.S.props[0]["xf"] = Props.xf_at(Vector3(0.9, 0, 4), 20.0)
 		m._props_show()
 		var n5b: Node = m.ui_props_root.get_node_or_null("prop_5")
 		var kept := n5b != null and n5b.get_instance_id() == id5a
-		# prop 5 may be drawn shared (a MultiMesh): then the group node keeps its place instead
 		ok(kept or n5b == null, "P3 an untouched prop keeps its node @%d (%s)" % [n, "node kept" if kept else "drawn in a shared group"])
+		ok(seen >= 0 and int(m._pick_prop(px)[0]) == seen, "P3 the pick on untouched prop %d's pixel is the same id after a one-prop change @%d" % [seen, n])
 		var pick_b: Array = m._pick_prop(Vector2(640, 360))
 		m._props_show()
 		var pick_c: Array = m._pick_prop(Vector2(640, 360))
 		ok(pick_b[0] == pick_c[0], "P3b pick answers the same before and after a no-change _props_show @%d (%s then %s)" % [n, pick_b[0], pick_c[0]])
-		ok(pick_a[0] == pick_b[0] or pick_a[0] == 0, "P3 pick answers the same after a one-prop edit @%d (%s then %s)" % [n, pick_a[0], pick_b[0]])
 	m.S.props = []
 	m._props_show()
 	print("propsgrid: %d fail" % fails)
