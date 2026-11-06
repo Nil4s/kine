@@ -393,6 +393,7 @@ static func plan(ctx: Dictionary, kin: Dictionary, meas: Dictionary, past: Array
 	var scene_items: Array = []
 	var marks: Array = []
 	var placed: Array = []
+	var adir := {}
 	var area := Rect2(0, 0, IMG_W, IMG_H)
 	for id in order:
 		var k: Dictionary = kin[id]
@@ -411,6 +412,7 @@ static func plan(ctx: Dictionary, kin: Dictionary, meas: Dictionary, past: Array
 			var b: Vector2 = (tip["px"] as Vector2) * CS
 			if is_finite(a.x) and is_finite(b.x):
 				var u := (b - a) / maxf((b - a).length(), 1e-6)
+				adir[id] = u
 				var nrm := Vector2(-u.y, u.x)
 				var hl := minf(10.0, (b - a).length() * 0.4)
 				scene_items.append({"k": "arrow", "c": YELLOW, "a": a, "b": b, "h1": b - u * hl + nrm * hl * 0.5, "h2": b - u * hl - nrm * hl * 0.5})
@@ -422,12 +424,15 @@ static func plan(ctx: Dictionary, kin: Dictionary, meas: Dictionary, past: Array
 		var sz := Vector2(8.0 * txt.length() + 6.0, 15.0)
 		var best := Rect2()
 		var found := false
-		var radii := [0.0, 10.0, 18.0, 26.0, 34.0, 44.0, 56.0, 70.0, 88.0, 110.0]
+		var radii := [14.0, 20.0, 26.0, 34.0, 44.0, 56.0, 70.0, 88.0, 110.0]
 		for rad: float in radii:
-			var steps := 1 if rad == 0.0 else 12
+			var steps := 16
 			for si in steps:
 				var ang := TAU * float(si) / float(steps)
-				var cpos := anchor + Vector2(cos(ang), sin(ang)) * rad
+				var dirv := Vector2(cos(ang), sin(ang))
+				if adir.has(id) and dirv.dot(adir[id] as Vector2) > 0.5:
+					continue   # never cover the arrow shaft
+				var cpos := anchor + dirv * rad
 				var r := Rect2(cpos - sz * 0.5, sz)
 				if not area.encloses(r):
 					continue
