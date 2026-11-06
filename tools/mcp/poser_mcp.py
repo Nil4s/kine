@@ -58,6 +58,10 @@ TOOLS = {
                     "(pieces: names or col* patterns; camera {pos, target, fov}; w, h; part {record} frames a given part). Also `light`: per piece emission, "
                     "peak_luminance, glow_px, which edges it touches, the brightest_piece, and touching_frame_edge (and _with_glow).",
                     {"type": "object", "properties": {"pieces": {"type": "array", "items": S}, "camera": {"type": "object"}, "w": N, "h": N, "part": {"type": "object"}}, "additionalProperties": False}),
+    "blend_matrix": ("blend_matrix", "Blend matrix of a moveset: every clip crossfaded into every other (the end of A into the start of B over blend_s) and checked for limit breaks (deg, with the joint), "
+                     "self-clash (mm) and planted-foot skate (mm), plus the pose distance at the seam; a grid (B bad, w watch, . ok) and the ranked bad pairs with their numbers. clips = scene files "
+                     "(else every scene and move with motion); a and b name one pair to get its cell; full adds the whole matrix.",
+                     {"type": "object", "properties": {"clips": {"type": "array", "items": S}, "blend_s": N, "a": S, "b": S, "full": {"type": "boolean"}, "top": N}, "additionalProperties": False}),
     "cancel_windows": ("cancel_windows", "Where can the next move start? Cancel windows from the body: the frame runs (f0 to f1, at least min_run long) where the body is balanced (COM inside the feet), slow (COM velocity and whole-body angular momentum under thresholds) and no foot is off the floor. "
                        "clip = a scene file (else the live scene); frame adds whether that frame is cancelable; v_max (m/s), h_max (m^2/s per unit mass), margin_min (m) override the thresholds.",
                        {"type": "object", "properties": {"clip": S, "frame": {"type": "integer"}, "fps": N, "v_max": N, "h_max": N, "margin_min": N}, "additionalProperties": False}),
@@ -103,7 +107,7 @@ TOOLS = {
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render"]
+MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:

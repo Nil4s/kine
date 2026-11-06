@@ -422,6 +422,23 @@ func _init() -> void:
 			var xr := ExplainMotion.serve(m, xp)
 			say(String(xr.get("text", xr.get("error", ""))))
 			done(xr)
+		"blend_matrix":   # N084: blend_matrix [scene.json ...] [blend=S] [a=NAME b=NAME] (scripts/blend_matrix_serve.gd)
+			var bp := {}
+			var bfiles := []
+			for x in a.slice(1):
+				var kvb := String(x).split("=", true, 1)
+				if kvb.size() == 2 and kvb[0] == "blend" and kvb[1].is_valid_float():
+					bp["blend_s"] = float(kvb[1])
+				elif kvb.size() == 2 and kvb[0] in ["a", "b"]:
+					bp[kvb[0]] = kvb[1]
+				else:
+					bfiles.append(String(x))
+			if not bfiles.is_empty():
+				bp["clips"] = bfiles
+			var bmo := BlendMatrixServe.serve(m, bp)
+			if bmo["ok"]:
+				say(String(bmo["result"]["words"]))
+			done(bmo["result"] if bmo["ok"] else bmo)
 		"cancel_windows":   # N081: cancel_windows <scene> [frame=N] [fps=N] [v_max=X] [h_max=X] (scripts/cancel_windows.gd)
 			if a.size() < 2 or not open_scene(a[1]):
 				if a.size() < 2:
