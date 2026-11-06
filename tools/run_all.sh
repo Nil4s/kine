@@ -1048,9 +1048,12 @@ EXTRA="$EXTRA lightrig:w"   # L25: light-rig presets (studio/dramatic/overcast/s
 EXTRA="$EXTRA face_geo2:w"   # L18 face polish
 EXTRA="$EXTRA soft:w"   # L17 soft-body
 EXTRA="$EXTRA install:w"   # L16 installer
+EXTRA="$EXTRA face_geo3:w"   # L23 face round 3
 EXTRA="$EXTRA i16fast:w"   # L21 I16 speed
 EXTRA="$EXTRA undotpl:w"   # L24 template undo
 EXTRA="$EXTRA softwire:w"   # L22 soft wiring
 EXTRA="$EXTRA layouts:w"   # L20 layouts
+
+EXTRA="$EXTRA autorig:w"   # L29 quick rig: markers/template -> skeleton inside the mesh -> geodesic voxel weights -> character (tests/autorig_test.gd)
 EXTRA="$EXTRA splineik:w"   # L28: spline IK on bone chains + stretchy limbs (tests/splineik_test.gd)
 EXTRA="$EXTRA stretchskin:w"   # L33: the skin follows stretch + volume, spline chains drive the spine, exports carry the stretch (tests/stretchskin_test.gd)
