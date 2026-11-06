@@ -1,0 +1,555 @@
+{
+  "assembly_1280x720": {
+    "clipped": [],
+    "controls": 118,
+    "icon_bad": [],
+    "interactive": 60,
+    "outside": [],
+    "overlaps": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/asm_panel",
+        900.0
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/page_bar",
+        "@CanvasLayer@90/@Control@91/asm_panel",
+        1200.0
+      ]
+    ],
+    "panels": 3,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ]
+    ],
+    "view_share": 0.642274305555556,
+    "viewport": "(1280.0, 720.0)"
+  },
+  "assembly_1366x768": {
+    "clipped": [],
+    "controls": 118,
+    "icon_bad": [],
+    "interactive": 60,
+    "outside": [],
+    "overlaps": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/asm_panel",
+        900.0
+      ]
+    ],
+    "panels": 3,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ]
+    ],
+    "view_share": 0.674838098729228,
+    "viewport": "(1366.0, 768.0)"
+  },
+  "assembly_1600x900": {
+    "clipped": [],
+    "controls": 118,
+    "icon_bad": [],
+    "interactive": 60,
+    "outside": [],
+    "overlaps": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/asm_panel",
+        900.0
+      ]
+    ],
+    "panels": 3,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ]
+    ],
+    "view_share": 0.744444444444444,
+    "viewport": "(1600.0, 900.0)"
+  },
+  "assembly_1920x1080": {
+    "clipped": [],
+    "controls": 118,
+    "icon_bad": [],
+    "interactive": 60,
+    "outside": [],
+    "overlaps": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/asm_panel",
+        900.0
+      ]
+    ],
+    "panels": 3,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ]
+    ],
+    "view_share": 0.80462962962963,
+    "viewport": "(1920.0, 1080.0)"
+  },
+  "engineering_1280x720": {
+    "clipped": [],
+    "controls": 141,
+    "icon_bad": [],
+    "interactive": 70,
+    "outside": [],
+    "overlaps": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/asm_panel",
+        900.0
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/asm_fits_panel",
+        1920.0
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/page_bar",
+        "@CanvasLayer@90/@Control@91/asm_panel",
+        1200.0
+      ]
+    ],
+    "panels": 4,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ]
+    ],
+    "view_share": 0.467274305555556,
+    "viewport": "(1280.0, 720.0)"
+  },
+  "engineering_1366x768": {
+    "clipped": [],
+    "controls": 141,
+    "icon_bad": [],
+    "interactive": 70,
+    "outside": [],
+    "overlaps": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/asm_panel",
+        900.0
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/asm_fits_panel",
+        1920.0
+      ]
+    ],
+    "panels": 4,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ]
+    ],
+    "view_share": 0.520879154447703,
+    "viewport": "(1366.0, 768.0)"
+  },
+  "engineering_1600x900": {
+    "clipped": [],
+    "controls": 141,
+    "icon_bad": [],
+    "interactive": 70,
+    "outside": [],
+    "overlaps": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/asm_panel",
+        900.0
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/asm_fits_panel",
+        1920.0
+      ]
+    ],
+    "panels": 4,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ]
+    ],
+    "view_share": 0.632444444444444,
+    "viewport": "(1600.0, 900.0)"
+  },
+  "engineering_1920x1080": {
+    "clipped": [],
+    "controls": 141,
+    "icon_bad": [],
+    "interactive": 70,
+    "outside": [],
+    "overlaps": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/asm_panel",
+        900.0
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/asm_fits_panel",
+        1920.0
+      ]
+    ],
+    "panels": 4,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ]
+    ],
+    "view_share": 0.726851851851852,
+    "viewport": "(1920.0, 1080.0)"
+  },
+  "part_1280x720": {
+    "clipped": [],
+    "controls": 109,
+    "icon_bad": [],
+    "interactive": 56,
+    "outside": [],
+    "overlaps": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/part_browser",
+        1176.0
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/part_side",
+        1704.0
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/part_note",
+        1872.0
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/partwarn_panel",
+        1740.0
+      ]
+    ],
+    "panels": 7,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_sketch",
+        "SKETCH ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_create",
+        "CREATE ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_modify",
+        "MODIFY ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_done",
+        "DONE ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/part_timeline/@HBoxContainer@361/@VBoxContainer@364/@Label@362",
+        "TIMELINE",
+        11
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/part_timeline/@HBoxContainer@361/@VBoxContainer@370/@VBoxContainer@369/part_suppress",
+        "Suppress",
+        11
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/part_timeline/@HBoxContainer@361/@VBoxContainer@370/@VBoxContainer@369/part_delete_step",
+        "Delete step",
+        11
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/partwarn_panel/@VBoxContainer@611/partwarn_body/partwarn_help",
+        "No warnings.",
+        11
+      ]
+    ],
+    "view_share": 0.520086805555556,
+    "viewport": "(1280.0, 720.0)"
+  },
+  "part_1366x768": {
+    "clipped": [],
+    "controls": 111,
+    "icon_bad": [],
+    "interactive": 58,
+    "outside": [],
+    "overlaps": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/part_browser",
+        1176.0
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/part_side",
+        1704.0
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/part_note",
+        2322.0
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/partwarn_panel",
+        1740.0
+      ]
+    ],
+    "panels": 7,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_sketch",
+        "SKETCH ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_create",
+        "CREATE ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_modify",
+        "MODIFY ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_view",
+        "VIEW ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_done",
+        "DONE ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/part_timeline/@HBoxContainer@361/@VBoxContainer@364/@Label@362",
+        "TIMELINE",
+        11
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/part_timeline/@HBoxContainer@361/@VBoxContainer@370/@VBoxContainer@369/part_suppress",
+        "Suppress",
+        11
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/part_timeline/@HBoxContainer@361/@VBoxContainer@370/@VBoxContainer@369/part_delete_step",
+        "Delete step",
+        11
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/partwarn_panel/@VBoxContainer@611/partwarn_body/partwarn_help",
+        "No warnings.",
+        11
+      ]
+    ],
+    "view_share": 0.55791788856305,
+    "viewport": "(1366.0, 768.0)"
+  },
+  "part_1600x900": {
+    "clipped": [],
+    "controls": 113,
+    "icon_bad": [],
+    "interactive": 59,
+    "outside": [],
+    "overlaps": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/part_browser",
+        196.0
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/part_side",
+        284.0
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/part_note",
+        387.0
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/partwarn_panel",
+        290.0
+      ]
+    ],
+    "panels": 7,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_sketch",
+        "SKETCH ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_create",
+        "CREATE ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_modify",
+        "MODIFY ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_view",
+        "VIEW ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_done",
+        "DONE ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/part_timeline/@HBoxContainer@361/@VBoxContainer@364/@Label@362",
+        "TIMELINE",
+        11
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/part_timeline/@HBoxContainer@361/@VBoxContainer@370/@VBoxContainer@369/part_suppress",
+        "Suppress",
+        11
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/part_timeline/@HBoxContainer@361/@VBoxContainer@370/@VBoxContainer@369/part_delete_step",
+        "Delete step",
+        11
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/partwarn_panel/@VBoxContainer@611/partwarn_body/partwarn_help",
+        "No warnings.",
+        11
+      ]
+    ],
+    "view_share": 0.645077777777778,
+    "viewport": "(1600.0, 900.0)"
+  },
+  "part_1920x1080": {
+    "clipped": [],
+    "controls": 113,
+    "icon_bad": [],
+    "interactive": 59,
+    "outside": [],
+    "overlaps": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/part_browser",
+        196.0
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/part_side",
+        284.0
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/part_note",
+        387.0
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93",
+        "@CanvasLayer@90/@Control@91/partwarn_panel",
+        290.0
+      ]
+    ],
+    "panels": 7,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_sketch",
+        "SKETCH ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_create",
+        "CREATE ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_modify",
+        "MODIFY ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_view",
+        "VIEW ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_done",
+        "DONE ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/part_timeline/@HBoxContainer@361/@VBoxContainer@364/@Label@362",
+        "TIMELINE",
+        11
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/part_timeline/@HBoxContainer@361/@VBoxContainer@370/@VBoxContainer@369/part_suppress",
+        "Suppress",
+        11
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/part_timeline/@HBoxContainer@361/@VBoxContainer@370/@VBoxContainer@369/part_delete_step",
+        "Delete step",
+        11
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/partwarn_panel/@VBoxContainer@611/partwarn_body/partwarn_help",
+        "No warnings.",
+        11
+      ]
+    ],
+    "view_share": 0.721427469135802,
+    "viewport": "(1920.0, 1080.0)"
+  }
+}

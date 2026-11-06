@@ -1,0 +1,263 @@
+{
+  "assembly_1280x720": {
+    "clipped": [],
+    "controls": 118,
+    "icon_bad": [],
+    "interactive": 60,
+    "outside": [],
+    "overlaps": [],
+    "panels": 3,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ]
+    ],
+    "view_share": 0.643576388888889,
+    "viewport": "(1280.0, 720.0)"
+  },
+  "assembly_1366x768": {
+    "clipped": [],
+    "controls": 118,
+    "icon_bad": [],
+    "interactive": 60,
+    "outside": [],
+    "overlaps": [],
+    "panels": 3,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ]
+    ],
+    "view_share": 0.67369257086999,
+    "viewport": "(1366.0, 768.0)"
+  },
+  "assembly_1600x900": {
+    "clipped": [],
+    "controls": 116,
+    "icon_bad": [],
+    "interactive": 56,
+    "outside": [],
+    "overlaps": [],
+    "panels": 4,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ]
+    ],
+    "view_share": 0.752744444444444,
+    "viewport": "(1600.0, 900.0)"
+  },
+  "assembly_1920x1080": {
+    "clipped": [],
+    "controls": 116,
+    "icon_bad": [],
+    "interactive": 56,
+    "outside": [],
+    "overlaps": [],
+    "panels": 4,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ]
+    ],
+    "view_share": 0.810393518518518,
+    "viewport": "(1920.0, 1080.0)"
+  },
+  "engineering_1280x720": {
+    "clipped": [],
+    "controls": 141,
+    "icon_bad": [],
+    "interactive": 70,
+    "outside": [],
+    "overlaps": [],
+    "panels": 4,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ]
+    ],
+    "view_share": 0.465798611111111,
+    "viewport": "(1280.0, 720.0)"
+  },
+  "engineering_1366x768": {
+    "clipped": [],
+    "controls": 141,
+    "icon_bad": [],
+    "interactive": 70,
+    "outside": [],
+    "overlaps": [],
+    "panels": 4,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ]
+    ],
+    "view_share": 0.517289833822092,
+    "viewport": "(1366.0, 768.0)"
+  },
+  "engineering_1600x900": {
+    "clipped": [],
+    "controls": 139,
+    "icon_bad": [],
+    "interactive": 66,
+    "outside": [],
+    "overlaps": [],
+    "panels": 5,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ]
+    ],
+    "view_share": 0.638966666666667,
+    "viewport": "(1600.0, 900.0)"
+  },
+  "engineering_1920x1080": {
+    "clipped": [],
+    "controls": 139,
+    "icon_bad": [],
+    "interactive": 66,
+    "outside": [],
+    "overlaps": [],
+    "panels": 5,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ]
+    ],
+    "view_share": 0.731381172839506,
+    "viewport": "(1920.0, 1080.0)"
+  },
+  "part_1280x720": {
+    "clipped": [],
+    "controls": 109,
+    "icon_bad": [],
+    "interactive": 56,
+    "outside": [],
+    "overlaps": [],
+    "panels": 7,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_sketch",
+        "SKETCH ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_create",
+        "CREATE ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_modify",
+        "MODIFY ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_done",
+        "DONE ▾",
+        10
+      ]
+    ],
+    "view_share": 0.514166666666667,
+    "viewport": "(1280.0, 720.0)"
+  },
+  "part_1366x768": {
+    "clipped": [],
+    "controls": 111,
+    "icon_bad": [],
+    "interactive": 58,
+    "outside": [],
+    "overlaps": [],
+    "panels": 7,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_sketch",
+        "SKETCH ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_create",
+        "CREATE ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_modify",
+        "MODIFY ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_view",
+        "VIEW ▾",
+        10
+      ],
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_done",
+        "DONE ▾",
+        10
+      ]
+    ],
+    "view_share": 0.55240408113392,
+    "viewport": "(1366.0, 768.0)"
+  },
+  "part_1600x900": {
+    "clipped": [],
+    "controls": 124,
+    "icon_bad": [],
+    "interactive": 58,
+    "outside": [],
+    "overlaps": [],
+    "panels": 8,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ]
+    ],
+    "view_share": 0.621322222222222,
+    "viewport": "(1600.0, 900.0)"
+  },
+  "part_1920x1080": {
+    "clipped": [],
+    "controls": 124,
+    "icon_bad": [],
+    "interactive": 58,
+    "outside": [],
+    "overlaps": [],
+    "panels": 8,
+    "small_fonts": [
+      [
+        "@CanvasLayer@90/@Control@91/@PanelContainer@93/@VBoxContainer@94/ribbon_caps/cap_part",
+        "PART ▾",
+        10
+      ]
+    ],
+    "view_share": 0.704930555555556,
+    "viewport": "(1920.0, 1080.0)"
+  }
+}

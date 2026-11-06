@@ -1149,7 +1149,10 @@ func nav_clear_rect() -> Rect2:
 	var vs := get_viewport().get_visible_rect().size
 	var x0 := lw() + (bld.easy_inset() if bld != null else 0.0)   # Easy BUILD: the column takes the left
 	var x1 := vs.x - rw() - (ViewCube.SIZE + 24)   # the cube's strip (RR4: the nav bar is at the bottom, under the say-line's band)
-	return Rect2(x0, TOP_H, x1 - x0, vs.y - bottom_h - 88 - TOP_H)   # above the say-line
+	var y0 := float(TOP_H)
+	if bld != null and bld.shell != null:
+		y0 = bld.shell.top_y(y0)   # L2: the Part / Assembly screens start under the ribbon bar (81 px), not over its last 7
+	return Rect2(x0, y0, x1 - x0, vs.y - bottom_h - 88 - y0)   # above the say-line
 
 
 func fit_points() -> Array:
@@ -3249,6 +3252,8 @@ func _ready() -> void:
 	# the smallest window the layout is made for (round 21, GATES BB1): at 1024 x 768 the scene row and the play row ran
 	# off the right and the view was ~390 px between the side panels; Windows now stops a drag below it
 	get_window().min_size = Vector2i(MIN_ROOM)
+	if not testing:
+		UiExpShell.fit_window(get_window())   # L2: the first window is never bigger than the usable screen
 	get_viewport().size_changed.connect(func(): _fit_rows.call_deferred(); _fit_top.call_deferred(); _fit_page_bar.call_deferred(); _place_nav.call_deferred(); _place_akey_frame.call_deferred(); _strip_fit.call_deferred(); _browser_fit.call_deferred())
 	_world()
 	_gfx_start(testing)
