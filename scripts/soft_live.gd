@@ -23,7 +23,9 @@ var engaged := false          # a region is wanted (the layer is live)
 var names: Array = []         # the regions of the bake that is drawn
 var regs: Array = []          # their geometry (SoftBody.bake_scene "geom"), in the order of names
 var bake: Dictionary = {}
+var corr = null               # Main's Corrective: its arrays for a mesh it built (no read-back from the engine)
 var starts := 0               # bakes started (tests read it)
+var prof := [0, 0, 0, 0, 0]   # us in: entry, skin+offsets, mesh build; pieces rebuilt; vertices moved (tests / profiling read it)
 var work_us := 0              # what the live layer spent (tests read it)
 var _bake_key: Array = []
 var _want_key: Array = []
@@ -109,6 +111,7 @@ func tick(m: Node) -> void:
 		work_us += Time.get_ticks_usec() - t0
 		return
 	engaged = true
+	corr = m.corr
 	var key := [S.get_instance_id(), m._dm_gen, want, snappedf(S.length(), 1e-6)]
 	if key != _want_key:
 		_want_key = key
@@ -247,11 +250,24 @@ func _entry(piece: MeshInstance3D) -> Dictionary:
 		return {}
 	var skn := piece.get_node_or_null(piece.skeleton) as Skeleton3D
 	var gt := skn.global_transform if skn != null else piece.global_transform
+	var given: Array = corr.arrays_of(piece, mesh) if corr != null else []
 	var surfs := []
 	var any := false
+	# another system (Corrective) puts a rebuilt mesh of the SAME topology on the piece as the joints bend: the prefilter of the old one
+	# still holds (it is a function of the rest positions and the index array), so only the arrays are read again
+	var prev: Array = e["surf"] if e != null and e["names"] == names and (e["surf"] as Array).size() == mesh.get_surface_count() else []
 	for si in mesh.get_surface_count():
-		var arr := mesh.surface_get_arrays(si)
+		var arr: Array = given[si] if given.size() == mesh.get_surface_count() else mesh.surface_get_arrays(si)
 		var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		if not prev.is_empty() and int(prev[si]["nv"]) == verts.size():
+			var pd: Dictionary = prev[si]
+			any = any or (pd["cand"] as PackedInt32Array).size() > 0
+			# a mesh Corrective built has no blend shapes and the same materials / format as its source: nothing to ask the engine
+			surfs.append({"arr": arr, "cand": pd["cand"], "by_reg": pd["by_reg"], "nv": verts.size(),
+				"blend": [] if not given.is_empty() else mesh.surface_get_blend_shape_arrays(si),
+				"mat": pd["mat"] if not given.is_empty() else mesh.surface_get_material(si),
+				"fmt": pd["fmt"] if not given.is_empty() else mesh.surface_get_format(si) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS})
+			continue
 		var cand := PackedInt32Array()
 		var by_reg := []   # per region: the positions in cand its box (grown) holds at rest
 		for r in regs:
@@ -280,7 +296,7 @@ func _entry(piece: MeshInstance3D) -> Dictionary:
 						hit_any = true
 					(by_reg[ri] as Array).append(cand.size() - 1)
 		any = any or cand.size() > 0
-		surfs.append({"arr": arr, "cand": cand, "by_reg": by_reg, "blend": mesh.surface_get_blend_shape_arrays(si), "mat": mesh.surface_get_material(si),
+		surfs.append({"arr": arr, "cand": cand, "by_reg": by_reg, "nv": verts.size(), "blend": mesh.surface_get_blend_shape_arrays(si), "mat": mesh.surface_get_material(si),
 			"fmt": mesh.surface_get_format(si) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS})
 	var ne := {"piece": piece, "orig": mesh, "cur": mesh, "names": names.duplicate(), "surf": surfs, "any": any}
 	_cache[id] = ne
@@ -288,7 +304,10 @@ func _entry(piece: MeshInstance3D) -> Dictionary:
 
 
 func _deform_piece(piece: MeshInstance3D, B: Body, disps: Array) -> void:
+	var u0 := Time.get_ticks_usec()
 	var e := _entry(piece)
+	prof[0] += Time.get_ticks_usec() - u0
+	u0 = Time.get_ticks_usec()
 	if e.is_empty() or not e["any"]:
 		return
 	var sm := _skin_mats(piece)
@@ -343,6 +362,8 @@ func _deform_piece(piece: MeshInstance3D, B: Body, disps: Array) -> void:
 					hit = true
 		moved = moved or hit
 		new_surfs.append(nv if hit else null)
+	prof[1] += Time.get_ticks_usec() - u0
+	u0 = Time.get_ticks_usec()
 	var orig: ArrayMesh = e["orig"]
 	if not moved:
 		if piece.mesh != orig:
@@ -363,3 +384,5 @@ func _deform_piece(piece: MeshInstance3D, B: Body, disps: Array) -> void:
 			out.surface_set_material(si, sd["mat"])
 	piece.mesh = out
 	e["cur"] = out
+	prof[2] += Time.get_ticks_usec() - u0
+	prof[3] += 1

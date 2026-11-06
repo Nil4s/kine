@@ -530,7 +530,7 @@ func _sag_bars() -> void:
 ## the close-up of the landing, with and without soft (SOFT_WIRE_SHOT=<dir>)
 func _shot(dir: String, S: Scene, k_imp: int) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
-	var strength_list := [1.0]
+	var strength_list := [1.0, 3.0]
 	var sv := SubViewport.new()
 	sv.size = Vector2i(900, 900)
 	sv.transparent_bg = false
@@ -541,11 +541,11 @@ func _shot(dir: String, S: Scene, k_imp: int) -> void:
 	sv.add_child(cam)
 	cam.current = true
 	cam.fov = 18.0
-	cam.global_position = Vector3(3.2, 0.95, 1.2)
-	cam.look_at(Vector3(0.0, 0.95, 0.0), Vector3.UP)
+	cam.global_position = Vector3(2.9, 0.85, 1.1)
+	cam.look_at(Vector3(0.0, 0.85, 0.0), Vector3.UP)
 	var names_ui := ["soft_belly", "soft_chest", "soft_thighs", "soft_arms"]
 	for st in strength_list:
-		for on in [false, true]:
+		for on in ([false, true] if st == 1.0 else [true]):
 			for nm in names_ui:
 				(ctl(nm) as BaseButton).button_pressed = on
 			(ctl("soft_strength") as HSlider).value = float(st) * 100.0
@@ -561,5 +561,5 @@ func _shot(dir: String, S: Scene, k_imp: int) -> void:
 					await process_frame
 				await RenderingServer.frame_post_draw
 				var img: Image = sv.get_texture().get_image()
-				img.save_png(dir.path_join("close_%s_%+d.png" % ["soft" if on else "plain", off]))
+				img.save_png(dir.path_join("close_%s_%+d.png" % [("soft%d" % int(st)) if on else "plain", off]))
 	sv.queue_free()
