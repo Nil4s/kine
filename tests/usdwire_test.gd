@@ -93,6 +93,40 @@ func drawn(root3: Node) -> Array:
 	return out
 
 
+## the pieces split_parts makes each hold ALL the body's vertices (only their own triangles): the vertex set of the file is the
+## distinct vertex data among them, once, in the order first met
+func sources(meshes: Array) -> Array:
+	# the live pieces carry the corrective pass's posed vertices; the hidden original mannequin mesh is the rest mesh they were cut from
+	var hidden := []
+	for mi in m.man_root.find_children("*", "MeshInstance3D", true, false):
+		var x := mi as MeshInstance3D
+		if x.skin != null and x.mesh is ArrayMesh and not x.visible and not String(x.name).begins_with("piece_"):
+			hidden.append(x)
+	if hidden.size() == 1:
+		return hidden
+	var out := []
+	for mi in meshes:
+		var am := (mi as MeshInstance3D).mesh as ArrayMesh
+		var dup := false
+		for o in out:
+			var ao := (o as MeshInstance3D).mesh as ArrayMesh
+			if ao.get_surface_count() != am.get_surface_count():
+				continue
+			var same := true
+			for si in am.get_surface_count():
+				var a1 := am.surface_get_arrays(si)
+				var a2 := ao.surface_get_arrays(si)
+				if a1[Mesh.ARRAY_VERTEX] != a2[Mesh.ARRAY_VERTEX]:
+					same = false
+					break
+			if same:
+				dup = true
+				break
+		if not dup:
+			out.append(mi)
+	return out
+
+
 ## bone index -> Kine joint name by the nearest ancestor that is one (the root and the extra bones follow the pelvis)
 func joint_map_names(sk: Skeleton3D) -> Dictionary:
 	var of := {}
@@ -127,9 +161,13 @@ func app_weights(sk: Skeleton3D, meshes: Array, jm: Dictionary) -> Array:
 		for surf in CharImport.weights_of(sk, mi):
 			for row in surf:
 				var d := {}
+				var tot := 0.0
 				for bn in row:
 					var j: String = jm[sk.find_bone(String(bn))]
 					d[j] = float(d.get(j, 0.0)) + float(row[bn])
+					tot += float(row[bn])
+				for j in d:   # the file's weights sum to 1; the app's are 16-bit and sum to 1 within ~2e-5, so the reference is normalised
+					d[j] = float(d[j]) / tot
 				out.append(d)
 	return out
 
@@ -171,6 +209,13 @@ func kine_lbs(Bk: Body, S: Scene, ch: Dictionary, t: float, with_shapes: bool) -
 	var ids: PackedInt32Array = ch["ids"]
 	var w: PackedFloat32Array = ch["w"]
 	var out := []
+	var rp: Dictionary = ch.get("rest_p0", {})
+	var P := {}   # the joints' positions: Kine's own chain, or the imported character's bone lengths down the same chain
+	var p0 := {}
+	for j in Body.ORDER:
+		p0[j] = rp[j] if rp.has(j) else Bk.p0[j]
+		var par: String = Bk.parent[j]
+		P[j] = Bk.P[j] if par == "" else (P[par] as Vector3) + (Bk.G[par] as Quaternion) * ((p0[j] as Vector3) - (p0[par] as Vector3))
 	for i in verts.size():
 		var v := verts[i]
 		for sh in ch.get("shapes", []):
@@ -181,7 +226,7 @@ func kine_lbs(Bk: Body, S: Scene, ch: Dictionary, t: float, with_shapes: bool) -
 			var wt := w[i * K + q]
 			if wt > 0.0:
 				var j: String = Body.ORDER[ids[i * K + q]]
-				p += (Bk.P[j] + Bk.G[j] * (v - Bk.p0[j])) * wt
+				p += ((P[j] as Vector3) + Bk.G[j] * (v - (p0[j] as Vector3))) * wt
 		out.append(p)
 	return flat(out)
 
@@ -212,6 +257,36 @@ func make_ref(S: Scene, weights: Array, ntri: int, nshapes: int, frames: Array, 
 			"targets": nshapes, "shapes_anim": nshapes, "weight_len": nshapes, "offs_len": offs_len}}
 
 
+## Kine's own linear blend skin of the DICTIONARY against the app's skinning, per frame (no file, no Blender): the wiring alone
+func dict_err(Bk: Body, S: Scene, ch: Dictionary, app: Dictionary, frames: Array, label: String, with_shapes := true) -> void:
+	var bd := []
+	var worst := 0.0
+	var per := []
+	for f in frames:
+		var got := kine_lbs(Bk, S, ch, time_of(S, f), with_shapes)
+		await show_at(time_of(S, f))
+		var dp := 0.0
+		var dr := 0.0
+		for j in Body.ORDER:
+			dp = maxf(dp, (m.B.P[j] as Vector3).distance_to(Bk.P[j]))
+			dr = maxf(dr, rad_to_deg((m.B.G[j] as Quaternion).angle_to(Bk.G[j])))
+		bd.append("B f%d P %.4f m G %.3f deg" % [f, dp, dr])
+		var want: Array = app[str(f)]
+		var e := 0.0
+		var at := 0
+		if got.size() != want.size():
+			e = 9.0
+		else:
+			for i in got.size():
+				var d := absf(float(got[i]) - float(want[i]))
+				if d > e:
+					e = d
+					at = i / 3
+		per.append("f%d %.5f@v%d" % [f, e, at])
+		worst = maxf(worst, e)
+	ok(worst <= BAR, "%s the dictionary skinned by Kine's G / P = the app's skin at frames %s: worst %s m (bar %s) [%s] app body vs scene body: [%s]" % [label, str(frames), worst, BAR, ", ".join(per), ", ".join(bd)])
+
+
 func frames_of(S: Scene) -> Array:
 	var n := int(ceil(S.length() * float(S.fps) - 1e-6)) + 1
 	return [0, n / 2, n - 1]
@@ -223,8 +298,10 @@ func time_of(S: Scene, f: int) -> float:
 
 func show_at(t: float) -> void:
 	m.playhead = t
+	m.S.apply(m.B, t)   # the app's own step (main.gd _process): _refresh alone does not pose the body
+	m.B.fk()
 	m._refresh()
-	await idle(1)
+	await idle(2)
 
 
 # ------------------------------------------------------------------ the worst error out of a case's report
@@ -286,13 +363,15 @@ func _init() -> void:
 	var ch_a: Dictionary = UsdWire.character(S, m.B, m)
 	ok(ch_a.has("verts") and (ch_a["verts"] as PackedVector3Array).size() > 5000 and (ch_a["shapes"] as Array).is_empty(), "A UsdWire.character(main) built the mannequin: %d vertices, %d shapes, k %d" % [(ch_a["verts"] as PackedVector3Array).size(), (ch_a["shapes"] as Array).size(), int(ch_a["k"])])
 	var meshes_a := drawn(m.man_root)
+	var src_a := sources(meshes_a)
 	var jm_a := joint_map_names(m.skel)
-	var w_a := app_weights(m.skel, meshes_a, jm_a)
+	var w_a := app_weights(m.skel, src_a, jm_a)
 	var def_a := {}
 	for f in frames:
 		await show_at(time_of(S, f))
-		def_a[str(f)] = flat(body_points(m.skel, meshes_a))
+		def_a[str(f)] = flat(body_points(m.skel, src_a))
 	ok(w_a.size() == (ch_a["verts"] as PackedVector3Array).size(), "A the file's vertex count is the viewport's: %d == %d" % [w_a.size(), (ch_a["verts"] as PackedVector3Array).size()])
+	await dict_err(Bk, S, ch_a, def_a, frames, "A mannequin", false)
 	var path_a := DIR + "/mannequin.usda"
 	var wa := UsdExport.write_skinned(S, Bk, ch_a, path_a)
 	ok(wa[0] == OK, "A the skinned export wrote: %s" % str(wa[1]))
@@ -308,11 +387,13 @@ func _init() -> void:
 	ok(not (Sl.body as Dictionary).is_empty(), "L the scene carries other proportions: %s" % str(Sl.body).left(100))
 	var ch_l: Dictionary = UsdWire.character(Sl, m.B, m)
 	var meshes_l := drawn(m.man_root)
-	var w_l := app_weights(m.skel, meshes_l, jm_a)
+	var src_l := sources(meshes_l)
+	var w_l := app_weights(m.skel, src_l, jm_a)
 	var def_l := {}
 	for f in frames:
 		await show_at(time_of(Sl, f))
-		def_l[str(f)] = flat(body_points(m.skel, meshes_l))
+		def_l[str(f)] = flat(body_points(m.skel, src_l))
+	await dict_err(Bl, Sl, ch_l, def_l, frames, "L long legs", false)
 	var wl := UsdExport.write_skinned(Sl, Bl, ch_l, DIR + "/long.usda")
 	ok(wl[0] == OK and w_l.size() == (ch_l["verts"] as PackedVector3Array).size(), "L the long-legged export wrote %d vertices" % w_l.size())
 	put(DIR + "/ref_l.json", JSON.stringify(make_ref(Sl, w_l, app_tris(meshes_l), 0, frames, def_l, def_l, {}, {}, {})))
@@ -363,8 +444,9 @@ func _init() -> void:
 	ok(fnames == FaceGeo.AUS, "F six BlendShapes, the AU table's: %s" % str(fnames))
 	var fframes := [0, 30, 60]
 	var meshes_f := drawn(m.man_root)
+	var src_f := sources(meshes_f)
 	var nbody := w_a.size()
-	var w_f := app_weights(m.skel, meshes_f, jm_a)
+	var w_f := app_weights(m.skel, src_f, jm_a)
 	var fd: Dictionary = m.face_geo_data
 	var nmask := (fd["verts"] as PackedVector3Array).size()
 	var eye_rest := []
@@ -385,7 +467,7 @@ func _init() -> void:
 	for f in fframes:
 		var t := time_of(Sf, f)
 		await show_at(t)
-		var pts := body_points(m.skel, meshes_f)
+		var pts := body_points(m.skel, src_f)
 		var rt: Transform3D = (m.face_geo_root as Node3D).transform
 		for v in (m.face_geo_mask.mesh as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_VERTEX]:
 			pts.append(rt * v)
@@ -421,6 +503,7 @@ func _init() -> void:
 	for au in FaceGeo.AUS:
 		all_move = all_move and float(max_au[au]) > 0.05
 	ok(all_move, "F the clip moves every one of the six weights (instrument can move): peaks %s" % str(max_au))
+	await dict_err(Bf, Sf, ch_f, def_f, fframes, "F face", true)
 	var wf := UsdExport.write_skinned(Sf, Bf, ch_f, DIR + "/face.usda")
 	ok(wf[0] == OK and int(wf[1]["shapes"]) == 6, "F the face export wrote 6 shapes")
 	put(DIR + "/ref_f.json", JSON.stringify(make_ref(Sf, w_f, ntri_f, 6, fframes, def_f, nos_f, sh_ref, swref, sp_ref)))
@@ -551,6 +634,7 @@ func imported_case(tag: String, _path: String, frames: Array, opts: Dictionary) 
 		noshape[str(f)] = flat(without)
 		swref[str(f)] = sw
 	# the shape offsets are the writer's own here (aligned to Kine's rest); their EFFECT is held against the app's skin above
+	await dict_err(Bk, S, ch, deform, frames, tag.to_upper() + " imported", true)
 	var sh_ref := {}
 	var sp_ref := {}
 	for sh in ch["shapes"]:
@@ -616,7 +700,7 @@ func shapes_glb(Bk: Body) -> String:
 # ------------------------------------------------------------------ M: the menus
 func has_cmd(cmds: Array) -> bool:
 	for c in cmds:
-		if String((c as Dictionary).get("id", "")) == CMD and (c as Dictionary).get("run") is Callable:
+		if String((c as Dictionary).get("name", "")) == CMD and (c as Dictionary).get("run") is Callable:
 			return true
 	return false
 
@@ -635,13 +719,17 @@ func menus(Bk: Body) -> void:
 	var S: Scene = m.S
 	var cmds: Array = m._commands()
 	ok(has_cmd(cmds), "M the command palette has '%s'" % CMD)
-	ctl(not has_cmd(cmds.filter(func(c): return String((c as Dictionary).get("id", "")) != CMD)), "M the lookup on a palette with the entry removed finds nothing")
+	ctl(not has_cmd(cmds.filter(func(c): return String((c as Dictionary).get("name", "")) != CMD)), "M the lookup on a palette with the entry removed finds nothing")
 	# the CLI `run` step and the MCP `run` tool call the same palette command (AgentTools.step)
 	var at := AgentTools.new(m)
 	var res_path := "res://exports/%s_skinned.usda" % (S.name if S.name != "" else "scene")
 	if FileAccess.file_exists(res_path):
 		DirAccess.remove_absolute(g(res_path))
-	var st: Dictionary = await at.step(CMD)
+	var cid := ""
+	for c in cmds:
+		if String((c as Dictionary).get("name", "")) == CMD:
+			cid = String(c["id"])
+	var st: Dictionary = await at.step(cid)
 	ok(bool(st["ok"]) and FileAccess.file_exists(res_path), "M the agent step '%s' (CLI / MCP run) wrote %s: %s" % [CMD, res_path.get_file(), str(st.get("said", "")).left(120)])
 	var step_bytes := FileAccess.get_file_as_bytes(res_path)
 	if FileAccess.file_exists(res_path):

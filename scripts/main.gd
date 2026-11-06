@@ -2384,6 +2384,34 @@ func _export_usd(dir := "res://exports") -> String:
 	return path
 
 
+## EXPORT .USDA, SKINNED (L19): the fighter as a UsdSkel with its skinned mesh, joint weights and, with the face geometry on, the six AU
+## BlendShapes (UsdWire.character: the imported CharImport character when one stands, else the mannequin). exports/<scene>_skinned.usda.
+func _export_usd_skinned(dir := "res://exports") -> String:
+	dir = UserPaths.w(dir)   # an exported build: the user's folder
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
+		return ""
+	if not _export_actors().is_empty():
+		_say_plain("NOT NOW: the skinned .usda is one fighter; with several fighters, Export animation (.usda) puts each one in its file")
+		return ""
+	var nm := S.name if S.name != "" else "scene"
+	var path := "%s/%s_skinned.usda" % [dir, nm]
+	var keep := B.state()
+	var ch := UsdWire.character(S, B, self)
+	if ch.is_empty():
+		B.set_state(keep)
+		_say_plain("NOT DONE: there is no skinned body to write (the imported character could not be fitted)")
+		return ""
+	var r := UsdExport.write_skinned(S, B, ch, path)
+	B.set_state(keep)
+	_refresh()
+	if r[0] != OK:
+		_say_plain("NOT DONE: the .usda could not be written (%s)" % error_string(r[0]))
+		return ""
+	_say_plain("exported %s_skinned.usda: %d vertices, %d joints, %d blend shape%s, %d frames at %d fps (UsdSkel mesh with joint weights, Y up, metres; the weapons are not in it)" % [nm, r[1]["verts"], r[1]["joints"], r[1]["shapes"], "" if r[1]["shapes"] == 1 else "s", r[1]["frames"], S.fps])
+	return path
+
+
 ## EXPORT USD LAYERS (ROADMAP 79, GATES USDL): the scene as exports/<name>_usd/ (UsdExport.write_layers): a root <name>.usda
 ## whose sublayers are the props and camera, the joint point cache (Points, not Alembic), one override per animation layer,
 ## the base animation and the skeleton. Returns the root's path ("" when not written). One fighter only: with several, the
@@ -17092,6 +17120,7 @@ func _commands() -> Array:
 	add.call("Export for Unity...", "", _export_engine.bind("unity"), "unity engine export glb gltfast metres delivery", false, "the scene as exports/<scene>_unity.glb for Unity (glTFast): metres and Y up checked (the pre-flight report prints first; docs/research/ENGINES.md)")
 	add.call("Export for Godot...", "", _export_engine.bind("godot"), "godot engine export glb skeleton delivery", false, "the scene as exports/<scene>_godot.glb for Godot 4: metres and Y up checked (the pre-flight report prints first; docs/research/ENGINES.md)")
 	add.call("Export animation (.usda)", "", _export_usd, "usd usda usdskel openusd pixar omniverse houdini blender export", false, "the scene as exports/<scene>.usda, UsdSkel skeleton animation (no weapons)")
+	add.call("Export animation (.usda, skinned)", "", _export_usd_skinned, "usd usda usdskel skinned mesh skin weights blendshape blend shapes face au openusd pixar omniverse houdini blender export", false, "the fighter as exports/<scene>_skinned.usda: UsdSkel with the skinned mesh and its joint weights (the imported character when one stands; the face's six AU shapes with the face geometry on)")
 	add.call("Playblast: motion blur on/off", "", _blast_blur_toggle, "playblast motion blur shutter smear sub-frame accumulation 180 deg export", false, "the playblast frames are the mean of 8 sub-frames over a 180 deg shutter (half the frame interval), so fast limbs and bats smear as on film; off by default; a render takes 8 times as long")
 	add.call("Deliver: turntable video of this pose", "", _export_turntable, "turntable deliver 360 orbit spin showcase presentation video avi mp4 character model render", false, "a 6 s, 30 fps, 1280x720 video of the camera orbiting the current pose once (body and held weapon framed with 15% margin, no panels), in user://turntables/")
 	add.call("Deliver: breakdown video (with the judges drawn)", "", _export_judge_render, "breakdown judge render overlay balance centre of mass support polygon force ground reaction hit boxes joint limit verdict caption side by side video avi mp4 coach review", false, "the scene as a video with the judges drawn: left clean, right with the centre of mass over its support, the ground-force arrow, the hit boxes and red joint-limit markers; under each frame a caption with the time, the card and the Check verdicts that fire on that frame (off balance, foot slides ...); in user://breakdowns/")
