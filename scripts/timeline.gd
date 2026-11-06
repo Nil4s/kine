@@ -32,6 +32,7 @@ signal audio_drag_started(i: int)   # ROADMAP 77: a lane dragged past 3 px: main
 ## FRAME DATA (ROADMAP 12; scripts/frame_data.gd): main.gd sets `fd` (the analysis, {} = off) and the strip shows its
 ## startup (green), active (red) and recovery (blue) in frames, under the ruler. Drawn only; the numbers are FrameData's.
 const FD_H := 11.0   # px: the strip's height
+const RX_ROW := 12.0   # px: the reactable row under the strip (L15: its own labelled row, cells ReactableCells.H tall)
 var fd: Dictionary = {}:
 	set(v):
 		fd = v
@@ -78,7 +79,7 @@ func ph_px() -> float:
 
 
 func _ph_y() -> float:
-	return RULER + 2.0 + (FD_H + 3.0 if not fd.is_empty() else 0.0) + (BX_H + 3.0 if not bx.is_empty() else 0.0)
+	return RULER + 2.0 + fd_px() + (BX_H + 3.0 if not bx.is_empty() else 0.0)
 
 
 ## the block under p on the physical lane (an index into ph), or -1
@@ -177,6 +178,12 @@ click to scrub there; drag a cut to move it" % [si + 1, String(sh[si]["name"]), 
 		if mk.has("note"):
 			return String(mk["note"])
 		return "%s (%s) at %s: click to edit it, drag to move it" % [mk["name"], mk["kind"], Units.time(mk["t"], _S().fps)]
+	if rx != null and rx.visible and not fd.is_empty():   # L15: a cell of the react row says its frame and state
+		var ry := RULER + 2.0 + FD_H + 2.0
+		if at.y >= ry and at.y <= ry + RX_ROW:
+			var tip := rx.tip_at(at.x)
+			if tip != "":
+				return tip
 	var fs := mark_at(at)
 	var ck := clip_at(at) if at.y >= RULER else -1
 	if ck >= 0:
@@ -236,7 +243,7 @@ func shots_px() -> float:
 
 
 func _shots_y() -> float:
-	return RULER + 2.0 + (FD_H + 3.0 if not fd.is_empty() else 0.0) + bx_px()
+	return RULER + 2.0 + fd_px() + bx_px()
 
 
 func _in_shots_lane(p: Vector2) -> bool:
@@ -345,6 +352,13 @@ func pps() -> float:
 	var S := _S()
 	var L := S.length() if S != null and not S.cards.is_empty() else 1.0
 	return (size.x - 2.0 * PAD) / maxf(L, 0.5)
+
+
+## the frame-data block's height: the strip, plus the reactable row under it while its cells are showing
+func fd_px() -> float:
+	if fd.is_empty():
+		return 0.0
+	return FD_H + 3.0 + (RX_ROW if rx != null and rx.visible else 0.0)
 
 
 func x_of(t: float) -> float:
@@ -1002,7 +1016,7 @@ func _draw() -> void:
 		if major:
 			draw_string(font, Vector2(x + 2, 11), str(snappedf(k * 0.1, 0.1)) + "s", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Tok.of("ink:0.45"))
 		k += 1
-	var fdh := FD_H + 3.0 if not fd.is_empty() else 0.0   # FRAME DATA (ROADMAP 12): the strip sits under the ruler
+	var fdh := fd_px()   # FRAME DATA (ROADMAP 12): the strip sits under the ruler
 	var bxh := bx_px()   # HIT / HURT BOXES (ROADMAP 36): the lane sits under the frame strip
 	var shp := shots_px()   # THE SHOTS LANE (ROADMAP 75): under the boxes lane
 	if shp > 0.0:
@@ -1075,11 +1089,11 @@ func _draw() -> void:
 	if not fd.is_empty():
 		_draw_fd_strip(font, RULER + 2.0)
 	if not bx.is_empty():
-		_draw_bx_lane(RULER + 2.0 + (FD_H + 3.0 if not fd.is_empty() else 0.0))
+		_draw_bx_lane(RULER + 2.0 + fd_px())
 	if not ph.is_empty():
 		_draw_ph_lane(font)
 	if not sp.is_empty():
-		_draw_sp_lane(RULER + 2.0 + (FD_H + 3.0 if not fd.is_empty() else 0.0) + bx_px(), font)
+		_draw_sp_lane(RULER + 2.0 + fd_px() + bx_px(), font)
 	# the dummy is solid and hit: what PLAYS is the landed copy, which stops at the hit and rebounds. Past its end the
 	# cards are still yours but never play: shade them and say why (else the strip and the play time disagree silently)
 	var P: Scene = m._ps()
@@ -1423,7 +1437,7 @@ func _clip_drag(x: float, fine: bool) -> void:
 func box_at(p: Vector2) -> int:
 	if bx.is_empty():
 		return -1
-	var y0 := RULER + 2.0 + (FD_H + 3.0 if not fd.is_empty() else 0.0)
+	var y0 := RULER + 2.0 + fd_px()
 	if p.y < y0 or p.y > y0 + BX_H:
 		return -1
 	for b in bx:
@@ -1503,10 +1517,15 @@ func _rx_sync() -> void:
 
 ## the frame strip: one block per phase over its frames (time = frame / fps), its count in the block
 func _draw_fd_strip(font: Font, y: float) -> void:
-	if rx != null:   # the tell cells ride the strip's lower edge
-		rx.position = Vector2(0.0, y + FD_H - ReactableCells.H)
+	if rx != null and rx.visible:   # L15: the tell cells have their own labelled row under the strip
+		var ry := y + FD_H + 2.0
+		rx.position = Vector2(0.0, ry + (RX_ROW - ReactableCells.H) * 0.5)
 		rx.size = Vector2(size.x, ReactableCells.H)
 		rx.queue_redraw()
+		draw_rect(Rect2(PAD, ry, size.x - 2.0 * PAD, RX_ROW), Tok.of("ink:0.08"))
+		var lw := font.get_string_size("react", HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
+		draw_rect(Rect2(PAD, ry + 1.0, lw + 6.0, RX_ROW - 2.0), Tok.of("tl_bg:0.9"))
+		draw_string(font, Vector2(PAD + 3.0, ry + RX_ROW - 3.0), "react", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Tok.of("ink:0.8"))
 	var fps := float(fd["fps"])
 	var cols := {"startup": Tok.c("fd_startup"), "active": Tok.c("fd_active"), "recovery": Tok.c("fd_recovery")}
 	for sp in FrameData.spans(fd):

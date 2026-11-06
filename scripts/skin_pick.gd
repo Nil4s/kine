@@ -35,6 +35,22 @@ var last_ms := 0.0           # the last pose refresh's cost (ms)
 var mat: ShaderMaterial      # the highlight pass: every skinned mesh's material_overlay
 var _state_img: Image
 var _state_tex: ImageTexture
+static var force_gd := false   # L12 PERF60 (tests): true = the GDScript re-skin even with the DLL
+static var _door = null        # scripts/skin_pick_native.gd once KineSkinNative has the pick helpers
+static var _door_tried := false
+
+
+## L12: true when the C++ re-skin (KineSkinNative.skin_points / points_aabb) is loaded and not switched off
+static func native_ok() -> bool:
+	if force_gd or OS.get_environment("KINE_NO_NATIVE") == "1":
+		return false
+	if not _door_tried:
+		_door_tried = true
+		if NativeExt.ensure("kine_native", "KineSkinNative") and ClassDB.class_has_method("KineSkinNative", "skin_points"):
+			_door = load("res://scripts/skin_pick_native.gd")
+	return _door != null
+
+
 var _last_pose := []
 var _last_xf := Transform3D()   # the skeleton's place at the last refresh (a moved stage re-skins too)
 var _state := {}             # part -> [Color (a = fill), rim] as last written (state_of reads it)
@@ -183,6 +199,15 @@ func refresh() -> void:
 	var xf := sk.global_transform
 	for k in skin.get_bind_count():
 		mats.append(xf * (g[bind_bone[k]] as Transform3D) * skin.get_bind_pose(k))
+	var nat := native_ok()
+	var nmats := PackedVector3Array()
+	if nat:
+		for tm in mats:
+			var tb: Basis = (tm as Transform3D).basis
+			nmats.append(tb.x)
+			nmats.append(tb.y)
+			nmats.append(tb.z)
+			nmats.append((tm as Transform3D).origin)
 	for s in surfs:
 		var mi: MeshInstance3D = s["mi"]
 		if mi.mesh != null and mi.mesh.get_instance_id() != s["mesh_id"]:   # a corrective shape rebuilt the mesh: its
@@ -193,15 +218,18 @@ func refresh() -> void:
 		var w: PackedFloat32Array = s["w"]
 		var v: PackedVector3Array = s["rest"]
 		var out := PackedVector3Array()
-		out.resize(v.size())
-		for i in v.size():
-			var p := Vector3.ZERO
-			var vi := v[i]
-			for q in per:
-				var x := w[i * per + q]
-				if x > 0.0:
-					p += ((mats[bo[i * per + q]] as Transform3D) * vi) * x
-			out[i] = p
+		if nat:
+			out = _door.skin_points(v, bo, w, per, nmats)
+		else:
+			out.resize(v.size())
+			for i in v.size():
+				var p := Vector3.ZERO
+				var vi := v[i]
+				for q in per:
+					var x := w[i * per + q]
+					if x > 0.0:
+						p += ((mats[bo[i * per + q]] as Transform3D) * vi) * x
+				out[i] = p
 		s["pos"] = out
 	for gr in groups:
 		var pos: PackedVector3Array = surfs[gr["k"]]["pos"]
@@ -209,9 +237,13 @@ func refresh() -> void:
 		var first := true
 		for c in gr["chunks"]:
 			var vix: PackedInt32Array = c["vix"]
-			var bx := AABB(pos[vix[0]], Vector3.ZERO)
-			for i in vix:
-				bx = bx.expand(pos[i])
+			var bx: AABB
+			if nat:
+				bx = _door.points_aabb(pos, vix)
+			else:
+				bx = AABB(pos[vix[0]], Vector3.ZERO)
+				for i in vix:
+					bx = bx.expand(pos[i])
 			bx = bx.grow(0.0005)
 			c["box"] = bx
 			gb = bx if first else gb.merge(bx)

@@ -10,6 +10,8 @@ extends Node
 ## Colours and fonts are the app's own (Tok); the icons are scripts/uiexp_icons.gd.
 
 const WIDE := Vector2(1600, 900)
+const LABELLED := Vector2(1920, 1080)   # L15: from this window size each rail button carries its tool's name beside the icon; below it icons only
+const LABEL_PX := 11
 const BTN := Vector2(40, 36)
 const ICON_PX := 22
 const PAD := 6.0
@@ -44,6 +46,8 @@ var kind := ""              # "" | "part" | "asm": what the rail was built for
 var proxies := {}           # label -> {"rail": Button | null, "src": Button, "more": bool}
 var hidden_rows: Array = [] # the asm panel's rows that hold only proxied buttons
 var _was_on := false
+var _lab := false           # the rail was built with labels
+var _rail_w := RAIL_W       # the rail's current width (RAIL_W icons only; wider with labels)
 
 
 func setup(b: BuildUI) -> void:
@@ -68,6 +72,12 @@ func wide() -> bool:
 	return vs.x >= WIDE.x and vs.y >= WIDE.y
 
 
+## the labelled layout is on for this window
+func labelled() -> bool:
+	var vs: Vector2 = m.get_viewport().get_visible_rect().size
+	return vs.x >= LABELLED.x and vs.y >= LABELLED.y
+
+
 func screen_kind() -> String:
 	if bu == null or bu.part == null or bu.easy_ui():
 		return ""
@@ -85,7 +95,7 @@ func active() -> bool:
 
 ## the room the rail takes on the left (nav_clear_rect adds it, so the browser, the panels and the timeline start right of it)
 func inset() -> float:
-	return (RAIL_W + PAD + 2.0) if active() else 0.0
+	return (_rail_w + PAD + 2.0) if active() else 0.0
 
 
 ## the top of the room under the ribbon: the Part and Assembly screens start below the ribbon bar's own bottom edge (its tools and
@@ -128,7 +138,51 @@ func _icon_btn(label: String, src: Button) -> Button:
 	b.set_meta("icon_id", ICON_OF.get(label, UiExpIcons.id_of(label)))
 	b.set_meta("label", label)
 	b.pressed.connect(_press.bind(label))
+	if _lab:
+		_label_btn(b, label)
 	return b
+
+
+## a labelled rail button: icon, then the tool's own name, one line, 11 px, nothing clipped
+func _label_btn(b: Button, text: String) -> void:
+	b.text = text
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT   # a centred icon sat on top of the name (seen in the first screenshot)
+	b.clip_text = false
+	b.add_theme_font_size_override("font_size", LABEL_PX)
+	b.custom_minimum_size = Vector2(0, BTN.y - 6.0)
+
+
+## one width for the whole labelled column: the widest button (icon + name + the theme's margins) so no name is cut. Run every frame while the
+## labels are on (the theme's fonts reach the buttons a frame after they are built); true when the width changed
+func _fit_labels() -> bool:
+	if not _lab or vb == null:
+		return false
+	var btns: Array = []
+	var wmax := 0.0
+	for g2 in vb.get_children():
+		for c in g2.get_children():
+			if c is Button:
+				(c as Button).custom_minimum_size.x = 0.0
+				btns.append(c)
+	for c in btns:
+		wmax = maxf(wmax, maxf((c as Button).get_minimum_size().x, _need(c as Button)))
+	for c in btns:
+		(c as Button).custom_minimum_size.x = wmax
+	var nw := wmax + 2.0 * 6.0 + 4.0
+	var changed := not is_equal_approx(nw, _rail_w)
+	_rail_w = nw
+	return changed
+
+
+## the width a labelled button needs: its style's margins + the icon (capped by the theme's icon_max_width) + the gap + the name in its own font
+func _need(b: Button) -> float:
+	var sb: StyleBox = b.get_theme_stylebox("normal")
+	var w := sb.get_margin(SIDE_LEFT) + sb.get_margin(SIDE_RIGHT)
+	if b.icon != null:
+		var mx := b.get_theme_constant("icon_max_width")
+		w += (minf(float(b.icon.get_width()), float(mx)) if mx > 0 else float(b.icon.get_width())) + float(b.get_theme_constant("h_separation"))
+	return w + b.get_theme_font("font").get_string_size(b.text, HORIZONTAL_ALIGNMENT_LEFT, -1, b.get_theme_font_size("font_size")).x + 2.0
 
 
 func _tip(label: String, src: Button) -> String:
@@ -157,6 +211,8 @@ func _rebuild() -> void:
 		rail.remove_child(vb)
 		vb.queue_free()
 	proxies = {}
+	_lab = labelled()
+	_rail_w = RAIL_W
 	vb = VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 3)
 	rail.add_child(vb)
@@ -174,7 +230,7 @@ func _rebuild() -> void:
 			vb.add_child(sp)
 		vb.add_child(cap)
 		var grid := GridContainer.new()
-		grid.columns = 2
+		grid.columns = 1 if _lab else 2
 		grid.add_theme_constant_override("h_separation", 2)
 		grid.add_theme_constant_override("v_separation", 2)
 		vb.add_child(grid)
@@ -197,6 +253,8 @@ func _rebuild() -> void:
 					more_menu.focus_mode = Control.FOCUS_NONE
 					more_menu.flat = false
 					more_menu.icon = UiExpIcons.tex("more", ICON_PX)
+					if _lab:
+						_label_btn(more_menu, "More")
 					more_menu.tooltip_text = "More %s tools" % String(g[1]).to_lower()
 					more_menu.set_meta("icon_id", "more")
 					more_menu.get_popup().id_pressed.connect(_more_pick.bind(String(g[0])))
@@ -208,6 +266,7 @@ func _rebuild() -> void:
 				pm.add_icon_item(UiExpIcons.tex(ICON_OF.get(label, UiExpIcons.id_of(label)), 18), label, id)
 				proxies[label] = {"rail": null, "src": src, "more": true, "group": g[0], "id": id}
 		gi += 1
+	_fit_labels()
 	_hide_asm_rows()
 	rail.reset_size()
 
@@ -240,7 +299,7 @@ func _process(_dt: float) -> void:
 	if bu == null or m == null:
 		return
 	var k := screen_kind() if wide() else ""
-	if k != kind:
+	if k != kind or (k != "" and labelled() != _lab):
 		_restore_rows()
 		kind = k
 		if k != "":
@@ -254,9 +313,11 @@ func _process(_dt: float) -> void:
 	rail.visible = on
 	if not on:
 		return
+	if _fit_labels():
+		m._fit_top.call_deferred()
 	var cl: Rect2 = m.nav_clear_rect()
 	rail.position = Vector2(PAD, cl.position.y + 4.0)
-	rail.size = Vector2(RAIL_W, minf(rail.get_combined_minimum_size().y, cl.size.y - 8.0))
+	rail.size = Vector2(_rail_w, minf(rail.get_combined_minimum_size().y, cl.size.y - 8.0))
 	for row in hidden_rows:
 		if is_instance_valid(row):
 			(row as Control).visible = false

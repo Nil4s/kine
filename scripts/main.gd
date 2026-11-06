@@ -3129,6 +3129,12 @@ func _ready() -> void:
 	# THE QUALITY WORKER (Easy's My scenes badges): Kine --headless --kine-quality-worker <list.json> grades the list and quits
 	# before anything else starts (no UI, no autosave). Checked first, so the app's start-up never runs in that process.
 	var wargs := OS.get_cmdline_args()
+	var smoke_args := PackedStringArray(wargs) + OS.get_cmdline_user_args()
+	if InstallSmoke.wanted(smoke_args):   # L16: the clean-machine install test's launch; checks the install, writes nothing, exits 0 or 3
+		process_mode = Node.PROCESS_MODE_DISABLED
+		var smoke_code := InstallSmoke.run(smoke_args)
+		get_tree().quit(smoke_code)
+		return
 	var wi := wargs.find("--kine-quality-worker")
 	if wi >= 0 and wi + 1 < wargs.size():
 		process_mode = Node.PROCESS_MODE_DISABLED   # the app's per-frame work (autosave, auto-version) must not run in this process
@@ -3541,6 +3547,7 @@ func _ready() -> void:
 		get_tree().quit()
 
 
+	_after_first_frame(_update_check_now.bind(false))   # L16: opt-in (off, and no feed address, by default): does nothing unless the user turned it on
 	if args.has("--selfcheck-save"):   # an exported build's own check (see _selfcheck_save); nothing happens without the argument
 		await _selfcheck_save()
 		return
@@ -3619,25 +3626,38 @@ func _process(dt: float) -> void:
 
 
 func _process_body(dt: float) -> void:
+	var _pre := PerfDoc.t()
 	_mesh_hint_sync()
+	PerfDoc.add("p_hint", _pre)
+	var _p0 := PerfDoc.t()
 	_hands_dock_tick()   # C66
+	PerfDoc.add("p_dock", _p0)
 	if _drop_line != null and _drop_line.visible:
 		var hov := get_viewport().gui_get_hovered_control()
 		if not get_viewport().gui_is_dragging() or hov == null or not (hov == ui_card_row or ui_card_row.is_ancestor_of(hov)):
 			_drop_line.visible = false   # R8: the drag ended or left the strip
 	PoseBake.serving = playing   # the baked pose table serves playback only (pose_bake.gd)
+	var _pm := PerfDoc.t()
 	if ui_mouse != null:
 		ui_mouse.tick(dt)   # P05: at most every 50 ms
+	PerfDoc.add("p_mouse", _pm)
 	_co_tick()   # ROADMAP 30: the session's socket, the owned fighter's playhead
+	var _p1 := PerfDoc.t()
 	_doc_line()   # RR1: the strip catches up (throttled) after edits that do not refresh
+	PerfDoc.add("p_docline", _p1)
+	_p1 = PerfDoc.t()
 	_mark_play_card()   # the card at the playhead wears the gold frame; the strip follows it while playing
+	PerfDoc.add("p_markcard", _p1)
+	_p1 = PerfDoc.t()
 	_keys_camera(dt)
+	PerfDoc.add("p_keycam", _p1)
 	if campiv != null:
 		campiv.tick(dt)   # C07
 	if vx != null:
 		vx.tick(dt)   # K13-K16
 	if shot_through:
 		_shot_apply()   # THE SHOT CAMERA follows the playhead (play, scrub, an edit)
+	_p0 = PerfDoc.t()
 	_tour_poll()
 	_step_hint = ""   # a press that pushed no step must not name a later one
 	_pv_poll()
@@ -3646,10 +3666,12 @@ func _process_body(dt: float) -> void:
 	_multicam_poll(dt)
 	refimg.poll(dt)
 	_imp_poll()
+	PerfDoc.add("p_polls0", _p0)
 	var _pp := PerfDoc.t()
 	_live_poll(dt)
 	PerfDoc.add("live", _pp)
 	_sg_poll()
+	_p0 = PerfDoc.t()
 	if mm_ui != null:
 		mm_ui.tick(dt)   # MOTION MATCHING PREVIEW: steers and plays the matched frames while it is on (nothing otherwise)
 	if mp_ui != null:
@@ -3704,6 +3726,7 @@ func _process_body(dt: float) -> void:
 		sp_ui.tick(dt)
 	if rmc_ui != null:
 		rmc_ui.tick(dt)
+	PerfDoc.add("p_ticks", _p0)
 	sj.observe(undo.size())   # I26: undone / edited suggestions
 	if not myhits.pending.is_empty():   # I46: my edits of a written reaction become lessons once they settle
 		myhits.observe(undo.size(), func(vk: int): return (actors_rt[vk]["S"] as Scene) if vk < actors_rt.size() else null, B)
@@ -3717,11 +3740,22 @@ func _process_body(dt: float) -> void:
 		pr_ui.tick(dt)
 	if tc_ui != null:
 		tc_ui.tick(dt)   # TIMING COACH preview: plays a suggested timing on a copy (nothing otherwise)
+	PerfDoc.add("p_sj", _p0)
+	_p1 = PerfDoc.t()
 	_dm_poll()
+	PerfDoc.add("p_dm", _p1)
+	_p1 = PerfDoc.t()
 	_hit_ui_tick()
+	PerfDoc.add("p_hit", _p1)
+	_p1 = PerfDoc.t()
 	_bake_poll()
+	PerfDoc.add("p_bake", _p1)
+	_p1 = PerfDoc.t()
 	_kb_poll()
+	PerfDoc.add("p_kb", _p1)
+	_p1 = PerfDoc.t()
 	autover_tick()
+	PerfDoc.add("p_polls", _p1)
 	_as_wait += dt
 	if _as_wait >= 15.0:
 		_as_wait = 0.0
@@ -3734,6 +3768,7 @@ func _process_body(dt: float) -> void:
 			hover_part = ""
 			_fh_clear()
 			_refresh()
+	_p1 = PerfDoc.t()
 	var now := Time.get_ticks_msec() / 1000.0
 	if hover_part != _bar_want:
 		_bar_want = hover_part
@@ -3745,7 +3780,11 @@ func _process_body(dt: float) -> void:
 		if bt != ui_bar.text:   # rebuilt every frame, written only when it differs: no edit path can leave it stale
 			ui_bar.text = bt
 		ui_bar.visible = not (easy != null and easy.on) and not _hides("readout")   # Easy: no card count or seconds readout (Expert keeps it)
+	PerfDoc.add("p_bar", _p1)
+	_p1 = PerfDoc.t()
 	_props_pose()   # UU2: carried and falling props follow the playhead (nothing when no card carries)
+	PerfDoc.add("p_props", _p1)
+	PerfDoc.add("p_pre", _pre)
 	var _a_before := playhead   # the sound follows whatever moved the playhead this frame (_audio_tick)
 	if playing and not S.cards.is_empty():
 		# WW4: inside the preview range, if one is set. ROADMAP 48: how far the playhead moves is the play clock's mode
@@ -3770,7 +3809,9 @@ func _process_body(dt: float) -> void:
 			var ps := _ps()
 			ps.apply(B, ps.play_t(playhead))   # ROADMAP 99: the evaluated time is a tick of the bake grid, the pose a baked one
 		PerfDoc.add("body", _pp)
+		_pp = PerfDoc.t()
 		_refresh()
+		PerfDoc.add("p_refresh", _pp)
 		if play_delay > 0.0:
 			OS.delay_msec(roundi(play_delay * 1000.0))   # the test's slow frame: this frame really costs that long
 	_audio_tick(_a_before, dt)
@@ -4112,7 +4153,7 @@ func _tl_height() -> void:
 func _tl_under_ruler() -> float:
 	if ui_timeline == null:
 		return 0.0
-	return (Timeline.FD_H + 3.0 if not ui_timeline.fd.is_empty() else 0.0) + ui_timeline.bx_px() + ui_timeline.shots_px() + ui_timeline.sp_px() + ui_timeline.iq_px() + ui_timeline.sc_px()   # + the sound cue lane (I35) + the video confidence lane (VIDEO IQ)
+	return ui_timeline.fd_px() + ui_timeline.bx_px() + ui_timeline.shots_px() + ui_timeline.sp_px() + ui_timeline.iq_px() + ui_timeline.sc_px()   # + the sound cue lane (I35) + the video confidence lane (VIDEO IQ)
 
 
 # ---------------------------------------------------------------- FRAME DATA (ROADMAP 12; scripts/frame_data.gd)
@@ -5296,12 +5337,22 @@ func _place(mi: MeshInstance3D, a: Vector3, b: Vector3, r: float, capsule := tru
 
 
 func _refresh() -> void:
+	var _rf := PerfDoc.t()
 	if ic_ui != null:
 		ic_ui.sync()   # plan 137: the target's flash on its 2 frames
+	PerfDoc.add("r_ic", _rf)
+	_rf = PerfDoc.t()
 	_hands_refresh()   # HANDS (w4-handlock): the hands rows say the state
+	PerfDoc.add("r_hands", _rf)
+	_rf = PerfDoc.t()
 	_light_apply()
+	PerfDoc.add("r_light", _rf)
+	_rf = PerfDoc.t()
 	_refimg_sync()
+	PerfDoc.add("r_head", _rf)
+	_rf = PerfDoc.t()
 	_actors_view()
+	PerfDoc.add("r_actors", _rf)
 	_curve_sync()
 	if ui_akey != null and auto_key:
 		ui_akey.queue_redraw()   # the frame reads Tok on each draw: a palette switch shows at once
@@ -5327,15 +5378,10 @@ func _refresh() -> void:
 	_fd_refresh()   # FRAME DATA (ROADMAP 12): the strip and the boxes on active frames
 	if ui_browser != null and ui_browser.visible:
 		ui_browser.follow()
-	var touching := {}
-	for pr in B.pairs:
-		if not B.wep_on and (pr[0] in Body.WEAPON or pr[1] in Body.WEAPON):
-			continue
-		if not B.wep2_on and (pr[0] in Body.WEAPON2 or pr[1] in Body.WEAPON2):
-			continue
-		if B.depth(pr[0], pr[1]) - float(B.allow.get(pr[0] + "|" + pr[1], 0.0)) > 0.001:
-			touching[pr[0]] = true
-			touching[pr[1]] = true
+	_rf = PerfDoc.t()
+	var touching: Dictionary = B.touching_parts_ref() if PerfDoc.slow else B.touching_parts()   # L12: one capsule per part per frame
+	PerfDoc.add("r_touch", _rf)
+	_rf = PerfDoc.t()
 	var looks := {}   # PRECISE PICK: each body part's light on its own skin (SkinPick.set_looks)
 	# EASY QUIET: no standing pick light, name tag or joint dots on a beginner's body (a blue "right upper arm" over the punch
 	# read as a fault); the hover light stays (what a click would grab) and the pick shows while a part is dragged
@@ -5388,6 +5434,8 @@ func _refresh() -> void:
 			col.a = 0.0
 		mats[j].albedo_color = col
 		parts[j].visible = col.a > 0.0 and (B.wep_on or not j in Body.WEAPON) and (B.wep2_on or not j in Body.WEAPON2) and not hidden_parts.has(j)
+	PerfDoc.add("r_parts", _rf)
+	_rf = PerfDoc.t()
 	var _rk := {sel: true}
 	for sj in sel_more:
 		_rk[sj] = true
@@ -5437,6 +5485,7 @@ func _refresh() -> void:
 			dots[dj].visible = false   # the head joint's dot sits at the chin from the front: with the face geometry on it is hidden
 	tag.text = part_words(sel)
 	tag.position = ((c2[0] as Vector3) + (c2[1] as Vector3)) * 0.5 + Vector3(0, 0.1, 0)
+	PerfDoc.add("r_looks", _rf)
 	_dummy_refresh()
 	_pk = PerfDoc.t()
 	bal.show_body(B)
@@ -11188,11 +11237,13 @@ func _hands_refresh() -> void:
 		# the view's bottom RIGHT, over the floor, above the status line (under the top bar it covered the head; at the
 		# left it met the "Click a part" tip)
 		var vs := get_viewport().get_visible_rect().size
+		var _hk := PerfDoc.t()
 		ui_hands_panel.reset_size()
+		PerfDoc.add("h_reset", _hk)
 		if easy_on:   # Easy: the view's bottom left, over the floor (under its bar the "What should he do?" picker covered it: walk12;
 			# its slider panel is at the right)
 			ui_hands_panel.position = Vector2(12.0, vs.y - float(BOTTOM_H) - ui_hands_panel.size.y - 64.0)
-		else:   # Expert: the first corner of the view the body is not in (it covered the head, then a hand)
+		elif ui_hands_panel.visible or PerfDoc.slow:   # L12: a hidden card is not placed (it is placed in the refresh that shows it)
 			var ps := ui_hands_panel.size
 			var x0 := float(LEFT_W) + 12.0
 			var x1 := vs.x - float(RIGHT_W) - 12.0 - ps.x
@@ -11201,14 +11252,18 @@ func _hands_refresh() -> void:
 			for lb in [ui_mouse, ui_status]:   # ...and above where that line and the status line really are (the scene panel
 				if lb != null and is_instance_valid(lb) and lb.is_visible_in_tree():   # can be taller than BOTTOM_H: the strip covered them)
 					y1 = minf(y1, lb.get_global_rect().position.y - ps.y - 8.0)
+			_hk = PerfDoc.t()
 			var body := _body_screen_rect().grow(12.0)
+			PerfDoc.add("h_rect", _hk)
 			var vrect := Rect2(float(LEFT_W), float(TOP_H), vs.x - float(LEFT_W) - float(RIGHT_W), vs.y - float(TOP_H) - float(bottom_h))   # C66
 			var hb_flow: Control = null
 			for d0 in ui_hands:
 				if not d0["easy"] and d0.has("both"):
 					hb_flow = (d0["both"] as Control).get_parent()
 					(d0["state"] as Label).text = st   # its wrapped height is part of the card's size
+			_hk = PerfDoc.t()
 			var docked: bool = hb_flow != null and HandsDock.place(ui_hands_panel, hb_flow, vrect, HandsDock.blockers(self, ui_hands_panel, vrect, [ui_status, ui_mouse, ui_bar, ui_cube]), body, HandsDock.points(self))
+			PerfDoc.add("h_dock", _hk)
 			if not docked:
 				var pick := Vector2(x1, y1)
 				for c in [Vector2(x1, y1), Vector2(x0, y0), Vector2(x0, y1), Vector2(x1, y0)]:
@@ -11217,6 +11272,7 @@ func _hands_refresh() -> void:
 						break
 				ui_hands_panel.position = PickDodge.fit(ui_hands_panel, pick, Rect2(float(LEFT_W) + 8.0, float(TOP_H) + 8.0, vs.x - float(LEFT_W) - float(RIGHT_W) - 16.0, vs.y - float(TOP_H) - 16.0 - float(BOTTOM_H) - 56.0), PickDodge.points(self))   # C29: never over a body pick point
 		ui_hands_panel.position = ui_hands_panel.position.clamp(Vector2.ZERO, (vs - ui_hands_panel.size).max(Vector2.ZERO))   # no candidate fits a short window: it still stays on the view
+	var _hk2 := PerfDoc.t()
 	for d in ui_hands:
 		if not is_instance_valid(d["box"]):
 			continue
@@ -11231,7 +11287,10 @@ func _hands_refresh() -> void:
 		_grey(d["let_r"], "" if (on_h and o == "hand_r") else "the right hand is not holding the weapon: nothing to let go")
 		(d["follow"] as Button).set_pressed_no_signal(held)
 		(d["only"] as Button).set_pressed_no_signal(only_part)
+	PerfDoc.add("h_rows", _hk2)
+	_hk2 = PerfDoc.t()
 	_blade_sync()
+	PerfDoc.add("h_blade", _hk2)
 
 
 ## the body's box on screen (its joints projected; empty when it is behind the camera)
@@ -17087,6 +17146,9 @@ func _commands() -> Array:
 	add.call("File > Restore...", "", _restore_open, "restore autosave autosaved unsaved crash lost back earlier kept", false, "the last 5 autosaves (time, scene, cards) with a picture of each: pick one, it opens as a NEW copy in scenes/_wip (never over a file; the scene on screen asks first)")
 	add.call("File: restore unsaved work", "", _journal_restore, "journal unsaved recover restore crash lost work back", false, "bring back the work a session left unsaved when Kine did not close cleanly: the state after its last edit, still unsaved (the status line offers it at start)")
 	add.call("File > Crash report (last 20 commands)", "", _crash_report_now, "crash report bug problem error problem send lost last commands history what did i do", false, "writes the last 20 things you ran and the page you were on to a text file: you can read it and send it yourself. Nothing is sent")
+	add.call("Setting: update check on/off (off by default)", "", _update_toggle, "update check new version release feed setting online opt in", false, "turn the update check on or off. Off by default; it reads the feed address in user://online.cfg and shows a note on the status line when a newer version is listed. Nothing is downloaded")
+	add.call("File: check for updates now", "", func(): _update_check_now(true), "update check new version release now", false, "check the feed once (only if the update check is on and a feed address is set)")
+	add.call("File > Send crash report...", "", _crash_send_open, "crash report send upload bug problem error preview redacted", false, "shows exactly what would be sent (paths and your user name removed). Off by default: it only sends after you turn it on, set an endpoint and press Send")
 	add.call("Export...", "", _export_dialog_open, "export engine target unreal ue5 unity godot blender maya motionbuilder web three raw data format glb bvh usda game", false, "one dialog for every target: pick the engine or tool, see its format, what it needs, the frame rate and a checklist for this scene, then export")
 	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
 	add.call("Export animation (.glb)", "", _export_glb, "gltf glb blender unreal ue5 unity godot universal export fbx", false, "the scene as exports/<scene>.glb, the open 3D standard: the mannequin, its skeleton (UE5 bone names) and the animation, for any engine")
@@ -21393,6 +21455,78 @@ func _crash_note(n: String) -> void:
 
 
 ## File > Crash report: the last 20 commands (the session that did not quit, when there is one) and the page, in a text file
+## L16 OPT-IN UPDATE CHECK (scripts/update_check.gd): off and no address until the user sets both. The notice is the status line, never a dialog.
+func _update_check_now(manual: bool) -> void:
+	var cfg: Dictionary = OnlineOpt.load_cfg()["update"]
+	if not bool(cfg["enabled"]):
+		if manual:
+			_say("update check is off: turn it on with 'Setting: update check on/off', then set the feed address in user://online.cfg")
+		return
+	var url := str(cfg["feed_url"])
+	var body = null
+	if url.begins_with("http://") or url.begins_with("https://"):
+		body = await _http_get_text(url)
+	var reader := func(u: String):
+		return body if body != null else UpdateCheck.file_reader(u)
+	var r := UpdateCheck.check(cfg, str(ProjectSettings.get_setting("application/config/version", "0.0.0")), reader)
+	if bool(r.get("notify", false)) or manual or r.get("state") == "no_feed":
+		if str(r.get("text", "")) != "":
+			_say(str(r["text"]))
+
+
+## the only place that opens the network for the update check; reached only when the user set a web address
+func _http_get_text(url: String):
+	var h := HTTPRequest.new()
+	h.timeout = 8.0
+	add_child(h)
+	if h.request(url) != OK:
+		h.queue_free()
+		return null
+	var res: Array = await h.request_completed
+	h.queue_free()
+	if res[0] != HTTPRequest.RESULT_SUCCESS or res[1] != 200:
+		return null
+	return (res[3] as PackedByteArray).get_string_from_utf8()
+
+
+func _update_toggle() -> void:
+	var c := OnlineOpt.load_cfg()
+	c["update"]["enabled"] = not bool(c["update"]["enabled"])
+	OnlineOpt.save_cfg(OnlineOpt.PATH, c)
+	_say("update check: " + ("on" if c["update"]["enabled"] else "off") + (" (no feed address set yet: edit user://online.cfg [update] feed_url)" if c["update"]["enabled"] and str(c["update"]["feed_url"]) == "" else ""))
+
+
+## L16 OPT-IN CRASH UPLOAD (scripts/crash_upload.gd): shows the redacted payload first; sends only after Send is pressed, only when
+## the user turned it on and an endpoint is set. Both are off/empty by default, so by default this only shows the preview.
+func _crash_send_open() -> void:
+	var lines: Array = crash_prev if not crash_prev.is_empty() else crash_cmds
+	var raw := "Page: %s\n%s" % [cur_page, "\n".join(lines.slice(-CrashReport.KEEP))]
+	var users := [OS.get_environment("USERNAME"), OS.get_environment("USER")]
+	var payload := CrashUpload.build_payload(raw, {"version": str(ProjectSettings.get_setting("application/config/version", "")), "os": OS.get_name(), "users": users})
+	var cfg: Dictionary = OnlineOpt.load_cfg()["crash"]
+	var d := ConfirmationDialog.new()
+	d.title = "Send crash report?"
+	d.dialog_text = CrashUpload.preview(payload, cfg)
+	d.ok_button_text = "Send" if bool(cfg["enabled"]) and str(cfg["endpoint"]) != "" else "Close"
+	d.size = Vector2i(760, 520)
+	add_child(d)
+	d.confirmed.connect(func():
+		var r := CrashUpload.send(cfg, payload, true, _crash_http_sink)
+		_say("crash report sent" if r["sent"] else "crash report not sent: " + str(r["why"]))
+		d.queue_free())
+	d.canceled.connect(d.queue_free)
+	d.popup_centered()
+
+
+func _crash_http_sink(endpoint: String, body: String) -> bool:
+	var h := HTTPRequest.new()
+	h.timeout = 8.0
+	add_child(h)
+	var ok_ := h.request(endpoint, ["Content-Type: text/plain; charset=utf-8"], HTTPClient.METHOD_POST, body) == OK
+	h.request_completed.connect(func(_a, _b, _c, _d): h.queue_free())
+	return ok_
+
+
 func _crash_report_now() -> void:
 	if crash_dir == "":
 		_say("the crash report is off in this test run")
