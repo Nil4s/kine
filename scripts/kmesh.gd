@@ -891,6 +891,8 @@ func to_dict() -> Dictionary:
 		d["refplanes"] = KMeshRefPlanes.to_file(self)   # B21: path + hash, never the pixels
 	if origin != Vector3.ZERO:
 		d["origin"] = [origin.x, origin.y, origin.z]   # B17
+	if has_meta("retopo_record"):
+		d["retopo"] = get_meta("retopo_record")   # G16
 	return d
 
 
@@ -1032,6 +1034,8 @@ func from_dict(d: Dictionary) -> KMesh:
 	normal_mode = nmode
 	auto_angle = nangle
 	KMeshLOD.from_file(self, d.get("lods"))   # F04
+	if d.has("retopo"):
+		set_meta("retopo_record", d["retopo"])   # G16
 	KMeshRefPlanes.from_file(self, d.get("refplanes"))   # B21
 	_stale = true  # topology and normals build on first read (see _fresh)
 	return self
