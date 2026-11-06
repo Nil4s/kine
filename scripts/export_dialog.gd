@@ -82,7 +82,7 @@ const TARGETS := [
 		"app": "The .glb holds one armature with an action named after the scene, a key on every frame. The .bvh holds every joint on every frame, scale 1.0. Both checked with Blender 4.5's own importers (docs/EXPORT.md)."},
 	{"id": "maya", "label": "Maya / MotionBuilder", "engine": "",
 		"needs": "MotionBuilder reads BVH as motion capture. Maya has no BVH import in its base install: use a BVH plugin, or the FBX route through Blender (docs/EXPORT.md). Maya reads USD through its own importer. Neither was opened for this export. ALEMBIC (.abc) IS NOT WRITTEN: it needs the Ogawa binary writer, a large format build this app does not carry. The joints go out as a USD point cache instead (the USD layers format: <name>_points.usda, a Points prim per frame, metres), which Maya reads through its USD importer.",
-		"formats": [{"name": "BVH (.bvh): motion capture", "run": "bvh"}, {"name": "USD (.usda): UsdSkel skeleton animation", "run": "usda"}, {"name": "USD layers (folder): root .usda, one .usda per layer", "run": "usda_layers"},
+		"formats": [{"name": "BVH (.bvh): motion capture", "run": "bvh"}, {"name": "USD (.usda): UsdSkel skeleton animation", "run": "usda"}, {"name": "USD layers (folder): root .usda, one .usda per layer", "run": "usda_layers"}, {"name": "USD skinned (.usda): mesh, skin weights, blend shapes", "run": "usda_skinned"},
 			{"name": "FBX 7.4 (.fbx): File > Import > FBX", "run": "fbx",
 				"needs": "Maya and MotionBuilder read binary FBX 7.4 in centimetres, Y up: File > Import. The bones are joints with a bind pose, and their rotations are curves (Euler XYZ). Unverified: neither was opened on this file.",
 				"app": "Centimetres, Y up, the bones as joints with their keys on every frame; one file per fighter, each at its place. The weapons and props are not in it."}],
@@ -93,7 +93,7 @@ const TARGETS := [
 		"app": "One file: the mannequin, its skin, its one animation (a key on every frame) and the weapons as animated nodes. With several fighters, each one is its own armature at its place. The .obj is a static mesh (metres, Y up): the body as it stands at the playhead, or the picked object (the set piece) under What to export."},
 	{"id": "raw", "label": "Raw data", "engine": "",
 		"needs": "For your own code. BVH is text: the joint hierarchy and each frame's channels. USD is text: one time sample per frame. The PoseTable is the ARPG's keys (degrees from its rest, eased) for 11 bones; its C# is the one the ARPG's Unity 6 project reads.",
-		"formats": [{"name": "BVH (.bvh): every joint, every frame", "run": "bvh"}, {"name": "USD (.usda): UsdSkel", "run": "usda"}, {"name": "PoseTable (.json + .cs): the ARPG", "run": "game"}, {"name": "USD layers (folder): root .usda, one .usda per layer", "run": "usda_layers"}],
+		"formats": [{"name": "BVH (.bvh): every joint, every frame", "run": "bvh"}, {"name": "USD (.usda): UsdSkel", "run": "usda"}, {"name": "PoseTable (.json + .cs): the ARPG", "run": "game"}, {"name": "USD layers (folder): root .usda, one .usda per layer", "run": "usda_layers"}, {"name": "USD skinned (.usda): mesh, skin weights, blend shapes", "run": "usda_skinned"}],
 		"app": "Written by the same writers the old commands used (the same bytes). The hands, feet and fingers do not reach the PoseTable; the weapons are not in the .usda."},
 ]
 
@@ -697,12 +697,19 @@ func checks(id: String, run: String) -> Array:
 			out.append("OK    weapons: animated nodes (weapon, weapon2) with a plain shaft")
 		elif run == "bvh":
 			out.append("OK    weapons: joints under the hand that holds them")
-		elif run == "usda" or run == "usda_layers":
+		elif run == "usda" or run == "usda_layers" or run == "usda_skinned":
 			out.append("WARN  weapons are not in the .usda: the file holds the body only")
 		elif run.begins_with("fbx"):
 			out.append("WARN  weapons are not in the .fbx: the file holds the body only")
 		else:
 			out.append("WARN  weapons are not in the PoseTable: its 11 bones are the body; the bat's edge points come with the engine exports (weapon trail .json)")
+	if run == "usda_skinned":
+		out.append("OK    skin: the %s, joint weights on Kine's joints, rest pose in Kine's frame" % ("imported character" if CharImportApp.active(m) else "mannequin"))
+		if m.face_geo_on:
+			out.append("OK    face: the mask and eyeballs, six AU BlendShapes with the clip's weights")
+			out.append("WARN  the jaw is a linear shape here and the eyeballs do not turn")
+		else:
+			out.append("OK    blend shapes: none (turn the face geometry on for the six AU shapes)")
 	if run == "usda_layers":
 		var nl := S.layers.size() + (0 if S.layer.is_empty() else 1)
 		out.append("OK    layers: the stack, the YY9 one first; each is its own file, and a mute is exact from the top only" if nl > 0 else "OK    layers: none in this scene; the base animation is the whole pose")
@@ -798,6 +805,8 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 			return m._export_usd(dir)
 		"usda_layers":
 			return m._export_usd_layers(dir)
+		"usda_skinned":
+			return m._export_usd_skinned(dir)
 		"game":
 			return m._export_game(dir)
 		"game_project":
