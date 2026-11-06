@@ -1074,3 +1074,4 @@ EXTRA="$EXTRA perfscout:w"   # L54 PERF SCOUT: measures user-visible stalls (too
 EXTRA="$EXTRA kmeshnat:w"   # L60: KMesh from_array_mesh/rebuild/is_manifold, Catmull-Clark subdivide and boolean in C++ (KineKMeshNative), native == GDScript, speed bars (tests/kmeshnat_test.gd)
 EXTRA="$EXTRA fastsave:w"   # L56 FASTSAVE: save/USD with 1000 props <= 300 ms warm, file byte-identical (tests/fastsave_test.gd)
 EXTRA="$EXTRA propsgrid:w"   # L58 PROPSGRID: Props.settle in C++ with a grid (GDScript twin), undo without re-settle, _props_show keeps nodes per prop (tests/propsgrid_test.gd)
+EXTRA="$EXTRA wrinkle:w"   # L62 I09: expression wrinkles on the geometry face from measured per-vertex compression (tests/wrinkle_test.gd, scripts/face_wrinkle.gd)
