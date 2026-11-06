@@ -5484,6 +5484,8 @@ func _refresh() -> void:
 		(sm as Node3D).visible = not _hides("figure")
 	for dj in dots:
 		dots[dj].visible = not clean and not quiet and not hidden_parts.has(dj) and not mesh_pg
+		if face_geo_on and not face_geo_data.is_empty() and dj == "head":
+			dots[dj].visible = false   # the head joint's dot sits at the chin from the front: with the face geometry on it is hidden
 	tag.text = part_words(sel)
 	tag.position = ((c2[0] as Vector3) + (c2[1] as Vector3)) * 0.5 + Vector3(0, 0.1, 0)
 	PerfDoc.add("r_looks", _rf)
@@ -13120,6 +13122,8 @@ func _ui() -> void:
 	ui_ribbon["BODY"].add_child(_button("Mannequin as shipped", func(): proportions_set({}), "the body back to the 183 cm mannequin; the cards keep their angles. Ctrl+Z undoes"))
 	# BODYWALK: the face and the hair were only in the search (Ctrl+S "face", "hair"); a beginner on BODY now sees them as words
 	ui_ribbon["BODY"].add_child(_button("Face: brows, eyes, jaw, mouth...", func(): face_ui.open(), "the face of the body: brows, eyes, jaw and mouth as sliders; OK keys it (one undo step). Works on a body with no clips too: it is the face for the whole scene"))
+	tog.call("BODY", "Face geometry: lids, lips, teeth, nose", _face_geo_toggle, func(): return face_geo_on,
+		"the face as real geometry on the head (eyes with lids, lips, teeth, tongue, nose; blink, smile and jaw drive it); off = the painted face (the default)")
 	ui_ribbon["BODY"].add_child(_button("Hair: add a ponytail", _hair_add, "a ponytail of 8 strands on the back of the head, with gravity and collision (Ctrl+Z takes it back). Works with no clips too"))
 	ui_ribbon["BODY"].add_child(_button("Hair: take the hair off", _hair_clear, "removes the hair from the scene (Ctrl+Z puts it back)"))
 	# POSE
@@ -17300,6 +17304,7 @@ func _commands() -> Array:
 	add.call("Help: Blender / Maya key helper off", "", kt.set_mode.bind(""), "blender maya keys shortcuts translate helper off stop hide", false, "turn the Coming-from-Blender/Maya toasts off (remembered)")
 	add.call("Help: Blender / Maya keys win on / off", "", func(): kt.set_wins(not kt.wins), "blender maya keys win override shortcuts priority", false, "with the helper on: a Blender/Maya key that Kine uses for something else runs the Kine command it maps to, instead of Kine's own action")
 	add.call("Help: edit hotkeys", "", hk.open_editor, "hotkeys keys key shortcut shortcuts rebind bind change remap", false, "change any command's key: search, click its key, press the new one (a key another command has is refused until pressed again)")
+	add.call("View: workspace layouts", "", func(): if bld != null and bld.shell != null: bld.shell.layouts_ui.open_dialog(), "workspace layouts layout dock panel panels left right bottom float save rename delete reset rail width expert engineering", false, "save, rename and delete named layouts of the Expert / Engineering screens; dock each panel left, right or bottom, or float it; set the rail width; reset to the factory layout")
 	add.call("Help: forget my command habits", "", _nt_forget, "next suggested tool chips habits learned forget reset clear history suggestions", false, "forget which commands you run after which (the grey chips after Next:); the default sequence comes back")
 	c.append_array(EasySearch.rows(self))   # p097searchboxf: the Easy Part actions (hole, round, screw) are S box rows too (scripts/easy_search.gd)
 	var rows: Array = Hotkeys.apply(c, hk.over)
@@ -23008,6 +23013,11 @@ func _face_draw() -> void:
 
 ## the face geometry on or off. On: the mask, two eyes and the mouth cavity are built (once), the head piece loses its lower-face
 ## triangles (restored when off). One undo-free view switch, like the shading modes.
+func _face_geo_toggle() -> void:
+	_face_geo_set(not face_geo_on)
+	_say("face geometry %s (eyes with lids, lips, teeth, tongue, nose; off = the painted face)" % ("on" if face_geo_on else "off"))
+
+
 func _face_geo_set(on: bool) -> void:
 	if on == face_geo_on or not pieces.has("head"):
 		return
@@ -23022,27 +23032,37 @@ func _face_geo_set(on: bool) -> void:
 			face_geo_root.name = "face_geometry"
 			add_child(face_geo_root)
 			face_geo_mask = MeshInstance3D.new()
-			var mm := StandardMaterial3D.new()
-			mm.vertex_color_use_as_albedo = true
-			mm.roughness = 0.8
-			face_geo_mask.material_override = mm
+			face_geo_mask.name = "mask"
+			face_geo_mask.material_override = FaceGeo.mask_material(hp.material_override)   # the head's own material, sRGB vertex colours
 			face_geo_root.add_child(face_geo_mask)
 			for e in face_geo_data["eyes"]:
 				var en := MeshInstance3D.new()
 				en.mesh = FaceGeo.eye_mesh(float(e["r"]))
-				var em := StandardMaterial3D.new()
-				em.vertex_color_use_as_albedo = true
-				em.roughness = 0.25
-				en.material_override = em
+				en.material_override = FaceGeo.eye_material()
 				face_geo_root.add_child(en)
 				face_geo_eye_nodes.append(en)
 			var cav := MeshInstance3D.new()
 			cav.mesh = FaceGeo.cavity_mesh(face_geo_data)
-			var cm := StandardMaterial3D.new()
-			cm.albedo_color = Color(0.08, 0.03, 0.03)
-			cm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-			cav.material_override = cm
+			cav.name = "cavity"
+			cav.material_override = FaceGeo.cavity_material()   # lit, curved, red: not the old black box
 			face_geo_root.add_child(cav)
+			for nm in ["teeth_up", "teeth_lo", "tongue", "nose"]:
+				var mi := MeshInstance3D.new()
+				mi.name = nm
+				match nm:
+					"teeth_up":
+						mi.mesh = FaceGeo.teeth_mesh(face_geo_data, true)
+						mi.material_override = FaceGeo.tooth_material()
+					"teeth_lo":
+						mi.mesh = FaceGeo.teeth_mesh(face_geo_data, false)
+						mi.material_override = FaceGeo.tooth_material()
+					"tongue":
+						mi.mesh = FaceGeo.tongue_mesh(face_geo_data)
+						mi.material_override = FaceGeo.tongue_material()
+					"nose":
+						mi.mesh = FaceGeo.nose_mesh(face_geo_data, FaceGeo.SKIN)
+						mi.material_override = FaceGeo.mask_material(hp.material_override)
+				face_geo_root.add_child(mi)
 		face_geo_key = ""
 		face_geo_on = true
 	else:
@@ -23063,6 +23083,9 @@ func _face_geo_draw(P: Dictionary) -> void:
 	face_geo_root.transform = Transform3D(Basis(g), face_at(Vector3.ZERO))
 	var bv := (float(P["brow_l"]) + float(P["brow_r"])) * 0.5
 	var au := {"AU1": maxf(bv, 0.0), "AU4": maxf(-bv, 0.0), "AU45": float(P["blink"]), "AU6": float(P["squint"])}
+	var vz := FaceGeo.viseme_au(String(P.get("mouth", "")))   # the viseme shape drives the mouth AUs (E = wide = AU12)
+	for k in vz:
+		au[k] = float(au.get(k, 0.0)) + float(vz[k])
 	for k in face_geo_au:
 		au[k] = float(au.get(k, 0.0)) + float(face_geo_au[k])
 	var st := {"au": au, "jaw_deg": float(P["jaw_deg"]), "eye_pitch_deg": float(P["eye_pitch_deg"]), "eye_yaw_deg": float(P["eye_yaw_deg"])}
@@ -23077,6 +23100,16 @@ func _face_geo_draw(P: Dictionary) -> void:
 		var tf := FaceGeo.eye_transforms(d, st)
 		for i in 2:
 			(face_geo_eye_nodes[i] as Node3D).transform = tf[i]
+		var jx := FaceGeo.jaw_transform(d, st)   # the lower teeth and the tongue ride the jaw bone
+		(face_geo_root.get_node("teeth_lo") as Node3D).transform = jx
+		(face_geo_root.get_node("tongue") as Node3D).transform = jx
+		var nose_mi := face_geo_root.get_node("nose") as MeshInstance3D
+		var nsk := FaceGeo.SKIN
+		if hm is StandardMaterial3D:
+			nsk = (hm as StandardMaterial3D).albedo_color
+		if nose_mi.get_meta("skin", Color(0, 0, 0)) != nsk:
+			nose_mi.set_meta("skin", nsk)
+			nose_mi.mesh = FaceGeo.nose_mesh(d, nsk)
 
 
 var face_geo: Dictionary = {}   # the anchors on the head mesh in rest space (Face.anchors), read once from the head piece
