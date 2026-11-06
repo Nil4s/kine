@@ -208,7 +208,7 @@ def pxr_skin(st, ref, shift):
             for i, o in zip(idx, offs):
                 pts[i] = pts[i] + Gf.Vec3f(o) * x
         vp = Vt.Vec3fArray(pts)
-        xf = skq.ComputeJointSkelTransforms(t)
+        xf = skq.ComputeSkinningTransforms(t)
         if not sq.ComputeSkinnedPoints(xf, vp, t):
             worst[f] = 1e9
             continue

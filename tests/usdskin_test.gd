@@ -84,7 +84,7 @@ func add_tube(B: Body, ch: Dictionary, chain: Array, radial: PackedVector3Array,
 			var raw: Array = []
 			for q in cand.size():
 				var d := _seg_d(p, segs[q][0], segs[q][1])
-				raw.append([exp(-pow(d / 0.05, 2.0)), Body.ORDER.find(cand[q])])
+				raw.append([exp(-pow(d / 0.10, 2.0)), Body.ORDER.find(cand[q])])
 			raw.sort_custom(func(x, y): return x[0] > y[0])
 			var kept: Array = []
 			var tot := 0.0
@@ -184,6 +184,9 @@ func ref_json(B: Body, S: Scene, ch: Dictionary, frames: Array, fps: float, L: f
 			if v != Vector3.ZERO:
 				cnt += 1
 		offs_len[sh["name"]] = cnt if sh["sparse"] else verts.size()
+	var kmax := 1
+	for i in verts.size():
+		kmax = maxi(kmax, (wts[i] as Dictionary).size())
 	var deform := {}
 	var nosh := {}
 	var shw := {}
@@ -196,7 +199,7 @@ func ref_json(B: Body, S: Scene, ch: Dictionary, frames: Array, fps: float, L: f
 		"shape_w": shw,
 		"expect": {"skelroots": 1, "skeletons": 1, "meshes": 1, "blendshape_prims": ch["shapes"].size(), "joints": Body.ORDER.size(),
 			"bind": Body.ORDER.size(), "rest": Body.ORDER.size(), "anim_joints": Body.ORDER.size(), "verts": verts.size(),
-			"faces": (ch["faces"] as Array).size(), "k": K, "kw": K, "shapes_mesh": ch["shapes"].size(), "targets": ch["shapes"].size(),
+			"faces": (ch["faces"] as Array).size(), "k": kmax, "kw": kmax, "shapes_mesh": ch["shapes"].size(), "targets": ch["shapes"].size(),
 			"shapes_anim": ch["shapes"].size(), "weight_len": ch["shapes"].size(), "offs_len": offs_len}}
 
 
@@ -347,11 +350,11 @@ func _init() -> void:
 	ok(not (ds["mismatch"] as Array).is_empty() or rep["drop"].has("struct_error"), "1 CONTROL one joint dropped is caught: %s" % str(ds["mismatch"]))
 	# 2 WEIGHTS
 	var gw: Dictionary = g.get("weights", {"max_err": 9.0, "max_sum_err": 9.0})
-	ok(float(gw["max_err"]) <= BAR_W and float(gw["max_sum_err"]) <= BAR_W, "2 weights by joint name over %s vertices x %s influences: worst %.3g, sum worst %.3g (bar %g)" % [str(gw.get("verts")), str(gw.get("k")), gw["max_err"], gw["max_sum_err"], BAR_W])
+	ok(float(gw["max_err"]) <= BAR_W and float(gw["max_sum_err"]) <= BAR_W, "2 weights by joint name over %s vertices x %s influences: worst %s, sum worst %s (bar %s)" % [str(gw.get("verts")), str(gw.get("k")), gw["max_err"], gw["max_sum_err"], BAR_W])
 	var gb: Dictionary = g.get("blender", {})
-	ok(float(gb.get("groups_err", 9.0)) <= 1e-4 and float(gb.get("groups_sum_err", 9.0)) <= 1e-4, "2 Blender's vertex groups agree: worst %.3g, sum worst %.3g (bar 1e-4)" % [float(gb.get("groups_err", 9.0)), float(gb.get("groups_sum_err", 9.0))])
+	ok(float(gb.get("groups_err", 9.0)) <= 1e-4 and float(gb.get("groups_sum_err", 9.0)) <= 1e-4, "2 Blender's vertex groups agree: worst %s, sum worst %s (bar 1e-4)" % [float(gb.get("groups_err", 9.0)), float(gb.get("groups_sum_err", 9.0))])
 	var sw: Dictionary = rep["swap"].get("weights", {"max_err": 0.0})
-	ok(float(sw["max_err"]) > 0.1 or rep["swap"].has("weights_error"), "2 CONTROL two joints swapped is caught: worst %.3g" % float(sw["max_err"]))
+	ok(float(sw["max_err"]) > 0.1 or rep["swap"].has("weights_error"), "2 CONTROL two joints swapped is caught: worst %s" % float(sw["max_err"]))
 	# 3 DEFORM
 	var dw := 0.0
 	var dpx := 0.0
@@ -360,16 +363,16 @@ func _init() -> void:
 	for f in frames:
 		dw = maxf(dw, float(dd.get(str(f), 9.0)))
 		dpx = maxf(dpx, float(pxs.get(str(f), 9.0)))
-	ok(dd.size() == frames.size() and dw <= BAR_DEF, "3 Blender's skinned vertices at frames %s: worst %.3g m (bar %g); objects %s" % [str(frames), dw, BAR_DEF, str(gb.get("info", {}).get("objects"))])
-	ok(pxs.size() == frames.size() and dpx <= BAR_DEF, "3 pxr ComputeSkinnedPoints at the same frames: worst %.3g m (bar %g)" % [dpx, BAR_DEF])
+	ok(dd.size() == frames.size() and dw <= BAR_DEF, "3 Blender's skinned vertices at frames %s: worst %s m (bar %s); objects %s" % [str(frames), dw, BAR_DEF, str(gb.get("info", {}).get("objects"))])
+	ok(pxs.size() == frames.size() and dpx <= BAR_DEF, "3 pxr ComputeSkinnedPoints at the same frames: worst %s m (bar %s)" % [dpx, BAR_DEF])
 	var fw := 0.0
 	var fd: Dictionary = rep["frame"].get("blender", {}).get("deform", {})
 	for f in frames:
 		fw = maxf(fw, float(fd.get(str(f), 0.0)))
-	ok(fw > BAR_DEF * 3.0 or rep["frame"].has("deform_error"), "3 CONTROL the wrong frame (+5) is caught: worst %.3g m" % fw)
+	ok(fw > BAR_DEF * 3.0 or rep["frame"].has("deform_error"), "3 CONTROL the wrong frame (+5) is caught: worst %s m" % fw)
 	# 4 SHAPES
 	var go: Dictionary = g.get("offsets", {"max_offset_err": 9.0, "weights_err": 9.0, "names_ok": false})
-	ok(bool(go["names_ok"]) and float(go["max_offset_err"]) <= BAR_OFF and float(go["weights_err"]) <= 1e-6, "4 shapes %s: offsets worst %.3g (bar %g), animation weights worst %.3g (bar 1e-6)" % [str(go.get("names")), go["max_offset_err"], BAR_OFF, go["weights_err"]])
+	ok(bool(go["names_ok"]) and float(go["max_offset_err"]) <= BAR_OFF and float(go["weights_err"]) <= 1e-6, "4 shapes %s: offsets worst %s (bar %s), animation weights worst %s (bar 1e-6)" % [str(go.get("names")), go["max_offset_err"], BAR_OFF, go["weights_err"]])
 	var ef: Dictionary = gb.get("effect", {})
 	var ee := 0.0
 	var mv := 0.0
@@ -377,17 +380,21 @@ func _init() -> void:
 		var e: Dictionary = ef.get(str(f), {"err": 9.0, "expected_move": 0.0})
 		ee = maxf(ee, float(e["err"]))
 		mv = maxf(mv, float(e["expected_move"]))
-	ok(ef.size() == frames.size() and ee <= BAR_DEF and mv > 0.005, "4 the shapes' own displacement in Blender at frames %s: worst error %.3g m (bar %g), expected move up to %.3g m (instrument can move)" % [str(frames), ee, BAR_DEF, mv])
+	ok(ef.size() == frames.size() and ee <= BAR_DEF and mv > 0.005, "4 the shapes' own displacement in Blender at frames %s: worst error %s m (bar %s), expected move up to %s m (instrument can move)" % [str(frames), ee, BAR_DEF, mv])
 	var sv := 0.0
 	for f in frames:
 		sv = maxf(sv, float((gb.get("shape_value", {}) as Dictionary).get(str(f), 9.0)))
-	ok(sv <= 1e-4, "4 Blender's shape key values = Kine's weights: worst %.3g (bar 1e-4)" % sv)
+	ok(sv <= 1e-4, "4 Blender's shape key values = Kine's weights: worst %s (bar 1e-4)" % sv)
 	var sc: Dictionary = rep["scale"].get("offsets", {"max_offset_err": 0.0})
-	ok(float(sc["max_offset_err"]) > BAR_OFF * 5.0 or rep["scale"].has("offsets_error"), "4 CONTROL an offset scaled 1.01 is caught: worst %.3g (bar %g)" % [float(sc["max_offset_err"]), BAR_OFF])
+	ok(float(sc["max_offset_err"]) > BAR_OFF * 5.0 or rep["scale"].has("offsets_error"), "4 CONTROL an offset scaled 1.01 is caught: worst %s (bar %s)" % [float(sc["max_offset_err"]), BAR_OFF])
 	finish()
 
 
 func finish() -> void:
+	if OS.get_environment("USDSKIN_KEEP") != "":
+		print("kept ", ProjectSettings.globalize_path(DIR))
+		quit(fails)
+		return
 	for f in DirAccess.get_files_at(ProjectSettings.globalize_path(DIR)):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(DIR + "/" + f))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(DIR))
