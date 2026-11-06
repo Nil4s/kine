@@ -111,3 +111,24 @@ Merged origin/poser-ui-rounds (014dfbd4) with no conflicts. Every new bar was co
   - That figure comes from a geometric count of free cells for R_in 36 mm, a 4 mm floor and h = 3 mm, over three grid phases: 0.859, 0.879 and 0.890.
   - 85 % would need the cup brim-full and still after 0.8 s of sloshing.
   - The fix is the cut-cell wall from gap row 1. The voxels must stay conservative, or the "0 particles inside the mesh" bar breaks.
+
+## L5 follow-up (branch w4-liquid2): cut-cell walls, rest test, water render
+
+Suite `tests/liq2_test.gd` (registered as `liq2` in tools/run_all.sh). Every bar and its planted control were committed before the first run.
+
+**Done**
+- Cut-cell solid walls (Batty, Bertails and Bridson 2007): corner SDF, face open fractions, weighted pressure matrix, weighted divergence, per-cell open volume, particles pushed back to phi >= 0.02 h, empty cut cells under fluid marked fluid. C++ and GDScript twin agree: weights 1.8e-7, pressure 1.2e-7 (bar 1e-6). Face fractions vs 400x400 sub-sampling: 2.5e-4 (bar 5e-3).
+- Hydrostatic rest on a tilted floor: max |v| 1.2e-9 m/s (bar 1e-3), bottom pressure 0.00 % off rho g H, level moved 0.3 mm, 0 particles through the true floor, open volume 0.00 % off analytic.
+- **The lead's expectation that the staircase shows spurious currents was NOT reproduced.** The centre-sampled staircase floor also rests (2.4e-10 m/s). What the staircase does show, and the planted control measures: 189 particles through the true floor, and a wall volume 1.55 % off. The control for B2 is therefore wall penetration, not currents.
+- Water render: smoothed surface (weld, Taubin, outward winding by signed volume), shader with Schlick Fresnel (n = 1.333), refraction, Beer-Lambert with Pope and Fry 1997 pure-water coefficients, foam term. Render bars all pass (below).
+
+**Not done / still failing (reported as they read)**
+- (M) Martin and Moyce front, free-slip wall: worst error 24.4 % (bar 10 %). Stays a fail. Free slip was chosen from the physics (the M&M data is read as inviscid), not fitted.
+- Wall-friction probe, recorded as INFORMATION only, never used to pick the value (worst front error over the 14 table points): friction 0.0 -> 24.4 %, 0.25 -> 11.5 %, 0.5 -> 11.9 %, 1.0 -> 10.5 %. Z(T) at friction 0: 1.14 1.45 1.79 2.06 2.30 2.56 2.75 3.05 3.22 3.50 3.71 3.98 4.00 4.00; paper Table 2: 1.11 1.22 1.44 1.67 1.89 2.11 2.33 2.56 2.78 3.00 3.22 3.44 3.67 3.89.
+- **Hypothesis** (not tested): the table points point at a missing effect, not a wall setting. The real gate took time to lift, so a simulated instantaneous release leads the M&M data. **Next experiment:** model the gate removal as a moving wall at a cited lift speed, or compare against an instantaneous-release dataset (Lobovsky, Botia-Vera, Castellana, Mas-Soler and Souto-Iglesias 2014, "Experimental investigation of dynamic pressure loads during dam break", J. Fluids Struct. 48, 407-434). Not built.
+- Mug with the cut mesh: (E1) 787 particles inside the mesh by ray parity (voxel version: 4243) FAIL; (E3) fill 69 % (bar 85 %; voxel mesh 78 %) FAIL; (E2) no leak and (E4) spill pass. The settled cup is 97 % full up to a level about 27 mm under the rim, so walls and floor hold. The loss is water that leaves over the rim during the pour (1 L/s from 3 cm above the rim, splash height v^2/2g about 0.1 m): the scenario splashes. Not a wall leak. A gentler pour would be a new, post-hoc bar; not run.
+- Stills (docs/liquid2/dam.png, compare.png, mug_pour.png): looked at them; they do NOT match the reference photo. See docs/liquid2/REFERENCES.md and the report: the water is nearly invisible against the floor and the surface sparkles at particle scale.
+- The R2 bar header names path lengths 0.10, 0.20, 0.30 m; 0.30 m is the wedge's own end wall (my sampling error, found in run 4), so the third point is 0.27 m. The bar value (25 %) is unchanged.
+- Bars of CH8 itself: none found wrong; none edited.
+
+**Render bars**: R0 thickness 0.2002 m for 0.200 (bar 3 %); R1 F(80) 0.3968 vs Schlick 0.3978, F(10) 0.0203 vs 0.0204, ratio 19.6 vs 19.5; R2 B-R 0.0266/0.0527/0.0784 vs Beer-Lambert 0.0273/0.0537/0.0720; R3 closed surface 0.00 % open edges, 0.402 % incoherent thickness pixels (bar 0.5 %). All four planted controls fail as they must.
