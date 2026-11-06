@@ -425,6 +425,8 @@ func ribbon_shows(b: Node, tab: String) -> bool:
 	if tab != "BUILD":
 		return true
 	var show := chrome()
+	if bu.shell != null and bu.shell.hides(b):
+		return false   # L2: the wide window's rail carries this tool
 	if b == part_btn:
 		return bu.on and not bu.easy_ui()
 	if b == reopen_btn:   # the way back to the chooser: in the Part ribbon too, with its words
@@ -2662,13 +2664,13 @@ func sync() -> void:
 	if reopen_btn != null:
 		reopen_btn.text = "What to build" if on and not (easy and m.get_viewport().get_visible_rect().size.x < 1400.0) else ""   # bug6: Easy Part's bar at 1280 is full: the words went off the right edge, so the icon alone there   # icon only in the house ribbon (it is crowded there); with words in Part, Expert or Easy
 	for t in tool_btns:
-		(tool_btns[t] as Control).visible = show and not (t in m.RIBBON_REST.get("BUILD", [])) and (con_open or not (t in CON_TOOLS))   # the rarer ones live under their captions (main.gd RIBBON_REST); the rule row shows while Constrain is open
-	finish_btn.visible = show
+		(tool_btns[t] as Control).visible = show and not (t in m.RIBBON_REST.get("BUILD", [])) and (con_open or not (t in CON_TOOLS)) and not (bu.shell != null and bu.shell.hides(tool_btns[t]))   # the rarer ones live under their captions (main.gd RIBBON_REST); the rule row shows while Constrain is open
+	finish_btn.visible = show and not (bu.shell != null and bu.shell.hides(finish_btn))
 	if shp != null:
 		shp.sync()
 	easy_open_btn.visible = show
 	for c in my_seps:
-		(c as Control).visible = show
+		(c as Control).visible = show and not (bu.shell != null and bu.shell.hides(c))
 	if show != _was_show:
 		_was_show = show
 		if show:
@@ -2922,12 +2924,16 @@ func layout(cl: Rect2) -> void:
 	if side.size != ssz:
 		side.size = ssz
 	side.position = Vector2(cl.end.x - side.size.x - 8.0, cl.position.y + 6.0)
+	var docked: Dictionary = bu.shell.dock_apply("part", cl) if bu.shell != null else {}   # L20: a saved workspace layout places the browser / inspector / timeline
 	extras.reset_size()
 	extras.custom_minimum_size.x = PANEL_W
 	extras.size = Vector2(PANEL_W, minf(extras.get_combined_minimum_size().y, avail))
 	extras.position = Vector2(side.position.x - PANEL_W - 8.0, cl.position.y + 6.0)
 	note.reset_size()
 	note.position = Vector2(browser.position.x + BROWSER_W + 12.0, cl.position.y + 6.0)
+	if not docked.is_empty():   # L20: the note and the extras sit at the top of what the docks leave free
+		extras.position = Vector2(float(docked["free"].end.x) - PANEL_W - 4.0, cl.position.y + 6.0)
+		note.position = Vector2(float(docked["free"].position.x) + 4.0, cl.position.y + 6.0)
 	PartNoteFit.fit(note, note_l, m.get_viewport().get_visible_rect().size, [warn_ui, side])   # W02b: the whole status text, clear of the Look/Print panel
 	if bu.houses != null:
 		bu.houses.open_panel.visible = false

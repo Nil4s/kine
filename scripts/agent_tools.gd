@@ -15,7 +15,7 @@ const POINTS := ["head", "pelvis", "spine_03", "upperarm_l", "upperarm_r", "lowe
 const METHODS := ["commands", "open", "new", "run", "pose", "state", "measure", "describe", "ask", "check", "diff", "validate", "save", "quit", "assert", "events", "where", "place", "facts", "brief", "dry", "text_view", "lint", "frame_data"]
 ## C06: the methods the MCP server advertises on top of METHODS. They are NOT in METHODS: its list is the "ready" line and the -32601 text of the
 ## byte-for-byte transcript (refs/agent/serve_transcript.jsonl), which tests/agent_tools_test.gd replays. tools/mcp/poser_mcp.py names each of these (advertised with --math / POSER_MCP_MATH=1)
-const MCP_EXTRA := ["frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "fits"]
+const MCP_EXTRA := ["reactable", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "fits"]
 ## MCPFAST: the CAD tools (scripts/build/mcp_cad.gd); advertised with --cad
 const MCP_CAD := ["cad_part", "cad_asm", "check_fit", "bom", "eval_gd", "cad_reset"]
 
@@ -469,6 +469,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# its -32601 message is in the byte-for-byte transcript (refs/agent/serve_transcript.jsonl)
 			var fa := FrameAdvantage.serve(m, p)
 			return _ok(id, fa["result"]) if fa["ok"] else _err(id, -32602, String(fa["error"]))
+		"reactable":   # N082 wired (L11): can a viewer SEE each strike coming in time to react? {clip?, frame?, latency_ms?, fps?} (scripts/reactable_serve.gd). Not in METHODS
+			var rxr := ReactableServe.serve(m, p)
+			return _ok(id, rxr["result"]) if rxr["ok"] else _err(id, -32602, String(rxr["error"]))
 		"lint":   # N018: a clip made anywhere, judged on Kine's body (scripts/clip_lint.gd); the live scene is put back
 			var lr := ClipLint.lint(m, String(p.get("path", "")))
 			return _ok(id, lr) if lr["ok"] else _err(id, -32602, String(lr["error"]), lr)
@@ -507,6 +510,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"cad_part", "cad_asm", "check_fit", "bom", "eval_gd", "cad_reset":   # MCPFAST: not in METHODS (the transcript's ready line)
 			var mc := McpCad.serve(m, method, p)
 			return _ok(id, mc["result"]) if bool(mc["ok"]) else _err(id, -32602, String(mc["error"]))
+		"look4d", "sweep":   # L1 AI-COST: the zoomable digest and the one-summary sweep (scripts/build/mcp_cad.gd); not in METHODS
+			var lm: Dictionary = await McpCad.serve_async(m, method, p)
+			return _ok(id, lm["result"]) if bool(lm["ok"]) else _err(id, -32602, String(lm["error"]))
 		"quit":
 			return _ok(id, {"bye": true})
 		"events":

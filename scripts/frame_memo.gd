@@ -115,7 +115,7 @@ static func hold_at(holds: Array, t: float) -> int:
 ## Scene.apply_true(B, t), shared: the first judge to ask for a time plays it, the others put the same state on their body (a plain scene only:
 ## the pose is a function of the cards and t alone; anything else plays in full)
 static func pose(S: Scene, B: Body, t: float) -> void:
-	if not on or not plain(S):
+	if not on or not plain(S) or OS.get_thread_caller_id() != OS.get_main_thread_id():   # L21: a worker thread never touches the shared memo
 		S.apply_true(B, t)
 		return
 	var k := roundi(t * 100000.0)
@@ -125,14 +125,17 @@ static func pose(S: Scene, B: Body, t: float) -> void:
 	var hc := hold_at(_holds, t)
 	if hc >= 0:
 		k = -1 - hc   # every time in a card's hold is the same pose: played once
-	var st = _pc.get(k)
-	if st != null:
-		B._set_state0(st)
+	var ent = _pc.get(k)
+	# L21: a time is shared only when it is EXACTLY the one that was played (a judge sampling t0 + k / hz lands within 10 us of a grid time, not on it);
+	# a hold's pose does not depend on the time inside it
+	if ent != null and (k < 0 or ent[0] == t):
+		B._set_state0(ent[1])
 		return
 	var tp := Time.get_ticks_usec()
 	S.apply_true(B, t)
 	tick("pose (apply_true)", tp)
-	_pc[k] = B._state0()
+	if ent == null:
+		_pc[k] = [t, B._state0()]
 
 
 static func reset() -> void:

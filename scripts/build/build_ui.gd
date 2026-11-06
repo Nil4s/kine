@@ -113,6 +113,7 @@ var houses: HousesUI           # My houses: the name box, Save house, Open house
 var bp: BlueprintUI            # the Blueprint sheet (phase 1g)
 const MyParts := preload("res://scripts/build/myparts.gd")
 var _part_lt: LibraryThumbs = null   # My parts: draws the pictures of saved parts (made once, on the first save)
+var shell: UiExpShell   # L2: the wide window's tool rail (scripts/uiexp_shell.gd)
 var asm: AssemblyUI          # s213: the Assembly screen (scripts/build/assembly_ui.gd)
 var part: PartUI               # the Part workspace (Expert: sketch -> extrude / revolve / fillet, a timeline; scripts/build/part_ui.gd)
 var bp_btn: Button
@@ -492,6 +493,8 @@ func _build_ui() -> void:
 	part.setup(self)
 	asm = AssemblyUI.new()
 	asm.setup(self)
+	shell = UiExpShell.new()
+	shell.setup(self)
 
 
 ## a ribbon button of this page: its icon (scripts/icons.gd, build_*) and one word
@@ -627,7 +630,7 @@ func easy_ui() -> bool:
 
 ## the width the Easy column takes from the left of the clear view (0 in Expert): the Words box and the toasts start right of it
 func easy_inset() -> float:
-	return m.easy.building.inset() if easy_ui() else 0.0
+	return (m.easy.building.inset() if easy_ui() else 0.0) + (shell.inset() if shell != null else 0.0)
 
 
 ## a toast (main._toast) never covers the panel: it sits low in the view, right of the Snap chip, and moves left of the panel (or

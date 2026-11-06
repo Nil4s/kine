@@ -97,6 +97,8 @@
 ##   frame_data {fps, frames, exchange, hit_clip, block_clip, moves}  N080 (scripts/frame_advantage.gd): startup / active /
 ##                                 recovery at 60 fps; opt-in "exchange": hitstun, blockstun, on_hit / on_block (+ = attacker
 ##                                 first), punishable, vs the other fighter on the stage or reaction clips (first card = impact)
+##   reactable {clip?, frame?, latency_ms?, fps?}  N082 (scripts/reactable_serve.gd): per strike, the frames a viewer has between SEEING it
+##                                 coming and its first active frame vs the frames a human needs: reactable / not reactable + margin
 ##   lint {path}                   N018: a .bvh/.glb/.gltf/.fbx made anywhere, on Kine's body (scripts/clip_lint.gd); live scene kept
 ##   range {joint, axis, conditions, card? | t?, step?, from?, to?, joint2?, axis2?}   N013: the values of that axis that keep
 ##                                 EVERY condition true ("balance", "reach right fist to 0.25,1.35,0.45 within 2 cm", "limits 5",
@@ -418,6 +420,23 @@ func _init() -> void:
 			var xr := ExplainMotion.serve(m, xp)
 			say(String(xr.get("text", xr.get("error", ""))))
 			done(xr)
+		"reactable":   # N082 wired (L11): reactable <scene> [frame=N] [latency=MS] [fps=N] (scripts/reactable_serve.gd)
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "reactable <scene.json> [frame=N] [latency=MS] [fps=N]  (N082; scripts/reactable_serve.gd)"})
+				return
+			var rp := {}
+			for x in a.slice(2):
+				var kv2 := String(x).split("=", true, 1)
+				if kv2.size() == 2 and kv2[1].is_valid_float():
+					if kv2[0] == "frame" or kv2[0] == "fps":
+						rp[kv2[0]] = int(kv2[1])
+					elif kv2[0] == "latency":
+						rp["latency_ms"] = float(kv2[1])
+			var rxo := ReactableServe.serve(m, rp)
+			if rxo["ok"]:
+				say(Reactable.words(rxo["result"]))
+			done(rxo["result"] if rxo["ok"] else rxo)
 		"brief":   # N011 (scripts/scene_brief.gd)
 			var ti := a.find("--tokens")
 			var tk := int(a[ti + 1]) if ti >= 0 and ti + 1 < a.size() else SceneBrief.DEFAULT_TOKENS

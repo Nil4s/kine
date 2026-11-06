@@ -24,6 +24,7 @@ python tools/installer/stage_dist.py "$NATIVE" "$DIST" --manifest "$DIST/dlls.ts
 echo "== 3/4 licences and notices"
 cp LICENSE "$DIST/LICENSE.txt"; mkdir -p "$DIST/licences"; cp licences/* "$DIST/licences/"
 python tools/installer/make_notices.py "$REPO" "$DIST/dlls.tsv" "$DIST/THIRD_PARTY_NOTICES.txt"
+python tools/installer/check_notices.py "$DIST/THIRD_PARTY_NOTICES.txt" "$DIST/dlls.tsv"   # L16: the notices must name every staged DLL with its licence
 rm -f "$DIST/dlls.tsv"
 echo "== 4/4 Inno Setup"
 MSYS_NO_PATHCONV=1 "$ISCC" /Qp "/DAppVersion=$VER" "/DDistDir=$(cygpath -w "$DIST")" "/DRepoDir=$(cygpath -w "$REPO")" "/DOutDir=$(cygpath -w "$REPO/exports/installer")" tools/installer/kine.iss

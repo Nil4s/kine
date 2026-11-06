@@ -63,6 +63,12 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Tok.of("say_bg:0.55"), true)
 
 
+var _looked := false
+var _look_pos := Vector2.ZERO
+var looks := 0      # tests: looks made
+var skipped := 0    # tests: looks skipped (playing, the mouse has not moved)
+
+
 ## the throttle: at most one look at the mouse per 50 ms (main calls this from _process)
 func tick(dt: float) -> void:
 	_t += dt
@@ -71,6 +77,15 @@ func tick(dt: float) -> void:
 	if _t < (0.25 if playing else 0.05):
 		return
 	_t = 0.0
+	# L12 PERF60: a looks costs a pick (the whole skin re-posed). While the scene plays, a mouse that has not moved since the last
+	# look is not looked at again (the hint is looked at again when the mouse moves or the scene stops)
+	var mp: Vector2 = get_viewport().get_mouse_position() if m != null else Vector2.ZERO
+	if playing and not PerfDoc.slow and m != null and _looked and mp == _look_pos:
+		skipped += 1
+		return
+	_look_pos = mp
+	_looked = true
+	looks += 1
 	refresh()
 
 

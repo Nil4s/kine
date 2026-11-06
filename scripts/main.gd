@@ -205,6 +205,12 @@ var sf_ui: SafetyUI   # SAFETY SHEET (ROADMAP I28): scripts/safety_ui.gd
 var ml_ui: MomentumUI   # MOMENTUM LEDGER (ROADMAP I36): scripts/momentum_ui.gd + momentum.gd
 var rmc_ui: MocapCheckUI   # REAL-MOCAP POSE CHECK (ROADMAP I48): scripts/mocap_check_ui.gd + mocap_check.gd
 var sp_ui: SpinCheckUI   # AIRBORNE SPIN CHECK (ROADMAP I43): scripts/spin_check_ui.gd + spin_check.gd
+var lr_ui: LightRigUI   # LIGHT RIG PANEL (L25): scripts/light_rig_ui.gd
+var lr_hdri_id := ""   # L25: the sky map behind the figure ("" = none); a VIEW setting like the shading, not saved in the scene
+var lr_rot := 0.0
+var lr_int := 1.0
+var lr_link := {"key": false, "fill": false, "rim": false}   # L25: true = that light lights the character only (not the floor)
+var _lr_sky_on := false
 var fp_ui: FloorPlanUI   # FLOOR PLAN (ROADMAP I42): scripts/floor_plan_ui.gd
 var fa_ui: ExertionUI   # FATIGUE (ROADMAP I34): scripts/exertion_ui.gd + exertion.gd
 var rh_ui: FightRhythmUI   # FIGHT RHYTHM (ROADMAP I19): scripts/fight_rhythm_ui.gd
@@ -853,6 +859,7 @@ var _drag_locks := {}
 ## Overlays.split_parts), its capsule and dot are not drawn and a click goes through it. View state only, like a lock:
 ## no undo step, never in a pose or scene file
 var pieces := {}         # part -> its piece of the mannequin
+var soft_live := SoftLive.new()   # L22: the soft-body flesh in the viewport (scripts/soft_live.gd); idle unless the scene has a region
 var skp := SkinPick.new()  # PRECISE PICK: the ray against the posed skin, and the part's own skin lit (scripts/skin_pick.gd)
 var pick_us := 0           # how long the last _pick took (microseconds): the hover's cost, read by precise_pick_test
 var wp := {}             # WEIGHT PAINT (ROADMAP 72): the mannequin's skin weights, scripts/skin_paint.gd
@@ -1149,7 +1156,10 @@ func nav_clear_rect() -> Rect2:
 	var vs := get_viewport().get_visible_rect().size
 	var x0 := lw() + (bld.easy_inset() if bld != null else 0.0)   # Easy BUILD: the column takes the left
 	var x1 := vs.x - rw() - (ViewCube.SIZE + 24)   # the cube's strip (RR4: the nav bar is at the bottom, under the say-line's band)
-	return Rect2(x0, TOP_H, x1 - x0, vs.y - bottom_h - 88 - TOP_H)   # above the say-line
+	var y0 := float(TOP_H)
+	if bld != null and bld.shell != null:
+		y0 = bld.shell.top_y(y0)   # L2: the Part / Assembly screens start under the ribbon bar (81 px), not over its last 7
+	return Rect2(x0, y0, x1 - x0, vs.y - bottom_h - 88 - y0)   # above the say-line
 
 
 func fit_points() -> Array:
@@ -2051,7 +2061,49 @@ func _render_estimate() -> Dictionary:
 
 
 
-func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary:
+## the axes' MeshInstance3D (stage_marks holds it with the floor square)
+func _axis_node() -> Node3D:
+	for sm in stage_marks:
+		if sm is MeshInstance3D and (sm as MeshInstance3D).mesh == axis_mesh:
+			return sm
+	return null
+
+
+var ui_fr_dlg: ConfirmationDialog
+var ui_fr_res: OptionButton
+
+
+## "Final render...": pick the resolution, OK renders (the shot camera over every frame; exports/shots/<scene>_<stamp>_final/)
+func _final_render_dialog() -> void:
+	if ui_fr_dlg == null:
+		ui_fr_dlg = ConfirmationDialog.new()
+		ui_fr_dlg.name = "final_render_dialog"
+		ui_fr_dlg.title = "Final render"
+		ui_fr_dlg.min_size = Vector2i(380, 0)
+		var v := VBoxContainer.new()
+		var l := Label.new()
+		l.text = "Client-ready frames from the shot camera: SSAO, reflections, global light, soft shadows, 4x MSAA, no glow. Makes a PNG sequence and an .mp4."
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size = Vector2(360, 0)
+		v.add_child(l)
+		ui_fr_res = OptionButton.new()
+		ui_fr_res.name = "opt_resolution"
+		for r in FinalRender.RES:
+			ui_fr_res.add_item("%d x %d" % [r.x, r.y])
+		ui_fr_res.select(FinalRender.RES.find(FinalRender.DEFAULT_RES))
+		v.add_child(ui_fr_res)
+		ui_fr_dlg.add_child(v)
+		ui_fr_dlg.confirmed.connect(func():
+			var r: Vector2i = FinalRender.RES[ui_fr_res.selected]
+			_render_shots(ShotRender.ROOT, "", {"preset": "final", "w": r.x, "h": r.y}))
+		add_child(ui_fr_dlg)
+	ui_fr_dlg.popup_centered()
+
+
+## FINAL RENDER (GAP_AUDIT_1106 #3; scripts/final_render.gd): opts {"preset": "final"|"draft", "w", "h", "first", "count"} makes this the same
+## render through a SubViewport of w x h (default 1920x1080) with the quality preset on, over the frame range first .. first+count-1
+## (default: every frame); the PNGs are numbered from 0000 within that range and the mp4 is made of exactly them.
+func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "", opts := {}) -> Dictionary:
 	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
 	if _sr_busy:
 		_say_plain("A shot render is already running: press Esc (or Cancel render) to stop it, then run Render shots to video again")
@@ -2069,7 +2121,11 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 	var n := ShotRender.frame_count(length, fps)
 	var rng := ShotRender.ranges(_shot_shots(), length, fps)
 	var nm := safe_file(S.name) if S.name != "" else "scene"
-	var dir := "%s/%s_%s" % [root_dir, nm, _stamp()]
+	var preset := String(opts.get("preset", ""))
+	var first_f := clampi(int(opts.get("first", 0)), 0, n - 1)
+	var last_f := mini(n, first_f + int(opts.get("count", n)))
+	n = last_f - first_f   # the frames this render makes
+	var dir := "%s/%s_%s%s" % [root_dir, nm, _stamp(), ("_" + preset) if preset != "" else ""]
 	var gdir := ProjectSettings.globalize_path(dir)
 	if DirAccess.make_dir_recursive_absolute(gdir) != OK:
 		_say_plain("NOT DONE: the folder %s could not be made: close anything using it, or choose another place, and run Render shots to video again" % dir)
@@ -2091,15 +2147,41 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 	var shot := _shot_blast_begin()
 	clean = keep_clean
 	_sides_apply()
+	var svp: SubViewport = null
+	var svp_cam: Camera3D = null
+	var fr_lights := [light_key, light_fill, light_rim]
+	var fr_saved := {}
+	var fr_hide := []
+	var fr_outline: Variant = null
+	if preset != "":
+		svp = SubViewport.new()
+		svp.size = Vector2i(int(opts.get("w", FinalRender.DEFAULT_RES.x)), int(opts.get("h", FinalRender.DEFAULT_RES.y)))
+		svp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		add_child(svp)   # no own world: it draws this scene's World3D
+		svp_cam = Camera3D.new()
+		svp_cam.keep_aspect = Camera3D.KEEP_HEIGHT
+		svp.add_child(svp_cam)
+		svp_cam.current = true
+		fr_saved = FinalRender.apply(preset, world_env, svp, fr_lights)
+		# the editor's own visuals are not part of the picture: the grid, the axes, the body's sky outline (collapsed to zero thickness)
+		for nd in [grid_node, _axis_node()]:
+			if nd != null:
+				fr_hide.append([nd, nd.visible])
+				nd.visible = false
+		if _body_outline != null:
+			fr_outline = _body_outline.get_shader_parameter("grow")
+			_body_outline.set_shader_parameter("grow", 0.0)
 	var done := 0
 	for r in rng:
 		for j in int(r["count"]):
 			if _sr_cancel:
 				break
 			var f: int = int(r["first"]) + j
-			_sr_label.text = "Rendering shots: frame %d of %d  (shot %d of %d: %s)" % [f + 1, n, int(r["shot"]) + 1, _shot_shots().size(), _shot_shots()[int(r["shot"])]["name"]]
+			if f < first_f or f >= last_f:
+				continue
+			_sr_label.text = "Rendering shots: frame %d of %d  (shot %d of %d: %s)" % [f - first_f + 1, n, int(r["shot"]) + 1, _shot_shots().size(), _shot_shots()[int(r["shot"])]["name"]]
 			_sr_bar.value = 100.0 * float(done) / float(n)
-			_say_plain("rendering shots: %d%%  (frame %d of %d; Esc or Cancel render stops it)" % [int(100.0 * done / n), f + 1, n])
+			_say_plain("rendering shots: %d%%  (frame %d of %d; Esc or Cancel render stops it)" % [int(100.0 * done / n), f - first_f + 1, n])
 			await RenderingServer.frame_post_draw   # one drawn frame WITH the progress panel; a click on Cancel is read meanwhile
 			if _sr_cancel:
 				break
@@ -2115,10 +2197,20 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 				wt.render_active = true   # R23
 				_refresh()
 				_shot_blast_frame(shot)
-				await get_tree().process_frame
-				await RenderingServer.frame_post_draw
-				sub_imgs.append(_shot_blast_image(shot, get_viewport().get_texture().get_image()))
-			(sub_imgs[0] if sub_imgs.size() == 1 else PlayblastExport.average(sub_imgs)).save_png("%s/frame_%04d.png" % [gdir, f])
+				if svp != null:
+					var sv := shot_view_at(playhead)   # the shot camera itself, the whole frame (no crop of the window)
+					svp_cam.global_transform = sv["xf"]
+					svp_cam.fov = ShotCam.fov_v(float(sv["f"]))
+					svp_cam.attributes = cam.attributes
+					if preset == "final":
+						await get_tree().process_frame   # SSAO / SDFGI settle on the new pose
+						await get_tree().process_frame
+					sub_imgs.append(await FinalRender.grab(get_tree(), svp))
+				else:
+					await get_tree().process_frame
+					await RenderingServer.frame_post_draw
+					sub_imgs.append(_shot_blast_image(shot, get_viewport().get_texture().get_image()))
+			(sub_imgs[0] if sub_imgs.size() == 1 else PlayblastExport.average(sub_imgs)).save_png("%s/frame_%04d.png" % [gdir, f - first_f])
 			wt.render_active = false
 			ui_root.visible = true
 			_sr_layer.visible = true
@@ -2129,6 +2221,13 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 		if _sr_cancel:
 			break
 	_shot_blast_end(shot)
+	if svp != null:
+		FinalRender.restore(fr_saved, world_env, svp, fr_lights)
+		for h in fr_hide:
+			(h[0] as Node3D).visible = h[1]
+		if _body_outline != null and fr_outline != null:
+			_body_outline.set_shader_parameter("grow", fr_outline)
+		svp.queue_free()
 	ui_root.visible = true
 	clean = keep_clean
 	_sides_apply()
@@ -2149,7 +2248,7 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 		ff = PlayblastExport.find_ffmpeg(ffmpeg_path)
 		if ff == "":
 			how = ". No .mp4: ffmpeg was not found; install it (winget install Gyan.FFmpeg, or ffmpeg.org), then run Render shots to video again, or set POSER_FFMPEG to ffmpeg.exe"
-		elif PlayblastExport.encode(ff, gdir, fps, "%s/%s.mp4" % [gdir, nm], AudioTrack.audible_list(S.audio_tracks), 0.0) == OK and FileAccess.file_exists("%s/%s.mp4" % [gdir, nm]):
+		elif PlayblastExport.encode(ff, gdir, fps, "%s/%s.mp4" % [gdir, nm], AudioTrack.audible_list(S.audio_tracks), float(first_f) / float(fps)) == OK and FileAccess.file_exists("%s/%s.mp4" % [gdir, nm]):
 			mp4 = "%s/%s.mp4" % [gdir, nm]
 			how = " and %s.mp4" % nm
 		else:
@@ -2289,6 +2388,34 @@ func _export_usd(dir := "res://exports") -> String:
 		_say_plain("NOT DONE: the .usda could not be written (%s)" % error_string(r[0]))
 		return ""
 	_say_plain("exported %s.usda: %d joints, %d frames at %d fps (UsdSkel, Y up, metres; the weapons are not in it)" % [nm, r[1]["joints"], r[1]["frames"], S.fps])
+	return path
+
+
+## EXPORT .USDA, SKINNED (L19): the fighter as a UsdSkel with its skinned mesh, joint weights and, with the face geometry on, the six AU
+## BlendShapes (UsdWire.character: the imported CharImport character when one stands, else the mannequin). exports/<scene>_skinned.usda.
+func _export_usd_skinned(dir := "res://exports") -> String:
+	dir = UserPaths.w(dir)   # an exported build: the user's folder
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
+		return ""
+	if not _export_actors().is_empty():
+		_say_plain("NOT NOW: the skinned .usda is one fighter; with several fighters, Export animation (.usda) puts each one in its file")
+		return ""
+	var nm := S.name if S.name != "" else "scene"
+	var path := "%s/%s_skinned.usda" % [dir, nm]
+	var keep := B.state()
+	var ch := UsdWire.character(S, B, self)
+	if ch.is_empty():
+		B.set_state(keep)
+		_say_plain("NOT DONE: there is no skinned body to write (the imported character could not be fitted)")
+		return ""
+	var r := UsdExport.write_skinned(S, B, ch, path)
+	B.set_state(keep)
+	_refresh()
+	if r[0] != OK:
+		_say_plain("NOT DONE: the .usda could not be written (%s)" % error_string(r[0]))
+		return ""
+	_say_plain("exported %s_skinned.usda: %d vertices, %d joints, %d blend shape%s, %d frames at %d fps (UsdSkel mesh with joint weights, Y up, metres; the weapons are not in it)" % [nm, r[1]["verts"], r[1]["joints"], r[1]["shapes"], "" if r[1]["shapes"] == 1 else "s", r[1]["frames"], S.fps])
 	return path
 
 
@@ -3037,6 +3164,12 @@ func _ready() -> void:
 	# THE QUALITY WORKER (Easy's My scenes badges): Kine --headless --kine-quality-worker <list.json> grades the list and quits
 	# before anything else starts (no UI, no autosave). Checked first, so the app's start-up never runs in that process.
 	var wargs := OS.get_cmdline_args()
+	var smoke_args := PackedStringArray(wargs) + OS.get_cmdline_user_args()
+	if InstallSmoke.wanted(smoke_args):   # L16: the clean-machine install test's launch; checks the install, writes nothing, exits 0 or 3
+		process_mode = Node.PROCESS_MODE_DISABLED
+		var smoke_code := InstallSmoke.run(smoke_args)
+		get_tree().quit(smoke_code)
+		return
 	var wi := wargs.find("--kine-quality-worker")
 	if wi >= 0 and wi + 1 < wargs.size():
 		process_mode = Node.PROCESS_MODE_DISABLED   # the app's per-frame work (autosave, auto-version) must not run in this process
@@ -3160,6 +3293,8 @@ func _ready() -> void:
 	# the smallest window the layout is made for (round 21, GATES BB1): at 1024 x 768 the scene row and the play row ran
 	# off the right and the view was ~390 px between the side panels; Windows now stops a drag below it
 	get_window().min_size = Vector2i(MIN_ROOM)
+	if not testing:
+		UiExpShell.fit_window(get_window())   # L2: the first window is never bigger than the usable screen
 	get_viewport().size_changed.connect(func(): _fit_rows.call_deferred(); _fit_top.call_deferred(); _fit_page_bar.call_deferred(); _place_nav.call_deferred(); _place_akey_frame.call_deferred(); _strip_fit.call_deferred(); _browser_fit.call_deferred())
 	_world()
 	_gfx_start(testing)
@@ -3447,6 +3582,7 @@ func _ready() -> void:
 		get_tree().quit()
 
 
+	_after_first_frame(_update_check_now.bind(false))   # L16: opt-in (off, and no feed address, by default): does nothing unless the user turned it on
 	if args.has("--selfcheck-save"):   # an exported build's own check (see _selfcheck_save); nothing happens without the argument
 		await _selfcheck_save()
 		return
@@ -3525,25 +3661,40 @@ func _process(dt: float) -> void:
 
 
 func _process_body(dt: float) -> void:
+	var _pre := PerfDoc.t()
 	_mesh_hint_sync()
+	PerfDoc.add("p_hint", _pre)
+	if soft_live.busy() and soft_live.poll(self):
+		_soft_draw()   # L22: the bake landed while nothing else redrew
+	var _p0 := PerfDoc.t()
 	_hands_dock_tick()   # C66
+	PerfDoc.add("p_dock", _p0)
 	if _drop_line != null and _drop_line.visible:
 		var hov := get_viewport().gui_get_hovered_control()
 		if not get_viewport().gui_is_dragging() or hov == null or not (hov == ui_card_row or ui_card_row.is_ancestor_of(hov)):
 			_drop_line.visible = false   # R8: the drag ended or left the strip
 	PoseBake.serving = playing   # the baked pose table serves playback only (pose_bake.gd)
+	var _pm := PerfDoc.t()
 	if ui_mouse != null:
 		ui_mouse.tick(dt)   # P05: at most every 50 ms
+	PerfDoc.add("p_mouse", _pm)
 	_co_tick()   # ROADMAP 30: the session's socket, the owned fighter's playhead
+	var _p1 := PerfDoc.t()
 	_doc_line()   # RR1: the strip catches up (throttled) after edits that do not refresh
+	PerfDoc.add("p_docline", _p1)
+	_p1 = PerfDoc.t()
 	_mark_play_card()   # the card at the playhead wears the gold frame; the strip follows it while playing
+	PerfDoc.add("p_markcard", _p1)
+	_p1 = PerfDoc.t()
 	_keys_camera(dt)
+	PerfDoc.add("p_keycam", _p1)
 	if campiv != null:
 		campiv.tick(dt)   # C07
 	if vx != null:
 		vx.tick(dt)   # K13-K16
 	if shot_through:
 		_shot_apply()   # THE SHOT CAMERA follows the playhead (play, scrub, an edit)
+	_p0 = PerfDoc.t()
 	_tour_poll()
 	_step_hint = ""   # a press that pushed no step must not name a later one
 	_pv_poll()
@@ -3552,10 +3703,12 @@ func _process_body(dt: float) -> void:
 	_multicam_poll(dt)
 	refimg.poll(dt)
 	_imp_poll()
+	PerfDoc.add("p_polls0", _p0)
 	var _pp := PerfDoc.t()
 	_live_poll(dt)
 	PerfDoc.add("live", _pp)
 	_sg_poll()
+	_p0 = PerfDoc.t()
 	if mm_ui != null:
 		mm_ui.tick(dt)   # MOTION MATCHING PREVIEW: steers and plays the matched frames while it is on (nothing otherwise)
 	if mp_ui != null:
@@ -3610,6 +3763,7 @@ func _process_body(dt: float) -> void:
 		sp_ui.tick(dt)
 	if rmc_ui != null:
 		rmc_ui.tick(dt)
+	PerfDoc.add("p_ticks", _p0)
 	sj.observe(undo.size())   # I26: undone / edited suggestions
 	if not myhits.pending.is_empty():   # I46: my edits of a written reaction become lessons once they settle
 		myhits.observe(undo.size(), func(vk: int): return (actors_rt[vk]["S"] as Scene) if vk < actors_rt.size() else null, B)
@@ -3623,11 +3777,22 @@ func _process_body(dt: float) -> void:
 		pr_ui.tick(dt)
 	if tc_ui != null:
 		tc_ui.tick(dt)   # TIMING COACH preview: plays a suggested timing on a copy (nothing otherwise)
+	PerfDoc.add("p_sj", _p0)
+	_p1 = PerfDoc.t()
 	_dm_poll()
+	PerfDoc.add("p_dm", _p1)
+	_p1 = PerfDoc.t()
 	_hit_ui_tick()
+	PerfDoc.add("p_hit", _p1)
+	_p1 = PerfDoc.t()
 	_bake_poll()
+	PerfDoc.add("p_bake", _p1)
+	_p1 = PerfDoc.t()
 	_kb_poll()
+	PerfDoc.add("p_kb", _p1)
+	_p1 = PerfDoc.t()
 	autover_tick()
+	PerfDoc.add("p_polls", _p1)
 	_as_wait += dt
 	if _as_wait >= 15.0:
 		_as_wait = 0.0
@@ -3640,6 +3805,7 @@ func _process_body(dt: float) -> void:
 			hover_part = ""
 			_fh_clear()
 			_refresh()
+	_p1 = PerfDoc.t()
 	var now := Time.get_ticks_msec() / 1000.0
 	if hover_part != _bar_want:
 		_bar_want = hover_part
@@ -3651,7 +3817,11 @@ func _process_body(dt: float) -> void:
 		if bt != ui_bar.text:   # rebuilt every frame, written only when it differs: no edit path can leave it stale
 			ui_bar.text = bt
 		ui_bar.visible = not (easy != null and easy.on) and not _hides("readout")   # Easy: no card count or seconds readout (Expert keeps it)
+	PerfDoc.add("p_bar", _p1)
+	_p1 = PerfDoc.t()
 	_props_pose()   # UU2: carried and falling props follow the playhead (nothing when no card carries)
+	PerfDoc.add("p_props", _p1)
+	PerfDoc.add("p_pre", _pre)
 	var _a_before := playhead   # the sound follows whatever moved the playhead this frame (_audio_tick)
 	if playing and not S.cards.is_empty():
 		# WW4: inside the preview range, if one is set. ROADMAP 48: how far the playhead moves is the play clock's mode
@@ -3676,7 +3846,9 @@ func _process_body(dt: float) -> void:
 			var ps := _ps()
 			ps.apply(B, ps.play_t(playhead))   # ROADMAP 99: the evaluated time is a tick of the bake grid, the pose a baked one
 		PerfDoc.add("body", _pp)
+		_pp = PerfDoc.t()
 		_refresh()
+		PerfDoc.add("p_refresh", _pp)
 		if play_delay > 0.0:
 			OS.delay_msec(roundi(play_delay * 1000.0))   # the test's slow frame: this frame really costs that long
 	_audio_tick(_a_before, dt)
@@ -3746,6 +3918,7 @@ func _world() -> void:
 	floor_mat = fm
 	floor.material_override = fm
 	floor.position.y = -0.002
+	floor.layers = LightRig.WORLD_BIT   # L25 light linking: the floor is "the world", on its own layer (a light linked to the character skips it)
 	stage_root.add_child(floor)
 	stage_marks.append(floor)
 	for lab in [["X  his left", Vector3(0.72, 0.01, 0), AXES[0][1]], ["Y  up", Vector3(0, AXIS_Y + 0.05, 0), AXES[1][1]], ["Z  he faces this way", Vector3(0, 0.01, 0.74), AXES[2][1]]]:
@@ -4018,7 +4191,7 @@ func _tl_height() -> void:
 func _tl_under_ruler() -> float:
 	if ui_timeline == null:
 		return 0.0
-	return (Timeline.FD_H + 3.0 if not ui_timeline.fd.is_empty() else 0.0) + ui_timeline.bx_px() + ui_timeline.shots_px() + ui_timeline.sp_px() + ui_timeline.iq_px() + ui_timeline.sc_px()   # + the sound cue lane (I35) + the video confidence lane (VIDEO IQ)
+	return ui_timeline.fd_px() + ui_timeline.bx_px() + ui_timeline.shots_px() + ui_timeline.sp_px() + ui_timeline.iq_px() + ui_timeline.sc_px()   # + the sound cue lane (I35) + the video confidence lane (VIDEO IQ)
 
 
 # ---------------------------------------------------------------- FRAME DATA (ROADMAP 12; scripts/frame_data.gd)
@@ -5202,12 +5375,22 @@ func _place(mi: MeshInstance3D, a: Vector3, b: Vector3, r: float, capsule := tru
 
 
 func _refresh() -> void:
+	var _rf := PerfDoc.t()
 	if ic_ui != null:
 		ic_ui.sync()   # plan 137: the target's flash on its 2 frames
+	PerfDoc.add("r_ic", _rf)
+	_rf = PerfDoc.t()
 	_hands_refresh()   # HANDS (w4-handlock): the hands rows say the state
+	PerfDoc.add("r_hands", _rf)
+	_rf = PerfDoc.t()
 	_light_apply()
+	PerfDoc.add("r_light", _rf)
+	_rf = PerfDoc.t()
 	_refimg_sync()
+	PerfDoc.add("r_head", _rf)
+	_rf = PerfDoc.t()
 	_actors_view()
+	PerfDoc.add("r_actors", _rf)
 	_curve_sync()
 	if ui_akey != null and auto_key:
 		ui_akey.queue_redraw()   # the frame reads Tok on each draw: a palette switch shows at once
@@ -5219,6 +5402,7 @@ func _refresh() -> void:
 	var _pk := PerfDoc.t()
 	if not PerfStub.skip("skinning"):
 		Overlays.pose_skeleton(skel, bone_idx, B)
+	CharImportApp.update(self)   # L9: an imported rigged character stands on the pose (scripts/char_import_app.gd)
 	PerfDoc.add("skinning", _pk)
 	corr.update(B)
 	dq_skin_pass.update(S.dq_skin)   # H04: after the corrective (its mesh is the rest DQ corrects)
@@ -5232,15 +5416,10 @@ func _refresh() -> void:
 	_fd_refresh()   # FRAME DATA (ROADMAP 12): the strip and the boxes on active frames
 	if ui_browser != null and ui_browser.visible:
 		ui_browser.follow()
-	var touching := {}
-	for pr in B.pairs:
-		if not B.wep_on and (pr[0] in Body.WEAPON or pr[1] in Body.WEAPON):
-			continue
-		if not B.wep2_on and (pr[0] in Body.WEAPON2 or pr[1] in Body.WEAPON2):
-			continue
-		if B.depth(pr[0], pr[1]) - float(B.allow.get(pr[0] + "|" + pr[1], 0.0)) > 0.001:
-			touching[pr[0]] = true
-			touching[pr[1]] = true
+	_rf = PerfDoc.t()
+	var touching: Dictionary = B.touching_parts_ref() if PerfDoc.slow else B.touching_parts()   # L12: one capsule per part per frame
+	PerfDoc.add("r_touch", _rf)
+	_rf = PerfDoc.t()
 	var looks := {}   # PRECISE PICK: each body part's light on its own skin (SkinPick.set_looks)
 	# EASY QUIET: no standing pick light, name tag or joint dots on a beginner's body (a blue "right upper arm" over the punch
 	# read as a fault); the hover light stays (what a click would grab) and the pick shows while a part is dragged
@@ -5293,6 +5472,8 @@ func _refresh() -> void:
 			col.a = 0.0
 		mats[j].albedo_color = col
 		parts[j].visible = col.a > 0.0 and (B.wep_on or not j in Body.WEAPON) and (B.wep2_on or not j in Body.WEAPON2) and not hidden_parts.has(j)
+	PerfDoc.add("r_parts", _rf)
+	_rf = PerfDoc.t()
 	var _rk := {sel: true}
 	for sj in sel_more:
 		_rk[sj] = true
@@ -5338,8 +5519,11 @@ func _refresh() -> void:
 		(sm as Node3D).visible = not _hides("figure")
 	for dj in dots:
 		dots[dj].visible = not clean and not quiet and not hidden_parts.has(dj) and not mesh_pg
+		if face_geo_on and not face_geo_data.is_empty() and dj == "head":
+			dots[dj].visible = false   # the head joint's dot sits at the chin from the front: with the face geometry on it is hidden
 	tag.text = part_words(sel)
 	tag.position = ((c2[0] as Vector3) + (c2[1] as Vector3)) * 0.5 + Vector3(0, 0.1, 0)
+	PerfDoc.add("r_looks", _rf)
 	_dummy_refresh()
 	_pk = PerfDoc.t()
 	bal.show_body(B)
@@ -5398,6 +5582,9 @@ func _refresh() -> void:
 	_sec_draw()   # ROADMAP 26: the secondary chains (ponytail, cloth, bo) at the playhead, from their baked keys
 	_cape_draw()   # ROADMAP 86: the baked cape at the playhead
 	PerfDoc.add("cloth", _pk)
+	_pk = PerfDoc.t()
+	_soft_draw()   # L22: the soft-body flesh on the skin (nothing unless a region is on)
+	PerfDoc.add("soft", _pk)
 	_pk = PerfDoc.t()
 	_rigx_draw()   # J24: the words-made rig (tail, ears, cape) on the body
 	if bed != null or not S.bones.is_empty():
@@ -6568,9 +6755,11 @@ func _snapshot() -> Dictionary:
 		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
+		"soft": S.soft.duplicate(true),   # L22: the soft-body regions, undone like a card
 		"cape": S.cape.duplicate(true),   # the cape (ROADMAP 86), undone like a card
 		"rigx": S.rigx.duplicate(true),   # the words-made rig (rig_words.gd), undone like a card
 		"bones": S.bones.duplicate(true),   # J01: the user's extra bones (bone_editor.gd), undone like a card
+		"spline": S.spline_chains.duplicate(true),   # L28: their spline-IK chains (spline_chain.gd), undone like a card
 		"hair": S.hair.duplicate(true),   # the hair strands' parameters (ROADMAP 87): undone like a card, the frames baked again
 		"skin_w": SkinPaint.snapshot(wp),   # WEIGHT PAINT (ROADMAP 72): every stroke is one step, undone with the weights
 		"body_gen": BaseBody.gen(self),   # G01: the body mesh applied from the model preview (scripts/base_body.gd)
@@ -6773,6 +6962,8 @@ func _restore(u: Dictionary) -> void:
 		_attr_refresh()   # the rows of an undone add go, and come back on redo, without waiting for the next refresh
 	if u["scene"] == S and u.has("secondary") and var_to_str(u["secondary"]) != var_to_str(S.secondary):
 		S.secondary = u["secondary"].duplicate(true)   # SECONDARY MOTION (ROADMAP 26), undone like a card
+	if u["scene"] == S and u.has("soft") and var_to_str(u["soft"]) != var_to_str(S.soft):
+		S.soft = u["soft"].duplicate(true)   # L22: the soft-body regions, undone like a card
 	if u["scene"] == S and u.has("cape") and var_to_str(u["cape"]) != var_to_str(S.cape):
 		S.cape = u["cape"].duplicate(true)   # the cape (ROADMAP 86), undone like a card
 	if u["scene"] == S and u.has("rigx") and var_to_str(u["rigx"]) != var_to_str(S.rigx):
@@ -6780,6 +6971,8 @@ func _restore(u: Dictionary) -> void:
 		ov.mark_dirty()
 	if u["scene"] == S and u.has("bones") and var_to_str(u["bones"]) != var_to_str(S.bones):
 		S.bones = u["bones"].duplicate(true)   # BONE EDITOR (J01), undone like a card
+	if u["scene"] == S and u.has("spline") and var_to_str(u["spline"]) != var_to_str(S.spline_chains):
+		S.spline_chains = u["spline"].duplicate(true)   # SPLINE IK on bone chains (L28), undone like a card
 	if u["scene"] == S and u.has("hair") and var_to_str(u["hair"]) != var_to_str(S.hair):
 		S.hair = u["hair"].duplicate(true)   # HAIR STRANDS (ROADMAP 87), undone like a card: the strands are baked again
 		_hair_bake()
@@ -8083,6 +8276,7 @@ func _scene_dict(frames := true) -> Dictionary:
 	var ar := ArmourFromBody.to_file(self)   # B23: the armour plates on the fighter, when there are any (scripts/armour_from_body.gd)
 	if not ar.is_empty():
 		d[ArmourFromBody.KEY] = ar
+	CharImportApp.put_key(self, d)   # L9: the imported character (its file, its bone map by name)
 	return d
 
 
@@ -9000,6 +9194,110 @@ func _spine_pin() -> void:
 	_do(func(): r.merge(SpineIK.pin(S, B, t)))
 	_dummy_hits()
 	_say("spline IK on the back at %.2f s: drag the hip, mid-back and chest handles to bend it along the curve (it matches the pose within %.1f mm now; Ctrl+Z takes it back)" % [t, float(r["err"]) * 1000.0])
+
+
+## SPLINE IK ON A BONE CHAIN (L28; scripts/spline_chain.gd): the picked bone of the bone editor and the chain below it follow a curve through
+## 4 handles. Each command is one undo step. Handles live in the rest space of the root bone's parent, so the chain rides with the body.
+func _spline_make(first := "") -> void:
+	var b := first if first != "" else (bed.cur if bed != null else "")
+	if b == "" or BoneEdit.find(S.bones, b) < 0:
+		_say("spline IK needs one of your bones: open Rig: bone editor, pick the first bone of the chain (a tail, a tentacle), then Spline IK")
+		return
+	var names := SplineChain.chain_from(S.bones, b)
+	if names.size() < 2:
+		_say("spline IK needs a chain of at least 2 bones: E in the bone editor grows the next one")
+		return
+	for n in names:
+		if SplineChain.index_of(S.spline_chains, n) >= 0:
+			_say("%s is already on a spline: turn that one off first" % n)
+			return
+	_step_hint = "Spline IK on a bone chain"
+	_do(func(): S.spline_chains.append(SplineChain.make(B, S.bones, names, SplineChain.free_name(S.spline_chains))))
+	if bed != null:
+		bed._sig = ""
+		bed.draw()
+	_say("spline IK on %d bones from %s: drag the handle balls in the bone editor; Stretch lets the bones grow to fit the curve (one undo step; Ctrl+Z takes it back)" % [names.size(), b])
+
+
+## move handle `hi` of chain `ci` to the posed-world point `pos`, WITHOUT an undo step (a drag does one step around many of these)
+func _spline_put(ci: int, hi: int, pos: Vector3) -> void:
+	if ci < 0 or ci >= S.spline_chains.size() or hi < 1 or hi >= (S.spline_chains[ci]["ctrl"] as Array).size():
+		return
+	var K := SplineChain.carry(B, S.bones, S.spline_chains[ci])
+	S.spline_chains[ci]["ctrl"][hi] = K.affine_inverse() * pos
+
+
+func _spline_handle(ci: int, hi: int, pos: Vector3) -> void:
+	if ci < 0 or ci >= S.spline_chains.size() or hi < 1 or hi >= (S.spline_chains[ci]["ctrl"] as Array).size():
+		_say("that spline handle cannot move (the first one is the root bone's head)")
+		return
+	_step_hint = "Move spline handle"
+	_do(func(): _spline_put(ci, hi, pos))
+	if bed != null:
+		bed.draw()
+
+
+func _spline_set(ci: int, field: String, v: Variant) -> void:
+	if ci < 0 or ci >= S.spline_chains.size() or not field in ["mode", "kind", "volume", "tw0", "tw1"]:
+		return
+	if field == "mode" and not v in SplineChain.MODES:
+		return
+	if field == "kind" and not v in SplineChain.KINDS:
+		return
+	_step_hint = "Spline IK " + field
+	_do(func(): S.spline_chains[ci][field] = v)
+	if bed != null:
+		bed.draw()
+
+
+func _spline_off(ci: int) -> void:
+	if ci < 0 or ci >= S.spline_chains.size():
+		_say("spline IK off: pick a bone of the chain first")
+		return
+	_step_hint = "Spline IK off"
+	_do(func(): S.spline_chains.remove_at(ci))
+	if bed != null:
+		bed._sig = ""
+		bed.draw()
+	_say("spline IK off: the bones are plain bones again (Ctrl+Z takes it back)")
+
+
+func _spline_pick_index() -> int:
+	return SplineChain.index_of(S.spline_chains, bed.cur) if bed != null and bed.cur != "" else -1
+
+
+func _spline_toggle(field: String) -> void:
+	var ci := _spline_pick_index()
+	if ci < 0:
+		_say("pick a bone of a spline chain in the bone editor first")
+		return
+	if field == "mode":
+		_spline_set(ci, "mode", "keep" if S.spline_chains[ci]["mode"] == "stretch" else "stretch")
+	else:
+		_spline_set(ci, field, not bool(S.spline_chains[ci][field]))
+
+
+## STRETCHY LIMB (L28): the picked hand / foot may reach past its length: bones grow up to x1.5 (and keep their volume when asked).
+## Needs the limb pinned (an IK key); written on its keys, off by default
+func _ik_stretch(vol := false) -> void:
+	var tip := _ik_tip()
+	if tip == "" or not S.ik.has(tip):
+		_say("a stretchy limb needs the limb pinned first: click a hand or a foot, use IK pin, then this")
+		return
+	var on_now: bool = float((S.ik[tip] as Array)[0].get("stretch", 0.0)) > 1.0
+	var turn_off := on_now and not vol
+	_step_hint = "Stretchy limb"
+	_do(func():
+		for k in S.ik[tip]:
+			if turn_off:
+				k.erase("stretch")
+				k.erase("vol")
+			else:
+				k["stretch"] = 1.5
+				if vol:
+					k["vol"] = not bool(k.get("vol", false))
+	)
+	_say("stretchy %s: %s (Ctrl+Z takes it back)" % [_ik_words(tip), "off, the limb stops at full reach again" if turn_off else "on, up to 1.5x its length%s" % (", keeping its volume" if vol else "")])
 
 
 func _spine_off() -> void:
@@ -9983,6 +10281,48 @@ func _cape_draw() -> void:
 
 
 ## the overlay: each item's chain at the playhead, from its baked keys (at rest when not baked yet)
+## L22 SOFT-WIRE (scripts/soft_live.gd): the BODY page's flesh toggles and strength slider. Default OFF: nothing below runs.
+func soft_set(group: String, on: bool) -> void:
+	if not SoftBody.GROUPS.has(group):
+		return
+	var cur: Array = S.soft.get("regions", []).duplicate()
+	var gset: Array = SoftBody.GROUPS[group]
+	var ns := []
+	for n in SoftBody.REGIONS.keys():
+		if (cur.has(n) and not gset.has(n)) or (on and gset.has(n)):
+			ns.append(n)
+	if ns == cur:
+		return
+	var strength := SoftBody.strength_of(S)
+	_do(func():
+		var d := {}
+		if not ns.is_empty():
+			d["regions"] = ns
+		if absf(strength - 1.0) > 1e-9:
+			d["strength"] = strength
+		S.soft = d)
+
+
+## the strength slider (1 = as simulated, up to SoftBody.STRENGTH_MAX): drawn at once, no undo step, no new bake
+func soft_strength_set(x: float) -> void:
+	x = clampf(x, 0.0, SoftBody.STRENGTH_MAX)
+	var d := S.soft.duplicate()
+	if absf(x - 1.0) < 1e-9:
+		d.erase("strength")
+	else:
+		d["strength"] = x
+	S.soft = d
+	_soft_draw()
+
+
+func _soft_draw() -> void:
+	if ui_body != null and ui_body.soft_shown != S.soft:
+		ui_body.soft_sync(S)
+	if S.soft.is_empty() and not soft_live.engaged:
+		return
+	soft_live.tick(self)
+
+
 func _sec_draw() -> void:
 	if _sec_line == null:
 		_sec_line = MeshInstance3D.new()
@@ -11090,11 +11430,13 @@ func _hands_refresh() -> void:
 		# the view's bottom RIGHT, over the floor, above the status line (under the top bar it covered the head; at the
 		# left it met the "Click a part" tip)
 		var vs := get_viewport().get_visible_rect().size
+		var _hk := PerfDoc.t()
 		ui_hands_panel.reset_size()
+		PerfDoc.add("h_reset", _hk)
 		if easy_on:   # Easy: the view's bottom left, over the floor (under its bar the "What should he do?" picker covered it: walk12;
 			# its slider panel is at the right)
 			ui_hands_panel.position = Vector2(12.0, vs.y - float(BOTTOM_H) - ui_hands_panel.size.y - 64.0)
-		else:   # Expert: the first corner of the view the body is not in (it covered the head, then a hand)
+		elif ui_hands_panel.visible or PerfDoc.slow:   # L12: a hidden card is not placed (it is placed in the refresh that shows it)
 			var ps := ui_hands_panel.size
 			var x0 := float(LEFT_W) + 12.0
 			var x1 := vs.x - float(RIGHT_W) - 12.0 - ps.x
@@ -11103,14 +11445,18 @@ func _hands_refresh() -> void:
 			for lb in [ui_mouse, ui_status]:   # ...and above where that line and the status line really are (the scene panel
 				if lb != null and is_instance_valid(lb) and lb.is_visible_in_tree():   # can be taller than BOTTOM_H: the strip covered them)
 					y1 = minf(y1, lb.get_global_rect().position.y - ps.y - 8.0)
+			_hk = PerfDoc.t()
 			var body := _body_screen_rect().grow(12.0)
+			PerfDoc.add("h_rect", _hk)
 			var vrect := Rect2(float(LEFT_W), float(TOP_H), vs.x - float(LEFT_W) - float(RIGHT_W), vs.y - float(TOP_H) - float(bottom_h))   # C66
 			var hb_flow: Control = null
 			for d0 in ui_hands:
 				if not d0["easy"] and d0.has("both"):
 					hb_flow = (d0["both"] as Control).get_parent()
 					(d0["state"] as Label).text = st   # its wrapped height is part of the card's size
+			_hk = PerfDoc.t()
 			var docked: bool = hb_flow != null and HandsDock.place(ui_hands_panel, hb_flow, vrect, HandsDock.blockers(self, ui_hands_panel, vrect, [ui_status, ui_mouse, ui_bar, ui_cube]), body, HandsDock.points(self))
+			PerfDoc.add("h_dock", _hk)
 			if not docked:
 				var pick := Vector2(x1, y1)
 				for c in [Vector2(x1, y1), Vector2(x0, y0), Vector2(x0, y1), Vector2(x1, y0)]:
@@ -11119,6 +11465,7 @@ func _hands_refresh() -> void:
 						break
 				ui_hands_panel.position = PickDodge.fit(ui_hands_panel, pick, Rect2(float(LEFT_W) + 8.0, float(TOP_H) + 8.0, vs.x - float(LEFT_W) - float(RIGHT_W) - 16.0, vs.y - float(TOP_H) - 16.0 - float(BOTTOM_H) - 56.0), PickDodge.points(self))   # C29: never over a body pick point
 		ui_hands_panel.position = ui_hands_panel.position.clamp(Vector2.ZERO, (vs - ui_hands_panel.size).max(Vector2.ZERO))   # no candidate fits a short window: it still stays on the view
+	var _hk2 := PerfDoc.t()
 	for d in ui_hands:
 		if not is_instance_valid(d["box"]):
 			continue
@@ -11133,7 +11480,10 @@ func _hands_refresh() -> void:
 		_grey(d["let_r"], "" if (on_h and o == "hand_r") else "the right hand is not holding the weapon: nothing to let go")
 		(d["follow"] as Button).set_pressed_no_signal(held)
 		(d["only"] as Button).set_pressed_no_signal(only_part)
+	PerfDoc.add("h_rows", _hk2)
+	_hk2 = PerfDoc.t()
 	_blade_sync()
+	PerfDoc.add("h_blade", _hk2)
 
 
 ## the body's box on screen (its joints projected; empty when it is behind the camera)
@@ -12508,7 +12858,7 @@ const ICON_OF := {"Library": "library", "Export model (GLB / OBJ)": "export_glb"
 	"Light: three-point": "lit_three", "Light: rim": "lit_rim", "Light: noir": "lit_noir", "Light: daylight": "lit_day",
 	"Add prop": "prop", "Object library...": "library", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective", "Local API": "api",
-	"Pose from words...": "say_it", "Sketch to pose": "sketch_pose", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Stay in place": "stay_in_place", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong",
+	"Pose from words...": "say_it", "Sketch to pose": "sketch_pose", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Stay in place": "stay_in_place", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "Final render...": "render_shots", "What went wrong?": "whywrong",
 	"Test cube": "mesh_cube", "Edit body": "mannequin", "Save": "save", "Save to body": "body_save", "Open...": "open", "Use in scene": "use_scene", "Move": "xf_move", "Rotate": "xf_rot", "Scale": "xf_scale",
 	"Extrude": "part_extrude", "Inset": "inset", "Loop cut": "loopcut", "Knife": "knife", "Bevel": "part_chamfer", "Proportional": "proportional", "Modifiers": "stack", "Validate": "validate", "Repair": "wrench",
 	"Test sphere": "sphere", "Sculpt the body": "sculpt_body", "Voxel remesh": "remesh", "Draw": "brush_draw", "Inflate": "brush_inflate", "Grab": "brush_grab", "Clay": "brush_clay", "Crease": "brush_crease", "Smooth": "smooth", "Flatten": "brush_flat", "Pinch": "brush_pinch", "Snake": "brush_snake",
@@ -12914,6 +13264,8 @@ func _ui() -> void:
 	ui_ribbon["BODY"].add_child(_button("Mannequin as shipped", func(): proportions_set({}), "the body back to the 183 cm mannequin; the cards keep their angles. Ctrl+Z undoes"))
 	# BODYWALK: the face and the hair were only in the search (Ctrl+S "face", "hair"); a beginner on BODY now sees them as words
 	ui_ribbon["BODY"].add_child(_button("Face: brows, eyes, jaw, mouth...", func(): face_ui.open(), "the face of the body: brows, eyes, jaw and mouth as sliders; OK keys it (one undo step). Works on a body with no clips too: it is the face for the whole scene"))
+	tog.call("BODY", "Face geometry: lids, lips, teeth, nose", _face_geo_toggle, func(): return face_geo_on,
+		"the face as real geometry on the head (eyes with lids, lips, teeth, tongue, nose; blink, smile and jaw drive it); off = the painted face (the default)")
 	ui_ribbon["BODY"].add_child(_button("Hair: add a ponytail", _hair_add, "a ponytail of 8 strands on the back of the head, with gravity and collision (Ctrl+Z takes it back). Works with no clips too"))
 	ui_ribbon["BODY"].add_child(_button("Hair: take the hair off", _hair_clear, "removes the hair from the scene (Ctrl+Z puts it back)"))
 	# POSE
@@ -13101,6 +13453,7 @@ func _ui() -> void:
 	ui_ribbon["EXPORT"].add_child(_button("Open exports folder", func(): _shell_open(UserPaths.w("res://exports")), "open the exports folder in Explorer (where Export model and the other exports are written)"))
 	ui_ribbon["EXPORT"].add_child(_button("Export frame data (json)...", _fd_export, "startup, active, recovery and the hitboxes per frame, in metres (Y up), saved where you pick (FRAME_DATA: docs/research/FRAME_DATA.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Render shots (mp4)", _render_shots, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode an .mp4 in exports/shots/ with ffmpeg; progress shows, Esc or Cancel stops it"))
+	ui_ribbon["EXPORT"].add_child(_button("Final render...", _final_render_dialog, "client-ready output from the shot camera: SSAO, reflections, global light, soft shadows and 4x MSAA, glow off; a PNG sequence and an .mp4 at the resolution you pick (1920x1080 default) in exports/shots/; slower than Render shots (mp4)"))
 	if fp_ui == null:
 		fp_ui = FloorPlanUI.new(self)
 	ui_ribbon["EXPORT"].add_child(_button("Floor plan", fp_ui.show, "a top-down rehearsal plan of the fight for the stunt crew: every foot placement numbered with its time, each fighter's path, the strike lines and the safety margins on a 100 cm grid; Export page writes a printable page and a PNG"))
@@ -13113,6 +13466,9 @@ func _ui() -> void:
 	ui_ribbon["SET"].add_child(_button("Library", _library_toggle, "Open the object library: weapons, furniture, sports, everyday things, armour and your own models. Click one to place it"))
 	for lid in LightRig.IDS:   # ROADMAP R1: the lighting presets on the shot camera (light_rig.gd), one click each
 		ui_ribbon["SET"].add_child(_button(LightRig.NAMES[lid], _light_preset.bind(lid), LightRig.tip(lid)))
+	if lr_ui == null:
+		lr_ui = LightRigUI.new(self)
+	ui_ribbon["SET"].add_child(_button("Light rig", lr_ui.show, "the light rig panel: studio, dramatic, overcast, sunset and night looks, a sky map with rotation and intensity, and a per-light switch for lighting the character only"))
 	ui_ribbon["SET"].add_child(_button("Crowd: make 20 copies of this fighter", _crowd_make, "20 copies of this fighter's clip around it: each its own time, speed, slight joint noise, mirror and stature (ANSUR II). Ctrl+Z undoes"))
 	if tcat_ui == null:
 		tcat_ui = ThrowCatchUI.new(self)
@@ -16529,6 +16885,12 @@ func _commands() -> Array:
 	add.call("Snap to floor: all cards", "", _floor_snap.bind(true), "floor ground snap all cards every range sole foot knee lift sink", true, "every card moves straight up or down so its lowest point is on the floor; the joints stay; one undo step")
 	add.call("Key the part here", "K", _press.bind(KEY_K), "part key keyframe channel", true, "a part key: the picked part's 3 angles at the playhead, over the cards' blend (WW1)")
 	add.call("Spine IK: spline the back here", "", _spine_pin, "spine ik spline curve bezier back bend chest hip mid vertebrae twist", true, "the picked back part's spine becomes a curve through a hip, a mid-back and a chest handle: drag the handles and the back bends along it, bones keeping their length, twist spread from hip to chest, every joint inside its limits")
+	add.call("Rig: spline IK on the picked bone chain", "", _spline_make, "spline ik curve bezier catmull tail tentacle chain bones handles follow path rig", true, "the picked bone and the bones below it follow a curve through 4 handles you drag (Blender / Maya spline IK); keep length or stretch to fit; one undo step")
+	add.call("Rig: spline IK off (picked chain)", "", func(): _spline_off(_spline_pick_index()), "spline ik off remove chain curve tail tentacle", true, "the picked chain is plain bones again")
+	add.call("Rig: spline IK stretch to fit / keep length", "", func(): _spline_toggle("mode"), "spline ik stretch fit keep length squash tail tentacle", true, "toggle the picked spline chain between keeping every bone length and stretching to fit the curve")
+	add.call("Rig: spline IK volume (stretch keeps thickness)", "", func(): _spline_toggle("volume"), "spline ik volume preserve thickness squash stretch", true, "a stretched spline bone gets thinner across so its volume stays (opt-in)")
+	add.call("IK: stretchy limb on / off (picked limb)", "", _ik_stretch, "ik stretch stretchy limb arm leg reach elastic rubber long extend squash", true, "the pinned hand / foot may reach a target beyond its length: the bones grow up to 1.5x (off by default; the old solver is used when off)")
+	add.call("IK: stretchy limb keeps volume (picked limb)", "", _ik_stretch.bind(true), "ik stretch stretchy limb volume thickness preserve", true, "a stretched limb's cross-scale goes as 1/sqrt(stretch) so its volume stays")
 	add.call("Spine IK: spline off here", "", _spine_off, "spine ik spline off release curve back unlock", true, "the back follows the cards again from the playhead (over the last frame)")
 	add.call("Prop: attach on this card (move the pick-up here)", "", PropAttach.attach_here.bind(self), "prop attach pick up grab hold frame time timeline hand early late carry", true, "the picked prop is taken by the hand(s) from the selected card's arrival instead of the card it is attached on now (one undo step; the status line names the frames)")
 	add.call("Prop: let go on this card (move the let-go here)", "", PropAttach.detach_here.bind(self), "prop detach let go drop release frame time timeline hand carry", true, "the picked prop is let go at the selected card's arrival instead of the card it is let go on now (one undo step)")
@@ -16749,6 +17111,10 @@ func _commands() -> Array:
 	add.call("Sculpt: a test sphere (preview)", "", _sculpt_start, "sculpt brush draw clay inflate smooth flatten pinch crease grab snake hook pressure tablet zbrush", false, "add a test sphere to the stage and sculpt it: drag to stroke, D C I S F P E G K brushes, [ ] radius, Shift+[ ] strength, O falloff, X symmetry, Ctrl invert, Shift smooth, Ctrl+Z undo, Esc leaves (nothing is saved)")
 	add.call("Rig: bone editor (add / delete / parent bones)", "", func(): _bone_ui().toggle(), "bone bones rig skeleton add delete parent extrude roll rest edit armature tail chain joint", false, "open / close the bone editor: your own bones on the body (E extrude from a tail, Shift+A add, X delete, drag the end balls; name, parent, length, roll in its panel). Each edit is one undo step; the body's own skeleton is not edited")
 	add.call("Model: edit a test cube (preview)", "", _kmesh_edit_start, "model mesh cube edit select vertex edge face box lasso xray polygon modeling", false, "add a 4x4-per-side test cube to the stage and select on it: click, Shift+click, B box, L lasso, X x-ray, 1/2/3 vertex / edge / face, Esc leaves (nothing is saved)")
+	add.call("Character: import a rigged character (glb / fbx)", "", func(): CharImportApp.ask(self), "character import rigged rig skin skinned mesh blendshape blend shape fbx glb mixamo unreal rigify vrm own model mapping bring in", false, "a .glb / .fbx with a skinned mesh becomes the fighter: its mesh, skin weights and blend shapes, its skeleton mapped onto Kine's body (names, then geometry; a map screen to fix bones). Kine's poses, limits, balance and contacts then drive it, on its own proportions")
+	add.call("Character: map the imported skeleton (fix bones)", "", func(): CharImportApp.map_cmd(self), "character map bones skeleton retarget fix rig imported joints", false, "the bone-map screen for the imported character: pick another bone for any Kine joint")
+	add.call("Character: show the Kine body beside the import", "", func(): CharImportApp.beside_toggle(self), "character beside compare kine body import side", false, "the Kine body and the imported character side by side, 1 m each side of the origin; run again for the import alone")
+	add.call("Character: remove the import (the Kine body again)", "", func(): CharImportApp.remove_cmd(self), "character remove clear imported rigged kine body back", false, "take the imported character off; the Kine mannequin is the fighter again")
 	add.call("Model: edit the body mesh", "", func(): BaseBody.start(self), "model mesh body skin fighter mannequin character edit sculpt base topology weights rigged", false, "open the fighter's skinned body in the model preview (its skin weights ride along as attributes); every model key works on it; Esc leaves without changing the fighter")
 	add.call("Model: apply the body mesh to the fighter", "", func(): BaseBody.apply_cmd(self), "apply write commit body mesh fighter skin weights save model", true, "the edited body becomes the fighter's skinned mesh, with its weights (new verts carry their neighbours'); one undo step")
 	add.call("Body: save the fighter's body (.kbody)", "", func(): BodyFile.save_cmd(self), "body save kbody file keep library mesh skin weights fighter character", false, "the fighter's body (mesh, skin weights, the scene's proportions) as a NEW .kbody in bodies/ (the same body twice is the same file); the Browser lists it under Bodies with a picture, a click puts it back")
@@ -16809,6 +17175,9 @@ func _commands() -> Array:
 	add.call("Crowd: re-roll (new seed)", "", _crowd_reroll, "crowd reroll seed random new variation", true, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures; one Ctrl+Z")
 	for lid in LightRig.IDS:
 		add.call(LightRig.NAMES[lid], "", _light_preset.bind(lid), "light lighting lights preset shot camera key fill rim back " + lid.replace("_", " ") + " noir daylight three point", true, LightRig.tip(lid))
+	if lr_ui == null:
+		lr_ui = LightRigUI.new(self)
+	lr_ui.commands(add)   # L25: the new looks, the sky maps, the link switches, the panel
 	add.call("Light: back to the default lights", "", _light_preset.bind(""), "light lighting lights preset default off clear remove reset", true, "the shot on at the playhead goes back to the stage's two default lights (one undo step)")
 	add.call("Crowd: remove", "", _crowd_remove, "crowd remove delete clear copies", true, "the copies go and the fighter stays; one Ctrl+Z")
 	add.call("Actor: switch to the next fighter", "", _actor_next, "actor fighter character opponent other active swap", false, "the next fighter becomes the one you pose: its own cards, its own body, its own Ctrl+Z")
@@ -16816,7 +17185,7 @@ func _commands() -> Array:
 	add.call("Pose: copy to the other fighter, mirrored", "", _pose_to_other.bind(true), "copy pose fighter actor other mirror flip left right", true, "the same, reflected left <-> right: the app's own mirror of the pose; one Ctrl+Z")
 	add.call("Actor: remove this fighter", "", _actor_remove, "actor fighter character opponent delete", true, "the active fighter leaves the scene (not the hero: the hero is the scene itself); Ctrl+Z brings it back")
 	add.call("Ragdoll: fall from here (pins: picked parts)", "", _ragdoll_fall, "ragdoll fall limp knockout drop gravity collapse faint pin hang", false, "the body goes limp and falls from the current pose under gravity, the picked parts held in place; baked as editable cards into a NEW scene in scenes/_wip (ROADMAP 27)")
-	add.call("Ragdoll: hit, fall, get back up", "", _ragdoll_hit, "ragdoll hit knock down fall limp blend back get up recover animation physics hurt punch", false, "the body at the playhead is hit (pushed), falls limp for 2 s, then blends back onto its own pose over 1 s; baked as editable cards into a NEW scene in scenes/_wip (Friday plan 147)")
+	add.call("Ragdoll: hit, fall, get back up", "", _ragdoll_hit, "ragdoll hit knock down fall limp blend back get up recover animation physics hurt punch", true, "the body at the playhead is hit (pushed), falls limp for 2 s, then blends back onto its own pose over 1 s; baked as editable cards into a NEW scene in scenes/_wip (Friday plan 147)")
 	add.call("Hits: make the struck fighter react", "", _hit_react, "hit hits react reaction struck fighter impact knock momentum recoil shove", true, "the first hit in the fighters' report on a body part turns the struck fighter by its momentum (0.3-0.6 s), baked as editable cards on its scene; one undo step (ROADMAP 14)")
 	add.call("Hit reactions: physics default / my usual", "Alt+H", _hit_physics_key, "hit reaction physics default usual habit amplitude delay recovery learned my edits plain", false, "one key: the next hit reaction is the plain physics (not shaped by your usual amplitude, start and recovery learned from your edits of earlier ones); press again for your usual (ROADMAP I46)")
 	add.call("Add marker at the playhead", "", _marker_add, "cue event hit step swoosh note flag sound", true, "a named moment (m1, m2, ...) on the timeline at the playhead; the game export lists it as an event")
@@ -16982,6 +17351,9 @@ func _commands() -> Array:
 	add.call("File > Restore...", "", _restore_open, "restore autosave autosaved unsaved crash lost back earlier kept", false, "the last 5 autosaves (time, scene, cards) with a picture of each: pick one, it opens as a NEW copy in scenes/_wip (never over a file; the scene on screen asks first)")
 	add.call("File: restore unsaved work", "", _journal_restore, "journal unsaved recover restore crash lost work back", false, "bring back the work a session left unsaved when Kine did not close cleanly: the state after its last edit, still unsaved (the status line offers it at start)")
 	add.call("File > Crash report (last 20 commands)", "", _crash_report_now, "crash report bug problem error problem send lost last commands history what did i do", false, "writes the last 20 things you ran and the page you were on to a text file: you can read it and send it yourself. Nothing is sent")
+	add.call("Setting: update check on/off (off by default)", "", _update_toggle, "update check new version release feed setting online opt in", false, "turn the update check on or off. Off by default; it reads the feed address in user://online.cfg and shows a note on the status line when a newer version is listed. Nothing is downloaded")
+	add.call("File: check for updates now", "", func(): _update_check_now(true), "update check new version release now", false, "check the feed once (only if the update check is on and a feed address is set)")
+	add.call("File > Send crash report...", "", _crash_send_open, "crash report send upload bug problem error preview redacted", false, "shows exactly what would be sent (paths and your user name removed). Off by default: it only sends after you turn it on, set an endpoint and press Send")
 	add.call("Export...", "", _export_dialog_open, "export engine target unreal ue5 unity godot blender maya motionbuilder web three raw data format glb bvh usda game", false, "one dialog for every target: pick the engine or tool, see its format, what it needs, the frame rate and a checklist for this scene, then export")
 	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
 	add.call("Export animation (.glb)", "", _export_glb, "gltf glb blender unreal ue5 unity godot universal export fbx", false, "the scene as exports/<scene>.glb, the open 3D standard: the mannequin, its skeleton (UE5 bone names) and the animation, for any engine")
@@ -16991,11 +17363,13 @@ func _commands() -> Array:
 	add.call("Export for Unity...", "", _export_engine.bind("unity"), "unity engine export glb gltfast metres delivery", false, "the scene as exports/<scene>_unity.glb for Unity (glTFast): metres and Y up checked (the pre-flight report prints first; docs/research/ENGINES.md)")
 	add.call("Export for Godot...", "", _export_engine.bind("godot"), "godot engine export glb skeleton delivery", false, "the scene as exports/<scene>_godot.glb for Godot 4: metres and Y up checked (the pre-flight report prints first; docs/research/ENGINES.md)")
 	add.call("Export animation (.usda)", "", _export_usd, "usd usda usdskel openusd pixar omniverse houdini blender export", false, "the scene as exports/<scene>.usda, UsdSkel skeleton animation (no weapons)")
+	add.call("Export animation (.usda, skinned)", "", _export_usd_skinned, "usd usda usdskel skinned mesh skin weights blendshape blend shapes face au openusd pixar omniverse houdini blender export", false, "the fighter as exports/<scene>_skinned.usda: UsdSkel with the skinned mesh and its joint weights (the imported character when one stands; the face's six AU shapes with the face geometry on)")
 	add.call("Playblast: motion blur on/off", "", _blast_blur_toggle, "playblast motion blur shutter smear sub-frame accumulation 180 deg export", false, "the playblast frames are the mean of 8 sub-frames over a 180 deg shutter (half the frame interval), so fast limbs and bats smear as on film; off by default; a render takes 8 times as long")
 	add.call("Deliver: turntable video of this pose", "", _export_turntable, "turntable deliver 360 orbit spin showcase presentation video avi mp4 character model render", false, "a 6 s, 30 fps, 1280x720 video of the camera orbiting the current pose once (body and held weapon framed with 15% margin, no panels), in user://turntables/")
 	add.call("Deliver: breakdown video (with the judges drawn)", "", _export_judge_render, "breakdown judge render overlay balance centre of mass support polygon force ground reaction hit boxes joint limit verdict caption side by side video avi mp4 coach review", false, "the scene as a video with the judges drawn: left clean, right with the centre of mass over its support, the ground-force arrow, the hit boxes and red joint-limit markers; under each frame a caption with the time, the card and the Check verdicts that fire on that frame (off balance, foot slides ...); in user://breakdowns/")
 	add.call("Export playblast (video)", "", _export_playblast, "playblast render video mp4 png sequence ffmpeg movie export", false, "render the scene from the current camera, frame by frame at its fps over the preview range (or all of it): a PNG folder in exports/playblast/, and an .mp4 when ffmpeg is installed")
 	add.call("Render shots to video (mp4)", "", _render_shots, "render shots video mp4 camera sequence cuts sequencer movie export deliver ffmpeg", false, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode them to exports/shots/<scene>_<stamp>/<scene>.mp4 with ffmpeg; progress shows, Esc or Cancel stops it")
+	add.call("Final render (PNG sequence + mp4)", "", _final_render_dialog, "final render client quality ssao ssr shadows msaa 1080p 4k shot camera png sequence mp4 deliver ffmpeg", false, "the quality preset (SSAO, SSR, SDFGI, soft shadows, 4x MSAA, glow off) through the shot camera at the resolution you pick, as a PNG sequence and an .mp4 in exports/shots/<scene>_<stamp>_final/")
 	add.call("Review: export a review page", "", _export_review, "review comments frame notes feedback director page html share local", false, "one self-contained HTML file in exports/review/: the playblast frames, a scrubber, a comment box per frame, and Download comments (.json). Nothing is uploaded")
 	add.call("Review: import comments...", "", _review_import_ask, "review comments frame notes feedback director import json markers", true, "pick a comments .json from a review page: each comment becomes a marker on the timeline at its frame (click it to jump; Ctrl+Z undoes)")
 	add.call("Deliver: export the posed body as OBJ", "", _export_obj, "obj wavefront mesh export deliver posed body weapon blender maya zbrush static model", false, "the body as it stands at the playhead (its skinned meshes in world space) and the held weapon, as user://exports/<scene>.obj + .mtl: metres, Y up, v / vt / vn / f with one group per part (a static mesh, not an animation)")
@@ -17007,7 +17381,7 @@ func _commands() -> Array:
 	add.call("Reset body", "", _do.bind(_reset_all), "t-pose", true, "every joint back to straight and the hips to the origin")
 	add.call("Arms down 25°", "", _do.bind(_arms_relaxed), "relax a-pose", true, "both arms relaxed: 25° out from straight down")
 	for tn in Templates.NAMES:   # R7: each starting scene is its own command (the picker above needs a mouse; a command needs only its name)
-		add.call("New from template: " + Templates.INFO[tn][0], "", _template_make.bind(tn), "template starting scene new example " + tn.replace("_", " "), false, "a NEW scene in scenes/_wip, opened: " + Templates.INFO[tn][1] + ("  Land it on the dummy's head with Next." if tn == "punch" else ""))
+		add.call("New from template: " + Templates.INFO[tn][0], "", _template_make.bind(tn), "template starting scene new example " + tn.replace("_", " "), true, "a NEW scene in scenes/_wip, opened: " + Templates.INFO[tn][1] + ("  Land it on the dummy's head with Next." if tn == "punch" else ""))
 	add.call("Strike: aim the fist at the dummy's head", "", _strike_aim, "punch land hit contact reach target jab cross fist dummy head aim", true, "the punch (the card the fist travels fastest into) now ends with its fist on the dummy's head: the arm is solved to touch it, the rest of the card stays; Dummy closer first if the arm cannot reach (one undo step)")
 	add.call("Dummy on/off", "H", _press.bind(KEY_H), "target enemy mannequin", false, "show or hide the target dummy")
 	add.call("Dummy solid / see-through", "", _dummy_solid, "target", false, "solid: the weapon stops on the dummy (impact + rebound); see-through: it passes")
@@ -17085,6 +17459,7 @@ func _commands() -> Array:
 	add.call("Help: Blender / Maya key helper off", "", kt.set_mode.bind(""), "blender maya keys shortcuts translate helper off stop hide", false, "turn the Coming-from-Blender/Maya toasts off (remembered)")
 	add.call("Help: Blender / Maya keys win on / off", "", func(): kt.set_wins(not kt.wins), "blender maya keys win override shortcuts priority", false, "with the helper on: a Blender/Maya key that Kine uses for something else runs the Kine command it maps to, instead of Kine's own action")
 	add.call("Help: edit hotkeys", "", hk.open_editor, "hotkeys keys key shortcut shortcuts rebind bind change remap", false, "change any command's key: search, click its key, press the new one (a key another command has is refused until pressed again)")
+	add.call("View: workspace layouts", "", func(): if bld != null and bld.shell != null: bld.shell.layouts_ui.open_dialog(), "workspace layouts layout dock panel panels left right bottom float save rename delete reset rail width expert engineering", false, "save, rename and delete named layouts of the Expert / Engineering screens; dock each panel left, right or bottom, or float it; set the rail width; reset to the factory layout")
 	add.call("Help: forget my command habits", "", _nt_forget, "next suggested tool chips habits learned forget reset clear history suggestions", false, "forget which commands you run after which (the grey chips after Next:); the default sequence comes back")
 	c.append_array(EasySearch.rows(self))   # p097searchboxf: the Easy Part actions (hole, round, screw) are S box rows too (scripts/easy_search.gd)
 	var rows: Array = Hotkeys.apply(c, hk.over)
@@ -18262,6 +18637,11 @@ func _template_build_now(nm: String, d: Dictionary) -> void:
 	var path := Templates.new_path(nm)
 	d["scene"] = path.get_file().get_basename()
 	d["plan"] = "from the %s template" % String(Templates.INFO[nm][0]).to_lower()
+	# L24: opening the template REPLACES the open scene, so it is ONE undo step (a whole-scene swap, as Easy's Copy a video):
+	# Ctrl+Z puts the scene that was open back (the new file in scenes/_wip stays on disk), Ctrl+Y the template scene
+	_step_hint = "New from template: " + String(Templates.INFO[nm][0])
+	_push_undo()
+	undo[-1]["swap"] = true
 	_write(path, d)
 	_load_scene(path, true)
 	_rebuild_cards()
@@ -21287,6 +21667,78 @@ func _crash_note(n: String) -> void:
 
 
 ## File > Crash report: the last 20 commands (the session that did not quit, when there is one) and the page, in a text file
+## L16 OPT-IN UPDATE CHECK (scripts/update_check.gd): off and no address until the user sets both. The notice is the status line, never a dialog.
+func _update_check_now(manual: bool) -> void:
+	var cfg: Dictionary = OnlineOpt.load_cfg()["update"]
+	if not bool(cfg["enabled"]):
+		if manual:
+			_say("update check is off: turn it on with 'Setting: update check on/off', then set the feed address in user://online.cfg")
+		return
+	var url := str(cfg["feed_url"])
+	var body = null
+	if url.begins_with("http://") or url.begins_with("https://"):
+		body = await _http_get_text(url)
+	var reader := func(u: String):
+		return body if body != null else UpdateCheck.file_reader(u)
+	var r := UpdateCheck.check(cfg, str(ProjectSettings.get_setting("application/config/version", "0.0.0")), reader)
+	if bool(r.get("notify", false)) or manual or r.get("state") == "no_feed":
+		if str(r.get("text", "")) != "":
+			_say(str(r["text"]))
+
+
+## the only place that opens the network for the update check; reached only when the user set a web address
+func _http_get_text(url: String):
+	var h := HTTPRequest.new()
+	h.timeout = 8.0
+	add_child(h)
+	if h.request(url) != OK:
+		h.queue_free()
+		return null
+	var res: Array = await h.request_completed
+	h.queue_free()
+	if res[0] != HTTPRequest.RESULT_SUCCESS or res[1] != 200:
+		return null
+	return (res[3] as PackedByteArray).get_string_from_utf8()
+
+
+func _update_toggle() -> void:
+	var c := OnlineOpt.load_cfg()
+	c["update"]["enabled"] = not bool(c["update"]["enabled"])
+	OnlineOpt.save_cfg(OnlineOpt.PATH, c)
+	_say("update check: " + ("on" if c["update"]["enabled"] else "off") + (" (no feed address set yet: edit user://online.cfg [update] feed_url)" if c["update"]["enabled"] and str(c["update"]["feed_url"]) == "" else ""))
+
+
+## L16 OPT-IN CRASH UPLOAD (scripts/crash_upload.gd): shows the redacted payload first; sends only after Send is pressed, only when
+## the user turned it on and an endpoint is set. Both are off/empty by default, so by default this only shows the preview.
+func _crash_send_open() -> void:
+	var lines: Array = crash_prev if not crash_prev.is_empty() else crash_cmds
+	var raw := "Page: %s\n%s" % [cur_page, "\n".join(lines.slice(-CrashReport.KEEP))]
+	var users := [OS.get_environment("USERNAME"), OS.get_environment("USER")]
+	var payload := CrashUpload.build_payload(raw, {"version": str(ProjectSettings.get_setting("application/config/version", "")), "os": OS.get_name(), "users": users})
+	var cfg: Dictionary = OnlineOpt.load_cfg()["crash"]
+	var d := ConfirmationDialog.new()
+	d.title = "Send crash report?"
+	d.dialog_text = CrashUpload.preview(payload, cfg)
+	d.ok_button_text = "Send" if bool(cfg["enabled"]) and str(cfg["endpoint"]) != "" else "Close"
+	d.size = Vector2i(760, 520)
+	add_child(d)
+	d.confirmed.connect(func():
+		var r := CrashUpload.send(cfg, payload, true, _crash_http_sink)
+		_say("crash report sent" if r["sent"] else "crash report not sent: " + str(r["why"]))
+		d.queue_free())
+	d.canceled.connect(d.queue_free)
+	d.popup_centered()
+
+
+func _crash_http_sink(endpoint: String, body: String) -> bool:
+	var h := HTTPRequest.new()
+	h.timeout = 8.0
+	add_child(h)
+	var ok_ := h.request(endpoint, ["Content-Type: text/plain; charset=utf-8"], HTTPClient.METHOD_POST, body) == OK
+	h.request_completed.connect(func(_a, _b, _c, _d): h.queue_free())
+	return ok_
+
+
 func _crash_report_now() -> void:
 	if crash_dir == "":
 		_say("the crash report is off in this test run")
@@ -21404,6 +21856,7 @@ func _restore_work(a: Dictionary) -> void:
 		BaseBody.restore_gen(self, 0)   # the mannequin as shipped (the state held no applied body)
 	BodyFile.from_scene(self, a["scene"])   # G07: an applied body back, from its file or inline
 	ArmourFromBody.from_scene(self, a["scene"])   # B23: the armour plates back
+	CharImportApp.from_scene(self, a["scene"])   # L9
 	camx.from_scene(a["scene"])   # C01
 	scene_path = path
 	if ui_loop != null:
@@ -22607,6 +23060,15 @@ var face_brow: Array = []       # [brow_l, brow_r] MeshInstance3D (BoxMesh)
 var face_eye: Array = []        # [eye_l, eye_r] (sclera, SphereMesh)
 var face_pupil: Array = []      # [pupil_l, pupil_r]
 var face_ui: FaceUI
+## I01-I04 (scripts/face_geo.gd): the face as REAL GEOMETRY, opt-in (default off: the painted face above is untouched)
+var face_geo_on := false
+var face_geo_au := {}              # extra AU weights {"AU12": 1.0} added to what the face channels give (presets, the test)
+var face_geo_data := {}
+var face_geo_root: Node3D
+var face_geo_mask: MeshInstance3D
+var face_geo_eye_nodes: Array = []
+var face_geo_head0: Mesh           # the head piece's own mesh, put back when the geometry goes off
+var face_geo_key := ""
 
 
 func _face_make() -> void:
@@ -22643,8 +23105,10 @@ func _face_draw() -> void:
 	var live := face_ui != null and face_ui.live()
 	var ex: Dictionary = S.expr_at(playhead)
 	var elp := el_ui != null and el_ui.pv   # I08: the living eyes preview shows its track
-	var on := live or elp or not S.lip.is_empty() or not S.face.is_empty() or not ex.is_empty()
+	var on := live or elp or not S.lip.is_empty() or not S.face.is_empty() or not ex.is_empty() or face_geo_on
 	if not on:
+		if face_geo_root != null:
+			face_geo_root.visible = false
 		if mouth_mi != null:
 			mouth_mi.visible = false
 		if face_root != null:
@@ -22662,6 +23126,11 @@ func _face_draw() -> void:
 	if face_root == null:
 		_face_make()
 	var P: Dictionary = Face.pose(face_ui.values(), {}, playhead) if live else (el_ui.pose_now() if elp else Face.at(S.face, S.lip, playhead, ex))
+	if face_geo_on and face_geo_root != null:
+		_face_geo_draw(P)
+		face_root.visible = false
+		mouth_mi.visible = false
+		return
 	var geo := _face_geo()
 	if geo.is_empty():
 		return   # no head mesh to anchor on
@@ -22700,6 +23169,107 @@ func _face_draw() -> void:
 	var pr := float(P["press"])   # AU23/24: the lips tighten into a thin line (R22)
 	sz = Vector3(sz.x * (1.0 - 0.25 * pr), sz.y * (1.0 - 0.5 * pr), sz.z)
 	mouth_mi.transform = Transform3D(Basis(g) * Basis.from_scale(Vector3(sz.x * Face.MOUTH_W_K, sz.y, sz.z)), face_at(geo["mouth"]) + front * 0.002 - up * sz.y * 0.25)
+
+
+## the face geometry on or off. On: the mask, two eyes and the mouth cavity are built (once), the head piece loses its lower-face
+## triangles (restored when off). One undo-free view switch, like the shading modes.
+func _face_geo_toggle() -> void:
+	_face_geo_set(not face_geo_on)
+	_say("face geometry %s (eyes with lids, lips, teeth, tongue, nose; off = the painted face)" % ("on" if face_geo_on else "off"))
+
+
+func _face_geo_set(on: bool) -> void:
+	if on == face_geo_on or not pieces.has("head"):
+		return
+	var hp: MeshInstance3D = pieces["head"]
+	if on:
+		if face_geo_data.is_empty():
+			face_geo_data = FaceGeo.build(_head_pts())
+		face_geo_head0 = hp.mesh
+		hp.mesh = FaceGeo.cut_head(hp.mesh as ArrayMesh, face_geo_data)
+		if face_geo_root == null:
+			face_geo_root = Node3D.new()
+			face_geo_root.name = "face_geometry"
+			add_child(face_geo_root)
+			face_geo_mask = MeshInstance3D.new()
+			face_geo_mask.name = "mask"
+			face_geo_mask.material_override = FaceGeo.mask_material(hp.material_override)   # the head's own material, sRGB vertex colours
+			face_geo_root.add_child(face_geo_mask)
+			for e in face_geo_data["eyes"]:
+				var en := MeshInstance3D.new()
+				en.mesh = FaceGeo.eye_mesh(float(e["r"]))
+				en.material_override = FaceGeo.eye_material()
+				face_geo_root.add_child(en)
+				face_geo_eye_nodes.append(en)
+			var cav := MeshInstance3D.new()
+			cav.mesh = FaceGeo.cavity_mesh(face_geo_data)
+			cav.name = "cavity"
+			cav.material_override = FaceGeo.cavity_material()   # lit, curved, red: not the old black box
+			face_geo_root.add_child(cav)
+			for nm in ["teeth_up", "teeth_lo", "tongue", "nose"]:
+				var mi := MeshInstance3D.new()
+				mi.name = nm
+				match nm:
+					"teeth_up":
+						mi.mesh = FaceGeo.teeth_mesh(face_geo_data, true)
+						mi.material_override = FaceGeo.tooth_material()
+					"teeth_lo":
+						mi.mesh = FaceGeo.teeth_mesh(face_geo_data, false)
+						mi.material_override = FaceGeo.tooth_material()
+					"tongue":
+						mi.mesh = FaceGeo.tongue_mesh(face_geo_data)
+						mi.material_override = FaceGeo.tongue_material()
+					"nose":
+						mi.mesh = FaceGeo.nose_mesh(face_geo_data, FaceGeo.SKIN)
+						mi.material_override = FaceGeo.mask_material(hp.material_override)
+				face_geo_root.add_child(mi)
+		face_geo_key = ""
+		face_geo_on = true
+	else:
+		face_geo_on = false
+		if face_geo_head0 != null:
+			hp.mesh = face_geo_head0
+		if face_geo_root != null:
+			face_geo_root.visible = false
+	_refresh()
+
+
+## draw the geometry for the face pose P (Face.pose): the channels map to AUs (brows +: AU1, -: AU4; blink: AU45; squint: AU6),
+## the jaw channel to the jaw bone, the eye angles to the eye bones; face_geo_au adds more AU weights
+func _face_geo_draw(P: Dictionary) -> void:
+	var d: Dictionary = face_geo_data
+	face_geo_root.visible = true
+	var g: Quaternion = B.G["head"]
+	face_geo_root.transform = Transform3D(Basis(g), face_at(Vector3.ZERO))
+	var bv := (float(P["brow_l"]) + float(P["brow_r"])) * 0.5
+	var au := {"AU1": maxf(bv, 0.0), "AU4": maxf(-bv, 0.0), "AU45": float(P["blink"]), "AU6": float(P["squint"])}
+	var vz := FaceGeo.viseme_au(String(P.get("mouth", "")))   # the viseme shape drives the mouth AUs (E = wide = AU12)
+	for k in vz:
+		au[k] = float(au.get(k, 0.0)) + float(vz[k])
+	for k in face_geo_au:
+		au[k] = float(au.get(k, 0.0)) + float(face_geo_au[k])
+	var st := {"au": au, "jaw_deg": float(P["jaw_deg"]), "eye_pitch_deg": float(P["eye_pitch_deg"]), "eye_yaw_deg": float(P["eye_yaw_deg"])}
+	var key := str(st)
+	if key != face_geo_key:
+		face_geo_key = key
+		var skin := FaceGeo.SKIN
+		var hm: Material = (pieces["head"] as MeshInstance3D).material_override
+		if hm is StandardMaterial3D:
+			skin = (hm as StandardMaterial3D).albedo_color
+		face_geo_mask.mesh = FaceGeo.mask_mesh(d, FaceGeo.posed(d, st), skin)
+		var tf := FaceGeo.eye_transforms(d, st)
+		for i in 2:
+			(face_geo_eye_nodes[i] as Node3D).transform = tf[i]
+		var jx := FaceGeo.jaw_transform(d, st)   # the lower teeth and the tongue ride the jaw bone
+		(face_geo_root.get_node("teeth_lo") as Node3D).transform = jx
+		(face_geo_root.get_node("tongue") as Node3D).transform = jx
+		var nose_mi := face_geo_root.get_node("nose") as MeshInstance3D
+		var nsk := FaceGeo.SKIN
+		if hm is StandardMaterial3D:
+			nsk = (hm as StandardMaterial3D).albedo_color
+		if nose_mi.get_meta("skin", Color(0, 0, 0)) != nsk:
+			nose_mi.set_meta("skin", nsk)
+			nose_mi.mesh = FaceGeo.nose_mesh(d, nsk)
 
 
 var face_geo: Dictionary = {}   # the anchors on the head mesh in rest space (Face.anchors), read once from the head piece
@@ -23902,6 +24472,10 @@ func _import_file(path: String) -> Dictionary:
 	if r["kind"] == "rigged" and AnimImport.load_source(path)["ok"]:   # a skeleton WITH an animation: the animation import
 		var o := _import_anim(path)
 		return {"ok": o != "", "path": o, "why": "" if o != "" else "refused (the reason is on the status line)"}
+	if r["kind"] == "rigged":   # L9: a skeleton with a skinned mesh and no animation is a CHARACTER
+		var cr := CharImportApp.open(self, path, {}, true)
+		if cr["ok"]:
+			return {"ok": true, "path": path, "why": ""}
 	if r["kind"] == "rigged":
 		var aa: Dictionary = Importer.accept(path, "animation", library)
 		_say(("%s has a skeleton: importing animations comes later (UPGRADES #209); it was kept in your library. To use a model as a prop, drop one without a skeleton" % path.get_file()) if aa["ok"] else "could not import %s: %s Try another .glb, or open it in Blender and export it as .glb again" % [path.get_file(), aa["why"]])
@@ -24489,6 +25063,7 @@ func _open_scene_dict(path: String, d: Dictionary, work: bool, built := false) -
 			_say.call_deferred("this scene's set names models your library does not have (%s): they were left out" % ", ".join(S.props_skipped))
 		BodyFile.from_scene(self, d)   # G07: the body the scene was saved with back on the fighter
 		ArmourFromBody.from_scene(self, d)   # B23: the armour plates the scene was saved with (none when the file has none)
+		CharImportApp.from_scene(self, d)   # L9: the imported character the scene was saved with (none: the Kine body)
 		camx.from_scene(d)   # C01: the cube's Top the scene was saved with
 	else:   # an old move file: its keys become cards
 		var prev := 0.0
@@ -24562,6 +25137,7 @@ func _light_apply() -> void:
 		world_env.adjustment_brightness = 1.0
 		world_env.adjustment_contrast = 1.0
 		shading.apply_lights(self)   # K02: back to the studio lights the view had chosen (none: the default above)
+		_lr_view_apply()
 		return
 	_body_outline_show(false)
 	var r := LightRig.rig(id, k["pos"], k["aim"])
@@ -24576,6 +25152,72 @@ func _light_apply() -> void:
 	world_env.adjustment_enabled = true
 	world_env.adjustment_brightness = r["adjust"]["brightness"]
 	world_env.adjustment_contrast = r["adjust"]["contrast"]
+	_lr_view_apply()
+
+
+## L25: the view-side half of the light rig: the link masks on the three lights and the sky map on the world environment
+func _lr_view_apply() -> void:
+	for pair in [[light_key, "key"], [light_fill, "fill"], [light_rim, "rim"]]:
+		LightRig.set_link(pair[0], bool(lr_link[pair[1]]))
+	if lr_hdri_id != "":
+		LightRig.apply_hdri(world_env, lr_hdri_id, lr_rot, lr_int)
+		_lr_sky_on = true
+	elif _lr_sky_on:
+		_lr_sky_on = false
+		LightRig.apply_hdri(world_env, "", 0.0, 1.0)
+		shading.apply_sky(self)   # the flat colour (or the View menu's sky / picture) as before
+	if lr_ui != null:
+		lr_ui.sync()
+
+
+## L25: a look from the panel or the palette. With no shot camera yet the view is keyed as one (the same step), because the rig is
+## placed relative to the shot camera. One undo step.
+func lr_preset(id: String) -> bool:
+	if not LightRig.PRESETS.has(id) or _hero_scene() == null:
+		return false
+	if _hero_scene().cards.is_empty():
+		_say("the lights follow the shot camera: add a pose card first (or open a scene), then pick a look")
+		return false
+	var had := not _shot_keys().is_empty()
+	if had and _light_id() == id:
+		_say("this shot already has %s" % LightRig.PANEL_NAMES.get(id, id))
+		return true
+	var t := clampf(playhead, 0.0, S.length())
+	var key := {} if had else _shot_view_key(t)
+	if not had:
+		key["t"] = t
+	_do(func():
+		if not had:
+			_shot_ensure()
+			ShotCam.put(_shot_keys(), key)
+		_shot_shots()[shot_now_index()]["light"] = id)
+	_light_apply()
+	_say("%s: %s%s (Ctrl+Z takes it back)" % [LightRig.PANEL_NAMES.get(id, id), LightRig.tip(id), "" if had else "; the view was keyed as the shot camera"])
+	return true
+
+
+func lr_hdri(id: String) -> void:
+	lr_hdri_id = id if LightRig.SKIES.has(id) else ""
+	_lr_view_apply()
+	_say("sky map: %s" % (LightRig.SKY_NAMES[lr_hdri_id] if lr_hdri_id != "" else "none (the flat world colour)"))
+
+
+func lr_hdri_rot(deg: float) -> void:
+	lr_rot = fposmod(deg, 360.0)
+	_lr_view_apply()
+
+
+func lr_hdri_int(x: float) -> void:
+	lr_int = clampf(x, 0.0, 4.0)
+	_lr_view_apply()
+
+
+func lr_set_link(role: String, on: bool) -> void:
+	if not lr_link.has(role):
+		return
+	lr_link[role] = on
+	_lr_view_apply()
+	_say("%s light: %s" % [role, "lights the character only" if on else "lights everything"])
 
 
 func _light_preset(id: String) -> void:
@@ -25817,6 +26459,8 @@ const HIT_BLEND_S := 1.0    # s, from the fall's pose back onto the animation's 
 func _ragdoll_hit() -> void:
 	_say("hit: falling, then back up...")
 	await get_tree().process_frame
+	_step_hint = "Ragdoll: hit, fall, get back up"
+	_push_undo()   # the step is taken BEFORE the solver touches the body: the snapshot is the body as the user left it, to the byte
 	var keep := B.state()
 	var keep_ang: Dictionary = B.ang.duplicate()
 	var keep_off: Vector3 = B.offset
@@ -25839,6 +26483,9 @@ func _ragdoll_hit() -> void:
 	while FileAccess.file_exists(out):   # never over an earlier hit: _hit_2, _hit_3 ...
 		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
+	# opening the hit scene REPLACES the open one, so it is ONE undo step (a whole-scene swap, as New from template): Ctrl+Z puts the
+	# scene that was open back whole (the new file in scenes/_wip stays on disk), Ctrl+Y the hit scene
+	undo[-1]["swap"] = true
 	_write(out, d)
 	_load_scene(out, true)
 	_rebuild_cards()

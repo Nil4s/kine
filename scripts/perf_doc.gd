@@ -8,6 +8,7 @@ extends RefCounted
 ## The numbers beside them are the engine's own Performance monitors (TIME_PROCESS, draw calls, primitives, memory).
 
 static var on := false
+static var slow := false   # L12 (tests/perf60_test.gd): true = the reference paths of the PERF60 fixes (equality + before/after timing)
 static var acc := {}     # name -> microseconds summed over the measured frames
 static var burn := {}    # TEST-ONLY debug hook: name -> milliseconds busy-waited inside that bracket while measuring
 

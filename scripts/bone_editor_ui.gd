@@ -31,6 +31,15 @@ var f_parent: OptionButton
 var f_len: SpinBox
 var f_roll: SpinBox
 var info: Label
+var snodes: Array = []     # SPLINE IK (L28): the handle balls of the picked bone's chain (the test and the drag read them)
+var _scurve: MeshInstance3D
+var _sdrag := {}
+var b_spline: Button
+var b_stretch: Button
+var b_vol: Button
+var b_soff: Button
+var f_tw0: SpinBox
+var f_tw1: SpinBox
 var _root: Node3D
 var _octa: ArrayMesh
 var _mats := {}
@@ -125,7 +134,10 @@ func draw() -> void:
 		cur = ""
 	var show: bool = S != null and not m.clean
 	var seen := {}
+	var posed := {}
 	if show:
+		for ch in S.spline_chains:
+			posed.merge(SplineChain.pose(B, S.bones, ch))
 		for b in S.bones:
 			var n := String(b["name"])
 			var nd: MeshInstance3D = nodes.get(n)
@@ -135,7 +147,7 @@ func draw() -> void:
 				nd.name = "bone_" + n
 				_root.add_child(nd)
 				nodes[n] = nd
-			var xf := BoneEdit.posed_xf(B, S.bones, n)
+			var xf: Transform3D = posed[n] if posed.has(n) else BoneEdit.posed_xf(B, S.bones, n)   # a spline-IK chain bone: the solved frame
 			var L := BoneEdit.length(B, S.bones, n)
 			nd.transform = Transform3D(xf.basis * Basis.from_scale(Vector3.ONE * L), xf.origin)
 			nd.material_override = _mat("focus" if on and n == cur else depth_tok(BoneEdit.depth(S.bones, n)))
@@ -150,7 +162,8 @@ func draw() -> void:
 		(handles[i] as Node3D).visible = not ht.is_empty()
 		if not ht.is_empty():
 			(handles[i] as Node3D).position = ht[i]
-	var sg := var_to_str(S.bones) + "|" + cur + "|" + str(S.rigx.size()) + "|" + str(on)
+	_draw_spline()
+	var sg := var_to_str(S.bones) + "|" + cur + "|" + str(S.rigx.size()) + "|" + str(on) + "|" + var_to_str(S.spline_chains)
 	if sg != _sig:
 		_sig = sg
 		_sync()
@@ -360,16 +373,22 @@ func input(ev: InputEvent) -> bool:
 	if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 		var mb := ev as InputEventMouseButton
 		if mb.pressed:
-			if _press_handle(mb.position):
+			if _press_spline(mb.position) or _press_handle(mb.position):
 				return true
 			var id := pick_at(mb.position)
 			if id != "":
 				pick(id)
 			return true
+		if not _sdrag.is_empty():
+			_release_spline()
+			return true
 		if not _drag.is_empty():
 			_release()
 			return true
 		return false
+	if ev is InputEventMouseMotion and not _sdrag.is_empty():
+		_move_spline((ev as InputEventMouseMotion).position)
+		return true
 	if ev is InputEventMouseMotion and not _drag.is_empty():
 		_move((ev as InputEventMouseMotion).position)
 		return true
@@ -460,6 +479,153 @@ func _release() -> void:
 	draw()
 
 
+# ------------------------------------------------------------------ spline IK (L28)
+
+func chain_index() -> int:
+	return SplineChain.index_of(m.S.spline_chains, cur) if cur != "" else -1
+
+
+## the handles of the picked bone chain in the posed world
+func spline_points(ci: int) -> Array:
+	var ch: Dictionary = m.S.spline_chains[ci]
+	var K := SplineChain.carry(m.B, m.S.bones, ch)
+	return (ch["ctrl"] as Array).map(func(p): return K * (p as Vector3))
+
+
+func _draw_spline() -> void:
+	var S: Scene = m.S
+	var ci := chain_index() if on and S != null and not m.clean else -1
+	if ci >= 0 and not SplineChain.valid(S.bones, S.spline_chains[ci]):
+		ci = -1
+	var pts: Array = spline_points(ci) if ci >= 0 else []
+	while snodes.size() < pts.size():
+		var h := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.018
+		sm.height = 0.036
+		h.mesh = sm
+		h.name = "spline_handle_%d" % snodes.size()
+		h.material_override = _mat("s_tip")
+		_root.add_child(h)
+		snodes.append(h)
+	for i in snodes.size():
+		(snodes[i] as Node3D).visible = i < pts.size()
+		if i < pts.size():
+			(snodes[i] as Node3D).position = pts[i]
+	if _scurve == null:
+		_scurve = MeshInstance3D.new()
+		_scurve.name = "spline_curve"
+		_scurve.material_override = _mat("s_tip")
+		_root.add_child(_scurve)
+	_scurve.visible = ci >= 0
+	if ci >= 0:
+		var ch: Dictionary = S.spline_chains[ci]
+		var K := SplineChain.carry(m.B, S.bones, ch)
+		var rest: Array = ch["ctrl"]
+		var line := PackedVector3Array()
+		for i in 49:
+			line.append(K * SplineChain.curve_point(rest, String(ch["kind"]), float(rest.size() - 1) * float(i) / 48.0))
+		var arr := []
+		arr.resize(Mesh.ARRAY_MAX)
+		arr[Mesh.ARRAY_VERTEX] = line
+		var am := ArrayMesh.new()
+		am.add_surface_from_arrays(Mesh.PRIMITIVE_LINE_STRIP, arr)
+		_scurve.mesh = am
+
+
+func _press_spline(mp: Vector2) -> bool:
+	var ci := chain_index()
+	if ci < 0 or not SplineChain.valid(m.S.bones, m.S.spline_chains[ci]):
+		return false
+	var pts := spline_points(ci)
+	var which := -1
+	var best := HANDLE_PX
+	for i in range(1, pts.size()):   # handle 0 is the root bone head: it rides with the body
+		var d := mp.distance_to(_scr(pts[i]))
+		if d <= best:
+			best = d
+			which = i
+	if which < 0:
+		return false
+	m._step_hint = "Move spline handle"
+	m._push_undo()
+	var cam: Camera3D = m.cam
+	_sdrag = {"ci": ci, "i": which, "moved": false, "plane": Plane(-cam.global_transform.basis.z, pts[which])}
+	return true
+
+
+func _move_spline(mp: Vector2) -> void:
+	var cam: Camera3D = m.cam
+	var hit: Variant = (_sdrag["plane"] as Plane).intersects_ray(cam.project_ray_origin(mp), cam.project_ray_normal(mp))
+	if hit == null:
+		return
+	m._spline_put(int(_sdrag["ci"]), int(_sdrag["i"]), hit)
+	_sdrag["moved"] = true
+	m._refresh()
+	draw()
+
+
+func _release_spline() -> void:
+	var moved: bool = _sdrag["moved"]
+	_sdrag = {}
+	if moved:
+		m._after_edit()
+		m._say("moved a spline handle (one undo step)")
+	else:
+		m._drop_undo()
+		m._refresh()
+	_sig = ""
+	draw()
+
+
+func _spline_button(label: String, nm: String, tip: String, f: Callable) -> Button:
+	var bt := Button.new()
+	bt.text = label
+	bt.name = nm
+	bt.tooltip_text = tip
+	bt.focus_mode = Control.FOCUS_NONE
+	bt.pressed.connect(f)
+	return bt
+
+
+func _spline_cmd(f: Callable) -> void:
+	f.call(chain_index())
+	_sig = ""
+	draw()
+
+
+func _toggle_mode(ci: int) -> void:
+	if ci >= 0:
+		m._spline_set(ci, "mode", "keep" if m.S.spline_chains[ci]["mode"] == "stretch" else "stretch")
+
+
+func _toggle_vol(ci: int) -> void:
+	if ci >= 0:
+		m._spline_set(ci, "volume", not bool(m.S.spline_chains[ci]["volume"]))
+
+
+func _spline_off_pick(ci: int) -> void:
+	if ci >= 0:
+		m._spline_off(ci)
+
+
+func _twist_set(ci: int, field: String, v: float) -> void:
+	if ci >= 0 and absf(float(m.S.spline_chains[ci][field]) - v) > 1e-9:
+		m._spline_set(ci, field, v)
+
+
+func _twist_box(nm: String, tip: String, field: String) -> SpinBox:
+	var sp := SpinBox.new()
+	sp.name = nm
+	sp.min_value = -720.0
+	sp.max_value = 720.0
+	sp.step = 1.0
+	sp.suffix = "°"
+	sp.tooltip_text = tip
+	sp.value_changed.connect(func(v): _spline_cmd(_twist_set.bind(field, v)))
+	return sp
+
+
 # ------------------------------------------------------------------ the panel
 
 func _build_panel() -> void:
@@ -530,6 +696,27 @@ func _build_panel() -> void:
 		bt.pressed.connect(b[2])
 		hb.add_child(bt)
 	vb.add_child(hb)
+	var sb := HBoxContainer.new()
+	b_spline = _spline_button("Spline IK", "btn_spline_on", "the picked bone and the chain below it follow a curve through 4 handles: drag the balls (one undo step each)", func(): m._spline_make(cur))
+	b_stretch = _spline_button("Stretch", "btn_spline_stretch", "stretch to fit the curve (the bones grow or shrink) / keep length (they never do)", func(): _spline_cmd(_toggle_mode))
+	b_vol = _spline_button("Volume", "btn_spline_volume", "a stretched bone gets thinner (1/sqrt(s) across) so its volume stays", func(): _spline_cmd(_toggle_vol))
+	b_soff = _spline_button("Off", "btn_spline_off", "the chain is plain bones again", func(): _spline_cmd(_spline_off_pick))
+	for b in [b_spline, b_stretch, b_vol, b_soff]:
+		sb.add_child(b)
+	vb.add_child(sb)
+	var tg := GridContainer.new()
+	tg.columns = 4
+	f_tw0 = _twist_box("spline_twist_root", "spline IK twist at the chain root, degrees (one undo step)", "tw0")
+	f_tw1 = _twist_box("spline_twist_tip", "spline IK twist at the chain tip, degrees (one undo step)", "tw1")
+	var l0 := Label.new()
+	l0.text = "Twist"
+	tg.add_child(l0)
+	tg.add_child(f_tw0)
+	var l1 := Label.new()
+	l1.text = "to"
+	tg.add_child(l1)
+	tg.add_child(f_tw1)
+	vb.add_child(tg)
 	info = Label.new()
 	info.autowrap_mode = TextServer.AUTOWRAP_WORD
 	info.custom_minimum_size = Vector2(240, 0)
@@ -590,6 +777,16 @@ func _sync() -> void:
 	for p in _parent_ids:
 		f_parent.add_item(p)
 	f_parent.select(_parent_ids.find(par))
+	var sci := chain_index()
+	b_stretch.text = "Stretch" if sci < 0 or S.spline_chains[sci]["mode"] != "stretch" else "Keep length"
+	b_vol.text = "Volume" if sci < 0 or not bool(S.spline_chains[sci]["volume"]) else "Volume: on"
+	b_spline.disabled = core or sci >= 0
+	for bb in [b_stretch, b_vol, b_soff]:
+		(bb as Button).disabled = sci < 0
+	for sp in [f_tw0, f_tw1]:
+		(sp as SpinBox).editable = sci >= 0
+	f_tw0.set_value_no_signal(float(S.spline_chains[sci]["tw0"]) if sci >= 0 else 0.0)
+	f_tw1.set_value_no_signal(float(S.spline_chains[sci]["tw1"]) if sci >= 0 else 0.0)
 	f_len.set_value_no_signal(((ht[1] as Vector3).distance_to(ht[0])) * 100.0)
 	f_roll.set_value_no_signal(roll)
 	info.text = "the body's own bone: not edited here (E grows one of yours from it)" if core else \
