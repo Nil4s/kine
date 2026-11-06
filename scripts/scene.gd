@@ -2381,6 +2381,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["cape"] = Cloth.to_file(cape)   # the cape: the baked frames, only when there is one
 	if not (soft.get("regions", []) as Array).is_empty():
 		out["soft"] = {"regions": (soft["regions"] as Array).duplicate()}   # soft-body flesh: only when a region is on
+		if absf(float(soft.get("strength", 1.0)) - 1.0) > 1e-9:
+			out["soft"]["strength"] = float(soft["strength"])   # L22: the strength slider, in the file only when it is not 1
 	if not secondary.is_empty():
 		out["secondary"] = SecondaryMotion.to_file(secondary)   # secondary motion: the same, only when there is an item
 	if not hair.is_empty():
@@ -2595,6 +2597,8 @@ func from_dict(d: Dictionary) -> void:
 				rg.append(String(n))
 		if not rg.is_empty():
 			soft = {"regions": rg}   # soft-body flesh: absent = none
+			if d["soft"].has("strength"):
+				soft["strength"] = clampf(float(d["soft"]["strength"]), 0.0, SoftBody.STRENGTH_MAX)
 	secondary = SecondaryMotion.from_file(d.get("secondary", {}))   # secondary motion: absent = none
 	hair = Hair.from_file(d.get("hair", {}))   # hair strands: absent = none
 	rigx = RigWords.from_file(d.get("rigx", []))   # the words-made rig: absent = none
