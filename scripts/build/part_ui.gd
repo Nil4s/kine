@@ -817,7 +817,7 @@ func _xtime_buttons() -> Control:
 	sup_btn.text = "Suppress"
 	sup_btn.focus_mode = Control.FOCUS_NONE
 	sup_btn.custom_minimum_size = Vector2(150, 22)
-	sup_btn.add_theme_font_size_override("font_size", 12)
+	sup_btn.add_theme_font_size_override("font_size", 11)
 	sup_btn.tooltip_text = "Suppress: the selected step is skipped by the replay (Suppress again, or Undo, puts it back)"
 	sup_btn.pressed.connect(_suppress_toggle)
 	ab.add_child(sup_btn)
@@ -826,7 +826,7 @@ func _xtime_buttons() -> Control:
 	del_btn.text = "Delete step"
 	del_btn.focus_mode = Control.FOCUS_NONE
 	del_btn.custom_minimum_size = Vector2(150, 22)
-	del_btn.add_theme_font_size_override("font_size", 12)
+	del_btn.add_theme_font_size_override("font_size", 11)
 	del_btn.tooltip_text = "Delete step: removes the selected step; the steps after it replay, and a step that needs it says why (one undo step)"
 	del_btn.pressed.connect(_delete_step)
 	ab.add_child(del_btn)
@@ -841,7 +841,7 @@ func _build_timeline() -> void:
 	hb.add_theme_constant_override("separation", 6)
 	tl.add_child(hb)
 	var nav := VBoxContainer.new()
-	nav.add_child(_label("TIMELINE", 12, true))
+	nav.add_child(_label("TIMELINE", 11, true))
 	var nb := HBoxContainer.new()
 	for e in [["<<", "first step", "part_first"], ["<", "one step back", "part_back"], [">", "one step on", "part_next"], [">>", "every step", "part_last"]]:
 		var b := Button.new()
