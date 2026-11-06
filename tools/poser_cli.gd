@@ -422,6 +422,15 @@ func _init() -> void:
 			var xr := ExplainMotion.serve(m, xp)
 			say(String(xr.get("text", xr.get("error", ""))))
 			done(xr)
+		"texture_paint":   # L53: texture_paint [shape=sphere] [x=N y=N radius=N size=N color=#hex strength=N hardness=N pad=N] (scripts/tpaint_serve.gd)
+			var tpp := {}
+			for x in a.slice(1):
+				var kvt := String(x).split("=", true, 1)
+				if kvt.size() == 2:
+					tpp[kvt[0]] = float(kvt[1]) if kvt[1].is_valid_float() else kvt[1]
+			var tpo := TPaintServe.serve(m, tpp)
+			say(JSON.stringify(tpo))
+			done(tpo)
 		"blend_matrix":   # N084: blend_matrix [scene.json ...] [blend=S] [a=NAME b=NAME] (scripts/blend_matrix_serve.gd)
 			var bp := {}
 			var bfiles := []

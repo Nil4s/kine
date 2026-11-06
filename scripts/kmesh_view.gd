@@ -32,6 +32,7 @@ var smooth_shade := false   # C01: the sculpt sphere shades with the vertex norm
 ## (KMeshUV.stretch heat per face, blue = no distortion, red = stretched or flipped)
 var shading := ""
 var stretch := {}        # the last KMeshUV.stretch result while shading is "uv_stretch"
+var paint_tex: Texture2D   # L53 Texture mode: the painted texture drawn through the "uv" attribute (scripts/kmesh_tpaint.gd)
 var show_color := false  # E04: the surface takes the "color" attribute (vertex paint, scripts/kmesh_vpaint.gd)
 var _pal_dark := true
 var show_heat := false
@@ -150,7 +151,7 @@ func _surface() -> ArrayMesh:
 	var nor := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	var cols := PackedColorArray()
-	var ud = mesh.attr_data(KMeshUV.UV) if shading == "uv_checker" and mesh.has_attr(KMeshUV.UV) and mesh.attr_info(KMeshUV.UV)["domain"] == KMesh.AD_CORNER else null
+	var ud = mesh.attr_data(KMeshUV.UV) if (shading == "uv_checker" or paint_tex != null) and mesh.has_attr(KMeshUV.UV) and mesh.attr_info(KMeshUV.UV)["domain"] == KMesh.AD_CORNER else null
 	stretch = KMeshUV.stretch(mesh) if shading == "uv_stretch" else {}
 	var cd = mesh.attr_data("color") if show_color and ud == null and stretch.is_empty() and KMeshVPaint.usable(mesh) else null
 	var cv: bool = cd != null and mesh.attr_info("color")["domain"] == KMesh.AD_VERT
@@ -201,6 +202,9 @@ func rebuild() -> void:
 		_surf.material_override = KMeshUV.checker_material()
 	elif not stretch.is_empty():
 		_surf.material_override = KMeshUV.heat_material()
+	elif paint_tex != null and _surf.mesh.get_surface_count() > 0 and _surf.mesh.surface_get_format(0) & Mesh.ARRAY_FORMAT_TEX_UV:
+		_surf.material_override.albedo_texture = paint_tex
+		_surf.material_override.albedo_color = Color.WHITE
 	elif show_color and _surf.mesh.get_surface_count() > 0 and _surf.mesh.surface_get_format(0) & Mesh.ARRAY_FORMAT_COLOR:
 		_surf.material_override.vertex_color_use_as_albedo = true   # E04: the painted colours (times the plain white albedo)
 		_surf.material_override.vertex_color_is_srgb = true

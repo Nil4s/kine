@@ -10,7 +10,10 @@ const MAX_STEPS := 400          # a hard count; the byte budget is what normally
 const DEFAULT_MB := 64.0
 const NOTE := "oldest undo steps forgotten to save memory"
 ## kept as they are on every step: object references, and the words the lists, the tree and the tooltips read
-const PLAIN_KEYS := ["actor", "hero", "spath", "hero_actors", "rt", "scene", "others", "hint", "name", "easy", "lib", "libedit", "swap", "drag", "_sz", "_z", "_zn"]
+const PLAIN_KEYS := ["actor", "hero", "spath", "hero_actors", "rt", "scene", "others", "hint", "name", "easy", "lib", "libedit", "swap", "drag", "_sz", "_szest", "_z", "_zn"]
+
+## L58: fields that are plain data by construction (JSON-compared and file-shaped elsewhere): not walked for objects on every step (1000 props took 30 ms)
+const PURE_KEYS := ["props", "pxf", "cards"]
 
 static var budget_mb := -1.0    # < 0: not read yet (settings), a test sets it directly
 static var keep_plain := -1     # < 0: KEEP_PLAIN (or the KINE_UNDO_KEEP environment variable, for tests that pack everything)
@@ -52,7 +55,7 @@ static func _has_obj(v: Variant) -> bool:
 static func _data(u: Dictionary) -> Dictionary:
 	var part := {}
 	for k in u.keys():
-		if not PLAIN_KEYS.has(k) and not _has_obj(u[k]):
+		if not PLAIN_KEYS.has(k) and (PURE_KEYS.has(k) or not _has_obj(u[k])):
 			part[k] = u[k]
 	return part
 
@@ -119,7 +122,16 @@ static func _pack_old(lst: Array) -> void:
 
 
 ## after a step was pushed / undone / redone: pack the old ones, then forget the oldest while over the budget
-static func settle(m: Object) -> void:
+## lazy (L58): an Undo / Redo hands the step it makes an ESTIMATED size (the size of the step it took back, "_szest"); the measuring
+## var_to_bytes of a 1000-prop step took 8 ms. The next push (lazy = false) measures every estimated step for real.
+static func settle(m: Object, lazy := false) -> void:
+	if not lazy:
+		for lst0 in [m.get("undo"), m.get("redo")]:
+			for e0 in lst0:
+				if (e0 as Dictionary).has("_szest"):
+					(e0 as Dictionary).erase("_szest")
+					if not (e0 as Dictionary).has("_z"):
+						(e0 as Dictionary).erase("_sz")
 	var undo: Array = m.get("undo")
 	var redo: Array = m.get("redo")
 	_pack_old(undo)

@@ -61,6 +61,9 @@ TOOLS = {
     "dyntopo": ("dyntopo", "Dynamic topology step: under the sculpt brush edges longer than L_max = detail x radius are split and edges shorter than 0.4 L_max are collapsed. "
                 "Runs one step on a test sphere and returns tris before/after, splits, collapses, edges in the brush outside the band (band_bad), min/max edge in mm, manifold, native, ms.",
                 {"type": "object", "properties": {"radius": N, "detail": N, "levels": N}, "additionalProperties": False}),
+    "texture_paint": ("texture_paint", "Texture paint: one brush stamp in SCREEN px (x, y, radius) projected onto a built-in UV-mapped shape (sphere or cylinder, camera 3 m back) and written into the texture's texels on every UV island it covers, "
+                      "with seam bleed (pad texels) so no seam shows; back-facing and occluded surface is left alone. Returns texels written, screen_pct, engine (native / gdscript), ms, tex_hash.",
+                      {"type": "object", "properties": {"shape": S, "x": N, "y": N, "radius": N, "size": N, "color": S, "strength": N, "hardness": N, "pad": N, "w": N, "h": N}, "additionalProperties": False}),
     "blend_matrix": ("blend_matrix", "Blend matrix of a moveset: every clip crossfaded into every other (the end of A into the start of B over blend_s) and checked for limit breaks (deg, with the joint), "
                      "self-clash (mm) and planted-foot skate (mm), plus the pose distance at the seam; a grid (B bad, w watch, . ok) and the ranked bad pairs with their numbers. clips = scene files "
                      "(else every scene and move with motion); a and b name one pair to get its cell; full adds the whole matrix.",
@@ -110,7 +113,7 @@ TOOLS = {
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "dyntopo"]
+MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:

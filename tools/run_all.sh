@@ -1069,3 +1069,8 @@ EXTRA="$EXTRA bgthread:w"   # L42 throw judge + Bake sim off the main thread (te
 EXTRA="$EXTRA render1:w"   # L49 RENDER1: Final HQ preset: GI raise, DOF edge width, motion-blur streak, accumulation 1/sqrt(N) (tests/render1_test.gd, scripts/final_hq.gd)
 EXTRA="$EXTRA render2:w"   # L51 RENDER2: native accumulate == GDScript, 1080p x16 <= 150 ms, edge-aware a-trous denoise (tests/render2_test.gd)
 EXTRA="$EXTRA dyntopo:w"   # L52 DYNTOPO: split long / collapse short edges under the brush: band, outside hash, manifold, 200k step <= 16 ms native, native == GDScript, undo, UI toggle, agent tool (tests/dyntopo_test.gd)
+EXTRA="$EXTRA tpaint:w"   # L53 TPAINT: texture paint across UV seams with screen projection, seam dilation, native == GDScript (tests/tpaint_test.gd)
+EXTRA="$EXTRA tpaint2:w"   # L55 TPAINT2: texture paint saved beside the scene (SHA-256 round trip, PNG missing = warning), the auto-unwrap is one undo step (tests/tpaint2_test.gd)
+EXTRA="$EXTRA perfscout:w"   # L54 PERF SCOUT: measures user-visible stalls (tools/perf_scout.gd), no speed bars
+EXTRA="$EXTRA fastsave:w"   # L56 FASTSAVE: save/USD with 1000 props <= 300 ms warm, file byte-identical (tests/fastsave_test.gd)
+EXTRA="$EXTRA propsgrid:w"   # L58 PROPSGRID: Props.settle in C++ with a grid (GDScript twin), undo without re-settle, _props_show keeps nodes per prop (tests/propsgrid_test.gd)
