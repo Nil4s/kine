@@ -95,7 +95,11 @@ func _init() -> void:
 	await idle(3)
 	var P: ThrowPanel = m.throw_panel
 	var n_frames := (ThrowTruth.judge(load_scene(paths["osoto"]), FPS)["frames"] as Array).size()
-	ok(P != null and P.visible and n_frames > 13, "1 the panel is shown on the osoto fixture (%d frames)" % n_frames)
+	var waited := 0   # L42: the judge runs off-thread after a debounce; bar 1 reads the cells only once the result has landed
+	while P != null and P.res.is_empty() and waited < 600:
+		await process_frame
+		waited += 1
+	ok(P != null and P.visible and n_frames > 13, "1 the panel is shown on the osoto fixture (%d frames, result after %d frames)" % [n_frames, waited])
 	for f in [10, 11, 12]:
 		m.playhead = float(f) / float(FPS)
 		m._refresh()
