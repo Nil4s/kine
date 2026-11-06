@@ -12,6 +12,10 @@
 ##     with one frame deleted / one frame at the wrong size, must report the mismatch.
 ##   4 NO DATA TOUCHED: output goes under the path given (a temp folder); no png/mp4 appear in the user data dir (a fresh APPDATA
 ##     under wtest), and none in res://exports. CONTROL: the scan must see a png planted in user://.
+##   7 GRAIN (L15, from #228 LOOK: fine SSAO hatch on shaded surfaces): on the app test scene's 1080p final frame, high-frequency noise in a torso-shadow
+##     patch (std of luminance minus its 5x5 box blur) falls by >= 40% against the previous final preset (key/fill/rim shadow_blur 1.6; measured: the hatch is the soft-shadow filter, not SSAO) measured on
+##     the same frame/patch. CONTROL: the new frame with 2% noise planted in the patch must fail that 40% bar.
+##   (bar 7 runs on the APP's 1080p final of frame 34: the test scene's capsules show no grain at all; the hatch is in the skinned mannequin's shadow side)
 ##   5 TIME (report only): seconds per frame, draft and final, at 1080p.
 extends SceneTree
 
@@ -429,10 +433,93 @@ func _init() -> void:
 	ok(m.grid_node.visible and m._axis_node() != null and m._axis_node().visible == axis0 and is_equal_approx(float(m._body_outline.get_shader_parameter("grow")), grow0) and grow0 > 0.0,
 		"  after the render the grid, the axes and the outline are back in the editor (outline grow %.4f)" % grow0)
 
+	# ---------------------------------------------------------------- bar 7: grain in the final frame (the app's own 1080p final of frame 34)
+	# "previous final" = what the preset was before L15 (key/fill/rim shadow_blur 1.6): set by FinalRender.post_apply
+	var prev_final := func(env: Environment, vp: Viewport, ls: Array):
+		RenderingServer.environment_set_ssao_quality(RenderingServer.ENV_SSAO_QUALITY_HIGH, true, 0.5, 2.0, 50.0, 300.0)
+		for L in ls:
+			(L as Light3D).shadow_blur = 1.6
+	FinalRender.post_apply = prev_final
+	var g_old := await app_frame(out_root, 34)
+	FinalRender.post_apply = Callable()
+	var tg0 := Time.get_ticks_msec()
+	var g_new := await app_frame(out_root, 34)
+	var g_ms := Time.get_ticks_msec() - tg0
+	var Lo := lum_img(g_old)
+	var Ln := lum_img(g_new)
+	var W := g_old.get_width()
+	var H := g_old.get_height()
+	var patches := {"torso shadow": Rect2i(940, 230, 40, 40), "standing leg": Rect2i(950, 760, 30, 30)}
+	var reds := {}
+	for pn in patches:
+		var no := hf_noise(Lo, W, H, patches[pn])
+		var nn := hf_noise(Ln, W, H, patches[pn])
+		reds[pn] = [no, nn, 1.0 - nn / maxf(no, 1e-9)]
+		print("     grain %s %s: previous final %.5f, now %.5f (down %.1f%%)" % [pn, patches[pn], no, nn, (1.0 - nn / maxf(no, 1e-9)) * 100.0])
+	var tp: Rect2i = patches["torso shadow"]
+	var Lp := Ln.duplicate()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	for y in range(tp.position.y, tp.position.y + tp.size.y):
+		for x in range(tp.position.x, tp.position.x + tp.size.x):
+			Lp[y * W + x] += rng.randf_range(-0.02, 0.02)
+	var n_pl := hf_noise(Lp, W, H, tp)
+	var red_pl := 1.0 - n_pl / maxf(float(reds["torso shadow"][0]), 1e-9)
+	print("     TIME: one 1080p final frame through _render_shots (incl. progress frames and mp4 encode) %d ms" % g_ms)
+	if look_dir != "":
+		g_old.save_png(look_dir + "/look_grain_old_full.png")
+		g_new.save_png(look_dir + "/look_grain_new_full.png")
+	ok(float(reds["torso shadow"][0]) > 0.005 and float(reds["torso shadow"][2]) >= 0.40, "7 grain: torso-shadow high-frequency noise %.5f -> %.5f, down %.1f%% (want >= 40%%; the old patch is grainy: > 0.005)" % [reds["torso shadow"][0], reds["torso shadow"][1], float(reds["torso shadow"][2]) * 100.0])
+	ok(float(reds["standing leg"][2]) >= 0.40, "  and on the standing leg: %.5f -> %.5f, down %.1f%%" % [reds["standing leg"][0], reds["standing leg"][1], float(reds["standing leg"][2]) * 100.0])
+	ok(red_pl < 0.40, "  CONTROL: 2%% noise planted in the new frame's torso patch is caught (reduction %.1f%% < 40%%)" % (red_pl * 100.0))
+
 	_rm(out_root)
 	print("frender: %d fail" % fails)
 	TestFiles.cleanup()
 	quit(fails)
+
+
+func lum_img(img: Image) -> PackedFloat32Array:
+	var w := img.get_width()
+	var out := PackedFloat32Array()
+	out.resize(w * img.get_height())
+	for y in img.get_height():
+		for x in w:
+			var c := img.get_pixel(x, y)
+			out[y * w + x] = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
+	return out
+
+
+## std of (luminance - its 5x5 box blur) over rect r (the blur reads the whole image)
+func hf_noise(L: PackedFloat32Array, w: int, h: int, r: Rect2i) -> float:
+	var s := 0.0
+	var s2 := 0.0
+	var n := 0
+	for y in range(r.position.y, r.position.y + r.size.y):
+		for x in range(r.position.x, r.position.x + r.size.x):
+			var t := 0.0
+			for dy in range(-2, 3):
+				for dx in range(-2, 3):
+					t += L[clampi(y + dy, 0, h - 1) * w + clampi(x + dx, 0, w - 1)]
+			var d := L[y * w + x] - t / 25.0
+			s += d
+			s2 += d * d
+			n += 1
+	return sqrt(maxf(s2 / n - (s / n) * (s / n), 0.0))
+
+
+## the app's 1080p final of one frame (the same _render_shots): the PNG as an image
+func app_frame(out_root: String, first: int) -> Image:
+	var got: Array = []
+	var cb := func(r): got.append(r)
+	m.shots_render_done.connect(cb)
+	m._render_shots(out_root, "", {"preset": "final", "w": 1920, "h": 1080, "first": first, "count": 1})
+	await process_frame
+	while m._sr_busy:
+		await process_frame
+	m.shots_render_done.disconnect(cb)
+	await idle(2)
+	return Image.load_from_file(String((got[0] as Dictionary)["dir"]) + "/frame_0000.png")
 
 
 func _rm(path: String) -> void:

@@ -1038,7 +1038,9 @@ EXTRA="$EXTRA g16open:w"   # g16open (gap G16): stroke retopo across open edges,
 EXTRA="$EXTRA g4dbl:w"   # G4DBL: CAD poses in doubles (Xform64, Assembly.xf64_of, place64): round trip 1e-12, CH13 pin height 1e-9 mm, display = float32 rounding, save/load bit-exact, tests/g4dbl_test.gd
 EXTRA="$EXTRA g3fits:w"   # G3FITS: ISO 286 fit classes on Part dimensions (iso_fits.gd, dim_fit.gd), mating-pair kind + clearance, stack-up panel (worst case, RSS, CSV), agent call fits, tests/g3fits_test.gd
 EXTRA="$EXTRA mcpfast:w"   # MCPFAST: the CAD tools of the local MCP (cad_part, cad_asm, check_fit, bom, eval_gd, batch), cache by record hash, terse replies, CH13 through MCP (tests/mcpfast_test.gd, docs/MCPFAST_FEEDBACK.md)
-
+EXTRA="$EXTRA usdskin:h"   # usdskin (L14): skinned USD export with blend shapes, read back by headless Blender (tests/usdskin_test.gd, tools/usdskin_check.py)
+EXTRA="$EXTRA ch17:w"   # ch17: 1 MGD water treatment plant layout built through the MCP --cad route (tools/ch17_mcp.py): overlaps, flow continuity, process by hand, OSHA clearances, BOM, sheets (docs/CH17_BRIEF.md), tests/ch17_test.gd
+EXTRA="$EXTRA face_geo:w"   # FACE GEO (ROADMAP_400 I01-I04): the face as real geometry: lids, lips, jaw, 2 eye spheres, jaw + eye bones, 6 FACS AUs as blendshapes, joy / pain presets; anthropometry, placement on the head, renders (tests/face_geo_test.gd; scripts/face_geo.gd)
 EXTRA="$EXTRA charimp:w"   # L9 CHARIMP: a rigged character (mesh, skin, blend shapes) from glb / fbx onto the Kine body: map by name then geometry, rest-pose alignment, pose transfer, proportions, scene key (tests/charimp_test.gd)
 EXTRA="$EXTRA uiexp:w ch17:w frender:w"   # UIEXP (lane L2): Expert Part / Assembly / Engineering on a wide window: tool rail with icons, nothing outside the window, no panel overlap, every old function reachable, window start inside the usable screen (tests/uiexp_test.gd, docs/UIEXP_DESIGN.md)
 EXTRA="$EXTRA install:w"   # L16 installer
