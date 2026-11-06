@@ -3624,6 +3624,10 @@ func _exit_tree() -> void:
 			(sc as Scene).baker.stop()   # ROADMAP 99: the bake tasks end before the scenes they read go
 	PoseBake.stop_all()   # ... and those of scenes already swapped out (a baker outlives its scene's turn on stage)
 	_imp_stop()   # R13: a video import's worker ends (and is waited for) before the scene it was given goes
+	if _simc_clean.is_valid():
+		_simc_clean.call()   # L42: a half-written Bake sim leaves no file behind
+	for jb in _throw_jobs:
+		WorkerThreadPool.wait_for_task_completion(jb["task"])   # L42: the throw judge's worker ends before the scenes go
 	Children.kill_all()   # the separate programs (video tracker, AI video maker, Save video's ffmpeg, webcam and multicam readers...) end with the app
 	if not _pv_job.is_empty():   # a fix preview still being worked out on a worker thread
 		WorkerThreadPool.wait_for_task_completion(_pv_job["task"])
@@ -3784,6 +3788,7 @@ func _process_body(dt: float) -> void:
 	PerfDoc.add("p_sj", _p0)
 	_p1 = PerfDoc.t()
 	_dm_poll()
+	_throw_poll()
 	PerfDoc.add("p_dm", _p1)
 	_p1 = PerfDoc.t()
 	_hit_ui_tick()
@@ -4223,7 +4228,13 @@ var throw_on := false                  # the Throw check panel is showing
 var throw_panel: ThrowPanel = null
 var throw_key := 0                     # what the panel's result was judged for (cards + the partner's cards and place + fps)
 var throw_done := false
-var throw_judge_runs := 0              # how many times the judge ran (a hidden panel must not run it)
+var throw_judge_runs := 0              # how many times the judge was started (a hidden panel must not run it)
+## L42: the judge runs on a WorkerThreadPool task on a clone of the scene, after THROW_DEBOUNCE_MS without a further edit. Every job carries the
+## generation (throw_gen, bumped by each edit that changes throw_key); a result of an older generation is dropped (_throw_land).
+const THROW_DEBOUNCE_MS := 150
+var throw_gen := 0
+var _throw_due := 0                    # msec tick at which the next judge starts (0 = none waiting)
+var _throw_jobs: Array = []            # {gen, task, out} in flight
 
 
 ## called at every refresh: nothing at all while the panel is off; while on, the judge runs only when the scene (cards, partner, place) changed
@@ -4245,8 +4256,51 @@ func _throw_refresh() -> void:
 		return
 	throw_done = true
 	throw_key = key
-	throw_judge_runs += 1
-	throw_panel.show_result({"ok": false} if key == -1 else ThrowTruth.judge(S, ThrowFixtures.FPS))
+	throw_gen += 1
+	if key == -1:
+		_throw_due = 0
+		throw_panel.show_result({"ok": false})
+		return
+	throw_panel.show_pending()
+	_throw_due = Time.get_ticks_msec() + THROW_DEBOUNCE_MS
+
+
+func _throw_busy() -> bool:
+	return _throw_due > 0 or not _throw_jobs.is_empty()
+
+
+## forget what the panel was judged for: the next refresh judges again
+func _throw_key_reset() -> void:
+	throw_done = false
+
+
+## every frame: starts the debounced judge, lands the finished ones
+func _throw_poll() -> void:
+	if _throw_due == 0 and _throw_jobs.is_empty():
+		return
+	if _throw_due > 0 and Time.get_ticks_msec() >= _throw_due:
+		_throw_due = 0
+		if throw_on:
+			throw_judge_runs += 1
+			var sc := S.clone()   # the worker reads its own copy; the scene goes on being edited
+			var job := {"gen": throw_gen, "out": {}}
+			job["task"] = WorkerThreadPool.add_task(func(): job["out"] = ThrowTruth.judge(sc, ThrowFixtures.FPS))
+			_throw_jobs.append(job)
+		else:
+			throw_done = false   # the panel was switched off while waiting: judge when it is back
+	for job in _throw_jobs.duplicate():
+		if WorkerThreadPool.is_task_completed(job["task"]):
+			WorkerThreadPool.wait_for_task_completion(job["task"])
+			_throw_jobs.erase(job)
+			_throw_land(int(job["gen"]), job["out"])
+
+
+## a result lands only if it is for the newest generation; false = dropped
+func _throw_land(gen: int, r: Dictionary) -> bool:
+	if gen != throw_gen or throw_panel == null:
+		return false
+	throw_panel.show_result(r)
+	return true
 
 
 func _throw_place() -> void:
@@ -6702,6 +6756,7 @@ func _after_edit() -> void:
 	if symmetry:
 		_mirror_changed()
 	B.apply_grip()
+	simc.edited()
 	_refresh()
 
 
@@ -7139,6 +7194,7 @@ func _restore(u: Dictionary) -> void:
 ## next undo step). Every edit goes through _push_undo (and every undo/redo through _restore), so both drop the bakers
 ## first; _bake_poll starts fresh ones from the new content.
 func _bake_drop(extra: Scene = null) -> void:
+	simc.edited()   # L42: an edit / undo / redo: the sim cache's memoized scene keys are dropped
 	var seen := _bake_scenes()
 	if extra != null:
 		seen.append(extra)
@@ -10344,6 +10400,66 @@ func _simc_bake() -> Dictionary:
 		fr = maxi(fr, int(simc.meta[n]["frames"]))
 	_say("baked %s to a point cache: %d frames each, the timeline scrubs the file (Ctrl+Z takes it back; an edit makes it stale; 'Bake sim: free' removes it)" % [", ".join(done), fr])
 	return {"objects": done, "frames": fr}
+
+
+var _simc_clean := Callable()   # removes the pending files of the bake in flight
+
+
+## L42: Bake sim in the BACKGROUND (the menu action): the sims and the file writes run on a worker (progress bar and Cancel of the import panel);
+## the files are written as <file>.pending and renamed into place on the main thread when the bake completed AND the scene is still the one it read
+## (the keys are hashed again at landing), inside ONE undo step. Cancel, a scene edited meanwhile or a failed write leave no file and no undo step.
+func _simc_bake_bg() -> Dictionary:
+	if _imp_busy():
+		_say("still working on %s: one background job at a time; press Cancel on the bar, or wait for it" % _imp["label"])
+		return {"objects": []}
+	var names: Array = []
+	if not S.cape.is_empty():
+		names.append("cape")
+	for n in SoftBody.regions_of(S):
+		names.append("soft:" + String(n))
+	if names.is_empty():
+		_say("nothing to bake: 'Cape: add to the back' or a soft-body region on the BODY page first")
+		return {"objects": []}
+	var keys := {}
+	for n in names:
+		keys[n] = SimCacheLive.key_for(S, n)
+	var src := S
+	var sc := S.clone()   # on this thread; the worker never reads the open scene
+	var d: String = simc.dir
+	var sname: String = S.name
+	_simc_clean = func(): SimCacheLive.clear_pending(d, sname, names)
+	var work := func() -> Dictionary:
+		var r := SimCacheLive.compute(sc, true)
+		if r.is_empty():
+			return {}
+		var pend := SimCacheLive.write_pending(d, sname, r["objs"], keys)
+		if pend.is_empty():
+			return {}
+		return {"pend": pend, "cape": r["cape"]}
+	var land := func(out: Dictionary) -> void:
+		_simc_clean = Callable()
+		var same := S == src
+		if same:
+			for n in names:
+				same = same and SimCacheLive.key_for(S, n) == String(keys[n])
+		if not same:
+			SimCacheLive.clear_pending(d, sname, names)
+			_say("the scene changed while the sim baked: that result was dropped (no file written); run Bake sim again")
+			return
+		var done := []
+		_do(func():
+			done.append_array(simc.commit_pending(S, out["pend"]))
+			if not (out["cape"] as Dictionary).is_empty():
+				S.cape = out["cape"])
+		var fr := 0
+		for n in done:
+			fr = maxi(fr, int(simc.meta[n]["frames"]))
+		_say("baked %s to a point cache: %d frames each, the timeline scrubs the file (Ctrl+Z takes it back; an edit makes it stale; 'Bake sim: free' removes it)" % [", ".join(done), fr])
+	var fail := func() -> void:
+		_simc_clean = Callable()
+		SimCacheLive.clear_pending(d, sname, names)
+	_imp_begin("Bake sim", work, land, fail)
+	return {"objects": names, "background": true}
 
 
 func _simc_free() -> void:
@@ -17114,7 +17230,7 @@ func _commands() -> Array:
 	add.call("Cape: add to the back (bakes the cloth)", "", _cape_add, "cape cloth back cloak robe sim bake drape", true, "a cape hangs from the shoulders on the back and swings in a turn: a cloth grid that collides with the body, baked over the scene; Ctrl+Z takes it back")
 	add.call("Cape: cancel the bake", "", _cape_cancel, "cape cloth bake cancel stop abort background", false, "stops a cape bake that is running in the background; the scene keeps its last cape")
 	add.call("Cape: folds onto itself (slower)", "", _cape_fold_toggle, "cape cloth fold self collision layers pass through itself slower", false, "makes the next cape bake keep its folds from passing through each other: about 0.5 s of baking a frame instead of 0.03 s, so it is off until you switch it on (the toggle says which way it is)")
-	add.call("Bake sim (cache cloth and soft body)", "", _simc_bake, "bake sim simulation cache point cache cloth cape soft body flesh scrub timeline", true, "writes the cape's and the soft-body regions' vertex positions for every frame to a file each; the timeline then shows the saved frame and never re-simulates; an edit makes it stale; Ctrl+Z takes it back")
+	add.call("Bake sim (cache cloth and soft body)", "", _simc_bake_bg, "bake sim simulation cache point cache cloth cape soft body flesh scrub timeline", true, "writes the cape's and the soft-body regions' vertex positions for every frame to a file each; the timeline then shows the saved frame and never re-simulates; an edit makes it stale; Ctrl+Z takes it back")
 	add.call("Bake sim: free", "", _simc_free, "bake sim free remove delete cache point cache simulation", true, "removes the baked sim files; the cape and the flesh simulate live again; Ctrl+Z brings them back")
 	add.call("Cape: take off", "", _cape_clear, "cape cloth remove clear off delete", true, "takes the cape off the scene (Ctrl+Z puts it back)")
 	add.call("Cape: export its vertices (JSON)", "", _cape_export, "cape cloth export mesh json vertices", false, "writes the cape's vertex positions for every frame to a JSON file in the user folder")

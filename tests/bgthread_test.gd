@@ -59,6 +59,15 @@ class Probe:
 		s.sort()
 		return float(s[mini(int(ceil(0.95 * s.size())) - 1, s.size() - 1)])
 
+	func at_max() -> int:
+		var v := 0.0
+		var k := 0
+		for i in dt.size():
+			if float(dt[i]) > v:
+				v = float(dt[i])
+				k = i
+		return k
+
 	func mx() -> float:
 		var v := 0.0
 		for x in dt:
@@ -125,12 +134,12 @@ func turn_scene() -> Scene:
 	for j in Body.ORDER:
 		rest[j] = {"bend": 0.0, "side": 0.0, "twist": 0.0}
 	S.add("stand", {"joints": rest.duplicate(true), "offset": [0.0, 0.0, 0.0]})
-	(S.cards[-1] as Dictionary)["hold"] = 0.3
+	(S.cards[-1] as Dictionary)["hold"] = 1.5
 	var turned := rest.duplicate(true)
 	(turned["pelvis"] as Dictionary)["twist"] = 90.0
 	S.add("turn", {"joints": turned, "offset": [0.0, 0.0, 0.0]})
 	(S.cards[-1] as Dictionary)["move"] = 0.25
-	(S.cards[-1] as Dictionary)["hold"] = 0.5
+	(S.cards[-1] as Dictionary)["hold"] = 3.0
 	return S
 
 
@@ -200,7 +209,9 @@ func _init() -> void:
 	ok(var_to_str(P.res) == var_to_str(ThrowTruth.judge(m.S, FPS)), "b2 after the five edits the panel's result equals the synchronous judge, bit for bit")
 	# controls: a stale result is dropped; the detector sees one that is not
 	var before := P.readout()
-	var stale := ThrowTruth.judge(osoto, FPS)   # the unedited scene's numbers
+	var sc_old: Scene = m.S.clone()
+	((sc_old.cards[0]["pose"]["joints"] as Dictionary)["pelvis"] as Dictionary)["bend"] = 3.0
+	var stale := ThrowTruth.judge(sc_old, FPS)   # edit 1's numbers (the unedited fixture leans 15 deg: the same as edit 5)
 	var landed: bool = m._throw_land(int(m.throw_gen) - 1, stale)
 	ok(not landed and P.readout() == before, "c CONTROL-A a stale result injected with an old generation is dropped (the panel is unchanged)")
 	P.show_result(stale)
@@ -284,6 +295,7 @@ func _init() -> void:
 
 	# a/b. the completed background bake
 	var u2: int = m.undo.size()
+	await process_frame   # (the first sample must start at a frame boundary, not include the test's own work above)
 	probe.dt.clear()
 	probe.on = true
 	m._simc_bake_bg()
@@ -297,7 +309,7 @@ func _init() -> void:
 	await idle(10)
 	probe.on = false
 	var p_bake: float = probe.p95()
-	print("     bake async: %d ms, %d frames, p95 %.1f ms, max %.1f ms" % [bake_ms, probe.dt.size(), p_bake, probe.mx()])
+	print("     bake async: %d ms, %d frames, p95 %.1f ms, max %.1f ms at frame %d" % [bake_ms, probe.dt.size(), p_bake, probe.mx(), probe.at_max()])
 	ok(steps_before_done == 0, "d no undo step before the bake completed")
 	ok(m.undo.size() == u2 + 1, "d the completed bake pushed exactly ONE undo step (%d -> %d)" % [u2, m.undo.size()])
 	ok(p_bake <= 20.0 and probe.dt.size() >= 30, "a the main thread's frame time during the bake (%d ms long) is %.1f ms at p95 (<= 20), %d frames watched" % [bake_ms, p_bake, probe.dt.size()])
@@ -332,6 +344,7 @@ func _init() -> void:
 		m.simc.state(m.S, k_obj)
 	var h1: int = SimCacheLive.hashes - h0
 	ok(h1 <= 1, "e 500 reads of a fresh cache hashed the key %d time(s) (<= 1 per edit generation)" % h1)
+	var n_obj: int = m.simc.meta.size()
 	var t1 := Time.get_ticks_usec()
 	for i in 2000:
 		m.simc.frame_at(m.S, k_obj, float(i % 30) / 30.0)
@@ -348,12 +361,12 @@ func _init() -> void:
 	var st_e := ""
 	for i in 500:
 		st_e = m.simc.state(m.S, k_obj)
-	ok(st_e == "stale" and SimCacheLive.hashes - h2 <= 1, "e after an edit: stale, and the 500 reads hashed %d time(s) (<= 1)" % (SimCacheLive.hashes - h2))
+	ok(st_e == "stale" and SimCacheLive.hashes - h2 <= n_obj, "e after an edit: stale, and the app's redraw plus 500 reads hashed %d time(s) (<= 1 per cached object = %d; each object has its own key)" % [SimCacheLive.hashes - h2, n_obj])
 	var h3: int = SimCacheLive.hashes
 	m._undo()
 	for i in 500:
 		st_e = m.simc.state(m.S, k_obj)
-	ok(st_e == "fresh" and SimCacheLive.hashes - h3 <= 1, "e after the undo: fresh, and the 500 reads hashed %d time(s) (<= 1)" % (SimCacheLive.hashes - h3))
+	ok(st_e == "fresh" and SimCacheLive.hashes - h3 <= n_obj, "e after the undo: fresh, and the redraw plus 500 reads hashed %d time(s) (<= 1 per cached object = %d)" % [SimCacheLive.hashes - h3, n_obj])
 	var h4: int = SimCacheLive.hashes
 	for i in 50:
 		SimCacheLive.key_for(m.S, k_obj)
