@@ -39,3 +39,33 @@ Arms: A screenshot · B 2x2 filmstrip · C annotated 4D image · D numeric diges
 ## Recommendation
 - The agent route should be D, the digest. The image should be C, used only when a human or an agent needs layout or a visual check. The plain screenshot should not be used as an agent's eyes.
 - Next: make D cheaper than A by dropping static parts to names only and sending changed fields only (a delta per frame).
+
+## LOOK4D-2 verdict (11-06, 10 fresh blind Sonnet readers, 2 reps per arm, graded against the registration in LOOK4D_DESIGN.md)
+
+Primary set: 59 of 66 questions. CIs are a cluster bootstrap over questions (4000 resamples).
+
+| Arm | Primary | Packet tokens |
+|---|---|---|
+| L012 (levels 0+1+2) | 1.000 | ~58k |
+| L01 (levels 0+1) | 0.873 | ~16k |
+| D1 (v1 digest) | 0.856 | ~23k |
+| Z (no scene data) | 0.754 | ~6k |
+| L012scr (scrambled labels) | 0.669 | ~58k |
+
+| Bar | Result | Verdict |
+|---|---|---|
+| H1 L012 − D1 ≥ +15 | +14.4 [+6.8, +23.7] | **FAIL by 0.6 points** (registered on the point; not moved) |
+| H2 L01 ≥ D1 − 5 | +1.7 [−1.7, +5.1] | PASS: level 1 is no worse than D at ~70% of its tokens |
+| C1 L012scr within 10 of Z | −8.5 [−21.2, +5.1] | PASS |
+| C2 L012 − L012scr ≥ +20 | +33.1 [+22.9, +44.1] | PASS: the labels carry the gain, not packet length |
+
+Per type (primary): L012 is 1.00 on every type. D1 is weakest on balance (0.42) and joint_limit (0.81). Z guesses 0.67–1.00 on several types, so these questions have a high guess floor: Z is 75%, not 50%.
+
+Format-limit questions (7 ttc): L012 also scored 1.00 on them, although `answer_from_levels` returns None. Readers worked the answers out from the level-2 gap list plus level-1 velocities. The registered exclusion stands, and the result is reported here only.
+
+**What this means:**
+- Level 2 answers every detail question correctly.
+- The registered margin over D was missed by 0.6 points, mainly because D was already at 86% and the guess floor is high.
+- Level 1 is a safe, cheaper default.
+- Ship L01 as the default. Use level 2 on demand, per part, through the MCP look4d tool; that is how it is wired, so a reader pays its cost only for the parts it asks about.
+- The fix candidate (a pair gap and ttc in level 2) stays open.
