@@ -115,6 +115,29 @@ class DockMap extends Control:
 			draw_rect(c, Color(Tok.c("focus"), 0.55 if id != grab else 0.9), true)
 			draw_rect(c, Tok.c("text"), false, 1.0)
 			draw_string(f, c.position + Vector2(4, 13), String(defs[id]["title"]), HORIZONTAL_ALIGNMENT_LEFT, c.size.x - 6.0, 11, Tok.c("text"))
+		# POL1106b: a detached panel is in its own OS window, not in the picture: a chip says so
+		for dc in detached_chips():
+			var dr: Rect2 = dc["rect"]
+			draw_rect(dr, Color(Tok.c("panel"), 0.95), true)
+			draw_rect(dr, Tok.c("info"), false, 1.0)
+			draw_string(f, dr.position + Vector2(5, 13), String(dc["text"]), HORIZONTAL_ALIGNMENT_LEFT, dr.size.x - 8.0, 11, Tok.c("text"))
+
+	## the detached panels of this page: one chip each ("Timeline: detached"), stacked at the map's bottom right
+	func detached_chips() -> Array:
+		var out := []
+		if ui == null or ui.ws == null:
+			return out
+		var det: Dictionary = ui.ws.cur.get("detached", {})
+		var defs: Dictionary = WorkLayouts.PANEL_DEFS[page]
+		var n := 0
+		for id in det:
+			if not defs.has(id):
+				continue
+			var title := String(defs[id]["title"])
+			var r := Rect2(size.x - 176.0, size.y - 24.0 - 22.0 * n, 170.0, 18.0)
+			out.append({"id": id, "title": title, "text": "%s: detached" % title, "rect": r})
+			n += 1
+		return out
 
 
 func _init(shell: UiExpShell) -> void:

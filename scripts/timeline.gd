@@ -1496,7 +1496,7 @@ func _draw_bx_lane(y: float) -> void:
 
 
 var _fd_y := 0.0   # the strip's top as last drawn (cancel_rects)
-const CANCEL_H := 4.0   # px: the cancel band along the top of the frame strip
+const CANCEL_H := 6.0   # px: the cancel band along the top of the frame strip (POL1106b: was 4)
 
 
 ## N081: one Rect2 per cancel window of the frame data (timeline coordinates; where _draw_fd_strip draws the bands)
@@ -1551,7 +1551,7 @@ func _draw_fd_strip(font: Font, y: float) -> void:
 		var n := int(sp["f1"]) - int(sp["f0"])
 		if sp["kind"] == "active":
 			# a multi-hit span: the frames with a hitbox out are full red, the gaps between them dim
-			draw_rect(Rect2(x0, y, maxf(x1 - x0 - 1.0, 1.0), FD_H), Color(Tok.c("fd_active"), 0.22))
+			draw_rect(Rect2(x0, y, maxf(x1 - x0 - 1.0, 1.0), FD_H), Tok.c("fd_tint"))   # POL1106b: an opaque token (was fd_active at 0.22 over the bg: 0.02 luminance in the dark theme)
 			for f in range(int(sp["f0"]), int(sp["f1"])):
 				if fd["frames"][f]["active"]:
 					var fx := x_of(float(f) / fps)

@@ -1062,6 +1062,7 @@ EXTRA="$EXTRA splineik:w"   # L28: spline IK on bone chains + stretchy limbs (te
 EXTRA="$EXTRA outliner:w"   # L36 OUTLINER: the browser tree gets an Outliner folder (bodies, props, lights, cameras, cloth, soft), type filters, search, eye/lock per row, drag-to-reparent keeping the world transform, cycle drops refused, one undo step each; tests/outliner_test.gd
 EXTRA="$EXTRA detach:w"   # L37 detach timeline / graph / second view into OS windows (tests/detach_test.gd)
 EXTRA="$EXTRA simcache:w"   # L35: sim cache, Bake sim to a point-cache file the timeline scrubs (tests/simcache_test.gd)
+EXTRA="$EXTRA pol1106b:w"   # L47 POL1106b: sim cache badge, cancel band contrast and height, detached chip on the layouts dock map (tests/pol1106b_test.gd)
 EXTRA="$EXTRA stretchskin:w"   # L33: the skin follows stretch + volume, spline chains drive the spine, exports carry the stretch (tests/stretchskin_test.gd)
 EXTRA="$EXTRA n041:w"   # N041 lock truth: partner joint limits judge an armbar / wristlock / kimura (tests/n041_test.gd, scripts/lock_truth.gd)
 EXTRA="$EXTRA bgthread:w"   # L42 throw judge + Bake sim off the main thread (tests/bgthread_test.gd)
