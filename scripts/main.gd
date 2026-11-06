@@ -853,6 +853,7 @@ var _drag_locks := {}
 ## Overlays.split_parts), its capsule and dot are not drawn and a click goes through it. View state only, like a lock:
 ## no undo step, never in a pose or scene file
 var pieces := {}         # part -> its piece of the mannequin
+var soft_live := SoftLive.new()   # L22: the soft-body flesh in the viewport (scripts/soft_live.gd); idle unless the scene has a region
 var skp := SkinPick.new()  # PRECISE PICK: the ray against the posed skin, and the part's own skin lit (scripts/skin_pick.gd)
 var pick_us := 0           # how long the last _pick took (microseconds): the hover's cost, read by precise_pick_test
 var wp := {}             # WEIGHT PAINT (ROADMAP 72): the mannequin's skin weights, scripts/skin_paint.gd
@@ -3629,6 +3630,8 @@ func _process_body(dt: float) -> void:
 	var _pre := PerfDoc.t()
 	_mesh_hint_sync()
 	PerfDoc.add("p_hint", _pre)
+	if soft_live.busy() and soft_live.poll(self):
+		_soft_draw()   # L22: the bake landed while nothing else redrew
 	var _p0 := PerfDoc.t()
 	_hands_dock_tick()   # C66
 	PerfDoc.add("p_dock", _p0)
@@ -5543,6 +5546,9 @@ func _refresh() -> void:
 	_cape_draw()   # ROADMAP 86: the baked cape at the playhead
 	PerfDoc.add("cloth", _pk)
 	_pk = PerfDoc.t()
+	_soft_draw()   # L22: the soft-body flesh on the skin (nothing unless a region is on)
+	PerfDoc.add("soft", _pk)
+	_pk = PerfDoc.t()
 	_rigx_draw()   # J24: the words-made rig (tail, ears, cape) on the body
 	if bed != null or not S.bones.is_empty():
 		_bone_ui().draw()   # J01: your extra bones (scripts/bone_editor_ui.gd)
@@ -6712,6 +6718,7 @@ func _snapshot() -> Dictionary:
 		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
+		"soft": S.soft.duplicate(true),   # L22: the soft-body regions, undone like a card
 		"cape": S.cape.duplicate(true),   # the cape (ROADMAP 86), undone like a card
 		"rigx": S.rigx.duplicate(true),   # the words-made rig (rig_words.gd), undone like a card
 		"bones": S.bones.duplicate(true),   # J01: the user's extra bones (bone_editor.gd), undone like a card
@@ -6917,6 +6924,8 @@ func _restore(u: Dictionary) -> void:
 		_attr_refresh()   # the rows of an undone add go, and come back on redo, without waiting for the next refresh
 	if u["scene"] == S and u.has("secondary") and var_to_str(u["secondary"]) != var_to_str(S.secondary):
 		S.secondary = u["secondary"].duplicate(true)   # SECONDARY MOTION (ROADMAP 26), undone like a card
+	if u["scene"] == S and u.has("soft") and var_to_str(u["soft"]) != var_to_str(S.soft):
+		S.soft = u["soft"].duplicate(true)   # L22: the soft-body regions, undone like a card
 	if u["scene"] == S and u.has("cape") and var_to_str(u["cape"]) != var_to_str(S.cape):
 		S.cape = u["cape"].duplicate(true)   # the cape (ROADMAP 86), undone like a card
 	if u["scene"] == S and u.has("rigx") and var_to_str(u["rigx"]) != var_to_str(S.rigx):
@@ -10128,6 +10137,48 @@ func _cape_draw() -> void:
 
 
 ## the overlay: each item's chain at the playhead, from its baked keys (at rest when not baked yet)
+## L22 SOFT-WIRE (scripts/soft_live.gd): the BODY page's flesh toggles and strength slider. Default OFF: nothing below runs.
+func soft_set(group: String, on: bool) -> void:
+	if not SoftBody.GROUPS.has(group):
+		return
+	var cur: Array = S.soft.get("regions", []).duplicate()
+	var gset: Array = SoftBody.GROUPS[group]
+	var ns := []
+	for n in SoftBody.REGIONS.keys():
+		if (cur.has(n) and not gset.has(n)) or (on and gset.has(n)):
+			ns.append(n)
+	if ns == cur:
+		return
+	var strength := SoftBody.strength_of(S)
+	_do(func():
+		var d := {}
+		if not ns.is_empty():
+			d["regions"] = ns
+		if absf(strength - 1.0) > 1e-9:
+			d["strength"] = strength
+		S.soft = d)
+
+
+## the strength slider (1 = as simulated, up to SoftBody.STRENGTH_MAX): drawn at once, no undo step, no new bake
+func soft_strength_set(x: float) -> void:
+	x = clampf(x, 0.0, SoftBody.STRENGTH_MAX)
+	var d := S.soft.duplicate()
+	if absf(x - 1.0) < 1e-9:
+		d.erase("strength")
+	else:
+		d["strength"] = x
+	S.soft = d
+	_soft_draw()
+
+
+func _soft_draw() -> void:
+	if ui_body != null and ui_body.soft_shown != S.soft:
+		ui_body.soft_sync(S)
+	if S.soft.is_empty() and not soft_live.engaged:
+		return
+	soft_live.tick(self)
+
+
 func _sec_draw() -> void:
 	if _sec_line == null:
 		_sec_line = MeshInstance3D.new()

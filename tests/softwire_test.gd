@@ -170,11 +170,32 @@ func expected_verts(piece: MeshInstance3D, regs: Array, disps: Array) -> PackedV
 	return out
 
 
-func max_diff(a: PackedVector3Array, b: PackedVector3Array) -> float:
+## the vertices a mesh draws (its index arrays use them); the rest of a piece's vertex buffer is never drawn
+func used_mask(mesh: Mesh) -> PackedByteArray:
+	var out := PackedByteArray()
+	for si in mesh.get_surface_count():
+		var arr := mesh.surface_get_arrays(si)
+		var n := (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+		var u := PackedByteArray()
+		u.resize(n)
+		var idx = arr[Mesh.ARRAY_INDEX]
+		if idx is PackedInt32Array:
+			for q in (idx as PackedInt32Array):
+				u[q] = 1
+		else:
+			u.fill(1)
+		out.append_array(u)
+	return out
+
+
+## largest vertex difference over the DRAWN vertices (mask) of a piece
+func max_diff(a: PackedVector3Array, b: PackedVector3Array, mask := PackedByteArray()) -> float:
 	if a.size() != b.size():
 		return INF
 	var mx := 0.0
 	for i in a.size():
+		if mask.size() == a.size() and mask[i] == 0:
+			continue
 		mx = maxf(mx, (a[i] - b[i]).length())
 	return mx
 
@@ -200,15 +221,9 @@ func _init() -> void:
 	ok(sl != null and absf(sl.value - 100.0) < 1e-6, "1a the strength slider exists and reads 100 %% (%s)" % [str(sl.value) if sl != null else "missing"])
 	ok(m.S.soft.is_empty() and not SoftBody.active(m.S) and not m.soft_live.engaged, "1a the scene has no soft state and the live layer is not engaged")
 	var d_off := JSON.stringify(m.S.to_dict(m.B, false))
-	var mesh_ids := {}
-	for j in m.pieces:
-		mesh_ids[j] = (m.pieces[j] as MeshInstance3D).mesh
 	var sig_a := sigs(40)
 	ok(not d_off.contains("\"soft\""), "1b the scene dict has no 'soft' key")
-	var same_mesh := true
-	for j in m.pieces:
-		same_mesh = same_mesh and (m.pieces[j] as MeshInstance3D).mesh == mesh_ids[j]
-	ok(same_mesh, "1b with soft off no piece's mesh object was replaced in 40 played frames")
+	ok(m.soft_live.work_us == 0 and m.soft_live.starts == 0 and not m.soft_live.busy(), "1b with soft off the live layer did nothing in 40 played frames (work %d us, %d bakes)" % [m.soft_live.work_us, m.soft_live.starts])
 	# ON, bake finished, drawn, then OFF again
 	(ctl("soft_belly") as BaseButton).button_pressed = true
 	(ctl("soft_thighs") as BaseButton).button_pressed = true
@@ -232,10 +247,7 @@ func _init() -> void:
 	ok(back, "1c after ON and OFF again the 40 frames are byte-identical to the untouched app (pose bytes and every vertex)")
 	ok(JSON.stringify(m.S.to_dict(m.B, false)) == d_off and m.S.soft.is_empty() and not m.soft_live.engaged,
 		"1c the scene dict is byte-identical to before and S.soft is empty again (the last region off drops the key)")
-	var same_mesh2 := true
-	for j in m.pieces:
-		same_mesh2 = same_mesh2 and (m.pieces[j] as MeshInstance3D).mesh == mesh_ids[j]
-	ok(same_mesh2, "1c the original mesh objects are back on the pieces")
+	ok(m.soft_live._cache.is_empty() and not m.soft_live.busy(), "1c the live layer let go of every piece (no cache, no thread)")
 
 	# ---------- 2 LIVE == BAKE   (all four groups, strength 1)
 	for nm in names_ui:
@@ -275,14 +287,15 @@ func _init() -> void:
 			var piece: MeshInstance3D = m.pieces[j]
 			var live := piece_verts(piece.mesh)
 			var want := expected_verts(piece, regs, disps)
-			worst = maxf(worst, max_diff(live, want))
+			var mask := used_mask(piece.mesh)
+			worst = maxf(worst, max_diff(live, want, mask))
 			var wrong := expected_verts(piece, regs, disps_wrong)
 			# the control only counts where the right and the wrong frame differ at all
-			if max_diff(want, wrong) > 1e-5:
-				worst_ctl = maxf(worst_ctl, max_diff(live, wrong))
+			if max_diff(want, wrong, mask) > 1e-5:
+				worst_ctl = maxf(worst_ctl, max_diff(live, wrong, mask))
 			# 3 PLACEMENT, on the same frames
 			var orig_v := piece_verts(m.soft_live.orig_mesh(piece))
-			var world := m.soft_live.posed_world(piece, m.soft_live.orig_mesh(piece))
+			var world: PackedVector3Array = m.soft_live.posed_world(piece, m.soft_live.orig_mesh(piece))
 			for i in live.size():
 				if (live[i] - orig_v[i]).length() > 1e-9:
 					moved_total += 1
@@ -293,16 +306,16 @@ func _init() -> void:
 							(inside_by_region[names[ri]] as Dictionary)[str(j) + ":" + str(i)] = true
 					if not inside:
 						out_of_box += 1
-	print("2 LIVE vs BAKE: peak flesh travel at -2/0/+3/+8: %s mm; worst vertex difference %.3g m; wrong-frame control %.3g m" % [str(peaks.map(func(p): return snappedf(p * 1000.0, 0.01))), worst, worst_ctl])
-	ok(worst < 1e-6, "2 the drawn vertices equal skin_deform of the bake's frame: worst %.3g m (bar 1e-6)" % worst)
-	ok(worst_ctl > 1e-5, "2 CONTROL: the expected vertices from the frame 3 steps off are %.3g m away (> 1e-5): the comparison sees the wrong frame" % worst_ctl)
+	print("2 LIVE vs BAKE: peak flesh travel at -2/0/+3/+8: %s mm; worst vertex difference %s m; wrong-frame control %s m" % [str(peaks.map(func(p): return snappedf(p * 1000.0, 0.01))), worst, worst_ctl])
+	ok(worst < 1e-6, "2 the drawn vertices equal skin_deform of the bake's frame: worst %s m (bar 1e-6)" % worst)
+	ok(worst_ctl > 1e-5, "2 CONTROL: the expected vertices from the frame 3 steps off are %s m away (> 1e-5): the comparison sees the wrong frame" % worst_ctl)
 	ok(peaks.max() > 0.001, "2 anti-vacuity: the flesh moves %.2f mm at the largest of the 4 frames (> 1 mm)" % (float(peaks.max()) * 1000.0))
 	var bk_main := SoftBody.bake_scene(S, body(), names, 60.0, {"sag_frame": "body"})
 	var bd := 0.0
 	for n in names:
 		for k in [k_imp - 2, k_imp, k_imp + 3, k_imp + 8]:
 			bd = maxf(bd, max_diff((bake["regions"][n]["disp"] as Array)[k], (bk_main["regions"][n]["disp"] as Array)[k]))
-	ok(bd < 1e-12, "2 the worker's bake equals a bake made on the main thread: worst %.3g m" % bd)
+	ok(bd < 1e-12, "2 the worker's bake equals a bake made on the main thread: worst %s m" % bd)
 	var nudged := ((bk_main["regions"][names[0]]["disp"] as Array)[k_imp] as PackedVector3Array).duplicate()
 	nudged[3] += Vector3(1e-6, 0, 0)
 	ok(max_diff((bake["regions"][names[0]]["disp"] as Array)[k_imp], nudged) > 1e-7, "2 CONTROL: one node nudged 1e-6 m is seen by the bake comparison")
@@ -375,9 +388,9 @@ func _init() -> void:
 	var a2: float = await amp.call(2.0)
 	var a0: float = await amp.call(0.0)
 	var a1b: float = await amp.call(1.0)
-	print("2b STRENGTH: summed vertex travel at the impact frame: x1 %.3f mm, x2 %.3f mm, x0 %.3g mm" % [a1 * 1000.0, a2 * 1000.0, a0 * 1000.0])
+	print("2b STRENGTH: summed vertex travel at the impact frame: x1 %.3f mm, x2 %.3f mm, x0 %s mm" % [a1 * 1000.0, a2 * 1000.0, a0 * 1000.0])
 	ok(a1 > 0.0 and absf(a2 / a1 - 2.0) < 0.02, "2b strength 2 moves the vertices %.3f times as far as strength 1 (bar 2 +- 2 %%)" % (a2 / maxf(a1, 1e-12)))
-	ok(a0 < 1e-9, "2b strength 0 leaves the mesh as it was (%.3g m summed)" % a0)
+	ok(a0 < 1e-9, "2b strength 0 leaves the mesh as it was (%s m summed)" % a0)
 	ok(absf(a1b / a1 - 1.0) < 1e-6 and absf(a1b / maxf(a1, 1e-12) - 2.0) > 0.5, "2b CONTROL: strength 1 against strength 1 reads a ratio of %.4f, not 2" % (a1b / a1))
 	sl.value = 100.0
 	await process_frame
@@ -468,50 +481,50 @@ func _frames(n: int) -> Array:
 	return w
 
 
-## 4: a belly region on a body turned upside down and held
-func _sag_bars() -> void:
-	var B0 := body()
-	var S := Scene.new()
-	S.name = "zz_softwire_flip"
-	S.add("stand", B0.to_dict())
-	var Bf := body()
-	Bf.set_ang("pelvis", Vector3(180.0, 0, 0))
-	Bf.fk()
-	S.add("flip", Bf.to_dict())
-	S.cards[0]["move"] = 0.3
-	S.cards[0]["hold"] = 0.8
-	S.cards[1]["move"] = 0.3
-	S.cards[1]["hold"] = 2.5
-	var chk := body()
-	S.apply(chk, S.length())
-	var up: Vector3 = (chk.G["spine_01"] as Quaternion) * Vector3(0, 1, 0)
-	ok(up.y < -0.9, "4 precondition: the held pose is upside down (the spine's up axis points %.2f in y)" % up.y)
-	var bb := SoftBody.bake_scene(S, body(), ["belly"], 60.0, {"sag_frame": "body"})
-	var bw := SoftBody.bake_scene(S, body(), ["belly"], 60.0, {"sag_frame": "world"})
-	var stat: PackedVector3Array = bb["static"]["belly"]
+## 4: a belly region, settled standing, then the host bone turned over 180 degrees about x (the joint stays) and held 2.5 s.
+## (The pelvis is limited to +-100 degrees of bend in data/body_limits.json, so a whole body cannot be turned over by a clip; the bone is
+## turned directly here, which is what the region sees of any pose.) Returns [s (standing sag, m), mean y offset after the turn]
+func _flip_run(body_sag: bool) -> Array:
+	var B := body()
+	var reg := SoftBody.region_new(B, "belly", {})
+	var so := {"dt": 1.0 / 60.0, "nsub": 8, "iters": SoftBody.DEFAULT_ITERS, "g": Vector3(0.0, -9.81, 0.0), "damp_scale": 1.0}
+	for k in 90:
+		SoftBody.region_step(reg, B, so)
+	reg["static"] = SoftBody.region_disp(reg, B)
+	if body_sag:
+		reg["sag_body"] = true
+		reg["g0"] = B.G[reg["host"]]
 	var s_sag := 0.0
-	for v in stat:
+	for v in (reg["static"] as PackedVector3Array):
 		s_sag -= v.y
-	s_sag /= float(stat.size())
-	var last := int(bb["frames"]) - 1
-	var mean_y := func(bk: Dictionary, k: int) -> float:
-		var a := 0.0
-		var d: PackedVector3Array = (bk["regions"]["belly"]["disp"] as Array)[k]
-		for v in d:
-			a += v.y
-		return a / float(d.size())
-	var k_stand := int(0.7 * 60.0)
-	var yb: float = mean_y.call(bb, last)
-	var yw: float = mean_y.call(bw, last)
-	var ys_b: float = mean_y.call(bb, k_stand)
-	var ys_w: float = mean_y.call(bw, k_stand)
-	print("4 SAG: standing sag s = %.3f mm; upside down and settled, mean y offset: body frame %.3f mm (claim -2 s = %.3f), world frame %.3f mm; standing: body %.3f world %.3f mm" % [
-		s_sag * 1000.0, yb * 1000.0, -2.0 * s_sag * 1000.0, yw * 1000.0, ys_b * 1000.0, ys_w * 1000.0])
+	s_sag /= float((reg["static"] as PackedVector3Array).size())
+	var y_stand := 0.0
+	for v in SoftBody.region_disp(reg, B):
+		y_stand += v.y
+	y_stand /= float((reg["static"] as PackedVector3Array).size())
+	B.G[reg["host"]] = Quaternion(Vector3(1, 0, 0), PI) * (B.G[reg["host"]] as Quaternion)
+	for k in 150:
+		SoftBody.region_step(reg, B, so)
+	var d := SoftBody.region_disp(reg, B)
+	var y := 0.0
+	for v in d:
+		y += v.y
+	return [s_sag, y / float(d.size()), y_stand]
+
+
+func _sag_bars() -> void:
+	var rb := _flip_run(true)
+	var rw := _flip_run(false)
+	var s_sag: float = rb[0]
+	var yb: float = rb[1]
+	var yw: float = rw[1]
+	print("4 SAG: standing sag s = %.3f mm; host turned over and settled, mean y offset: body frame %.3f mm (claim -2 s = %.3f), world frame %.3f mm; before the turn: body %.4f world %.4f mm" % [
+		s_sag * 1000.0, yb * 1000.0, -2.0 * s_sag * 1000.0, yw * 1000.0, float(rb[2]) * 1000.0, float(rw[2]) * 1000.0])
 	ok(s_sag > 0.0002, "4 anti-vacuity: the standing sag is %.3f mm (> 0.2 mm)" % (s_sag * 1000.0))
-	ok(absf(ys_b) < 0.25 * s_sag and absf(ys_w) < 0.25 * s_sag, "4 standing, both frames read ~0 (%.3f, %.3f mm)" % [ys_b * 1000.0, ys_w * 1000.0])
-	ok(yb < -1.5 * s_sag and yb > -2.5 * s_sag, "4 body frame: upside down the flesh sits %.3f mm down of the bone-carried place = %.2f s (bar 1.5 .. 2.5 s)" % [yb * 1000.0, -yb / s_sag])
-	ok(absf(yw) > 1.5 * s_sag or absf(yw) < 0.3 * s_sag, "4 world frame is a different number (%.3f mm)" % (yw * 1000.0))
-	ok(not (yw < -1.5 * s_sag and yw > -2.5 * s_sag), "4 CONTROL: the world-frame subtraction reads %.2f s and fails the 2 s claim" % (-yw / s_sag))
+	ok(absf(float(rb[2])) < 0.25 * s_sag and absf(float(rw[2])) < 0.25 * s_sag, "4 standing, both frames read ~0")
+	ok(yb < -1.5 * s_sag and yb > -2.5 * s_sag, "4 body frame: turned over the flesh sits %.3f mm below the bone-carried place = %.2f s (bar 1.5 .. 2.5 s)" % [yb * 1000.0, -yb / s_sag])
+	ok(absf(yw) < 0.3 * s_sag, "4 world frame (the L17 behaviour) reads %.2f s: the standing sag is subtracted unturned, so the offset is lost" % (-yw / s_sag))
+	ok(not (yw < -1.5 * s_sag and yw > -2.5 * s_sag), "4 CONTROL: the world-frame subtraction fails the 2 s claim (%.2f s)" % (-yw / s_sag))
 
 
 ## the close-up of the landing, with and without soft (SOFT_WIRE_SHOT=<dir>)
