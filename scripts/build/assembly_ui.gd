@@ -431,6 +431,14 @@ func _layout() -> void:
 	src_panel.reset_size()
 	src_panel.position = Vector2(cl.position.x + 8.0, cl.position.y + 4.0)
 	src_panel.size.x = SRC_W
+	# L2: the panel never runs under the page bar (a 1280 x 720 window): when it would, the status line inside it (the say-line says the same) gives way
+	var room: float = (m.ui_page_bar.position.y if m.ui_page_bar != null else vs.y) - panel.position.y - 4.0
+	var sl_h := status_l.get_combined_minimum_size().y + 4.0
+	var full := panel.get_combined_minimum_size().y + (0.0 if status_l.visible else sl_h)
+	if status_l.visible == (full > room):
+		status_l.visible = full <= room
+		panel.reset_size()
+		panel.size.x = PANEL_W
 	motion.layout(Vector2(cl.position.x + 8.0, cl.position.y + 4.0))
 	bom.layout(Vector2(cl.position.x + 8.0, cl.position.y + 4.0))
 	fits.layout(Vector2(cl.position.x + 8.0, cl.position.y + 4.0))
