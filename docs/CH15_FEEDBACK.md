@@ -66,3 +66,22 @@ Pictures: docs/ch15/ch15_build_sheet.png (10 stages), ch15_section.png (section 
 - Test harness (no bar loosened): bar 6 builds meshes with ch15_site.built() because Assembly.built's 0.3 mm tessellation took 576 s for four sphere records. An end check was added that every bar ran to its end, because a script error inside bar 9 had printed "0 fail". The sheet PNGs were renamed after one of them overwrote the 3D section frame.
 - ch15_site.clashes: the first run used a box pre-filter and checked 0 building pairs exactly (all the boxes were apart). The pre-filter was removed, so all 239 pairs now go through the kernel. This made the bar stricter.
 - Model after the pictures: the section is a 2 km cut box, not Split (gap 2). The sphere halves and the dome are revolved profiles, not sphere booleans (gap 3). The video camera moved closer. The section camera moved past the auxiliary building's corner and hides the six buildings in front. The one-line feeds are drawn straight down (UAT2 to BC, standby to BD; before, they ran along bus BB and looked like a tie). Small buildings are labelled under their outlines.
+
+## 6. L4 update (lane w4-eng2, 2026-11-05): three of the "next level needs" taken up
+The three cheapest, picked because each is closed-form on numbers already in the reference: electrical short circuit, sphere buckling, decay heat with a core history. Bars 10-12 of tests/ch15_test.gd (committed in 23cff76c before they first ran; bars 1-9 untouched); sources and ASSUMED inputs in docs/CH15_REFERENCE.md section 9; models at the end of scripts/build/ch15_plant.gd. Result: `ch15 ok 61 fail 0` in wtest (was 44).
+
+| bar | result | planted control |
+|---|---|---|
+| 10a GCB duty (IEC 60909: c 1.1, KT, KG) | system-fed 194.640074 kA, generator-fed 134.930691 kA, both under the 210 kA rating (92.7 pct); hand values to 1e-9 | caught below |
+| 10b 10.5 kV house bus | network 29.522136 + motors 10.486445 = 40.008580 kA <= 50 kA | UAT uk 5 pct gives 65.89 kA, caught |
+| 10c diesel start sequence | Sk''gen = 6.6 / 0.16 = 41.25 MVA; dips 16.5, 16.5, 12.9, 11.7, 7.6 pct <= 20 | all 4.6 MW in one step dips 43.2 pct, caught |
+| 11 external-pressure buckling | Zoelly p_cl 0.270963 MPa, x 0.2 / 2 = 0.027096 MPa >= 0.02 MPa (margin 1.35) | a 10 mm wall allows 0.0030 MPa, caught |
+| 12 3-batch core decay heat | 3.7506, 1.0354, 0.46661 pct at 10 s, 1 h, 1 d (one cycle 3.7309, 1.0156, 0.4469): +0.5, +1.9, +4.4 pct; under the infinite-irradiation bound; 1 h boil-off 14.74 kg/s <= 36 (one cycle 14.45) | four batches at one third each rejected |
+
+| discipline | before | after | what is still open |
+|---|---|---|---|
+| electrical | L3 | **L4** | IEC 60909 at 25 kV and 10.5 kV with breaker duty and the diesel start sequence. ALL inputs (grid 25 GVA, uk, xd'', ratings) are ASSUMED, so it shows the method closes, not that Angra 2's breakers are right. Open: peak factor kappa and the DC component, the 500 kV level, cable voltage drop, relay coordination |
+| structural (containment) | L3 | **L3, one L4 item done** | buckling under 0.02 MPa external (ASSUMED differential, knock-down 0.2 ASSUMED, the SP-8032 PDF was not opened). Open: KTA 3401.2 load combinations, the equipment hatch and penetrations, the real wall thickness |
+| nuclear (decay heat) | L3 | **L3+** | the 3-batch history done (it raises the 1 day value by 4.4 pct). ANS-5.1 itself is NOT done (no fission-product group data), and the batch scheme is ASSUMED |
+| thermal-fluids, mechanical, civil / layout | unchanged | | as in section 2 |
+Honest limit: Way-Wigner superposition is a closed form, not a validated decay-heat code; do not read 1.035 pct as a better 1 h number than 1.016, only as the direction and size of the history effect.
