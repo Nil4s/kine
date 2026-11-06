@@ -1124,13 +1124,9 @@ static func gap_mm(ctx: Dictionary, a: String, b: String, shapes: Dictionary = {
 	return _scn_gap_m(sh[a], sh[b]) * 1000.0
 
 
-## the gap between the two parts' world boxes, mm (negative = the boxes overlap)
+## the gap between the two parts' shapes (the scene's own: aabb / sphere / capsule, else the world box), mm, negative = boxes overlap; no exact solids (see gap_mm)
 static func box_gap_mm(ctx: Dictionary, a: String, b: String) -> float:
-	var sh := {}
-	for id in [a, b]:
-		var n := ctx["sc"]["nodes"][id] as MeshInstance3D
-		var bb: AABB = n.global_transform * n.mesh.get_aabb()
-		sh[id] = {"k": "aabb", "min": _r2(bb.position), "max": _r2(bb.end)}
+	var sh := shapes_now(ctx)
 	return _scn_gap_m(sh[a], sh[b]) * 1000.0
 
 
@@ -1338,7 +1334,7 @@ static func acceleration(ctx: Dictionary, id: String, t: float) -> Vector3:
 	return (c - 2.0 * b + a) / (DT * DT)
 
 
-## seconds until the boxes of a and b first come within 0.1 mm, scanning TTC_HORIZON ahead (boxes, for speed); 0 = touching now; null = not within the horizon
+## seconds until the shapes of a and b first come within 0.1 mm, scanning TTC_HORIZON ahead (shapes, for speed); 0 = touching now; null = not within the horizon
 static func ttc(ctx: Dictionary, a: String, b: String, t: float) -> Variant:
 	at(ctx, t)
 	var g0 := box_gap_mm(ctx, a, b)

@@ -10,6 +10,7 @@ Answers are option letters; every question lists its own options. No model grade
 """
 import hashlib
 import json
+import re
 import math
 import os
 import random
@@ -675,6 +676,554 @@ def cmd_selfcheck():
     sys.exit(1 if bad else 0)
 
 
+# ======================================================================================================================
+# L1 AI-COST (look4d2): questions that need DETAIL (held or free, time to collision, joint at a limit, what supports what, balance).
+#   python tools/look4d_truth.py gen2        questions + truth from out/look4d2/<instant>/scene_truth.json (scene truth only; the exported levels are NOT read here)
+#   python tools/look4d_truth.py packets2    5 arms x 2 reps under out/look4d2/packets/, keys under out/look4d2/key/
+#   python tools/look4d_truth.py selfcheck2  oracle 1.0, shifted answers low, letters balanced (planted unbalanced set fails), yes share, answerability from the exported levels
+#   python tools/look4d_truth.py grade2 <reader> <answers.json>
+# Arms: D1 (the old level-1 digest), L01 (level 0 + level 1), L012 (levels 0 and 1, plus level 2 for the parts each question names, plus the character view on the walk),
+#       Z (names and questions only), L012scr (L012 with every part label permuted inside the data).
+ROOT2 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "out", "look4d2")
+ARMS2 = ["D1", "L01", "L012", "Z", "L012scr"]
+REPS2 = 2
+DESC = {"s2_arm": "a robot arm on a table picking up six cans one by one and stacking them in a pyramid",
+        "s1_engine": "a single-cylinder engine mechanism (crankcase, crankshaft, connecting rod, piston, pin, cylinder, head); the crank turns at 360 degrees per second",
+        "s4_fall": "a falling rod and two bouncing balls near a wall and a crate on a floor",
+        "s3_walk": "a human figure made of capsules walking on a floor while holding a bat"}
+
+
+def inst_list():
+    return [d["name"] for d in json.load(open(os.path.join(ROOT2, "instants.json")))]
+
+
+def load2(name):
+    return json.load(open(os.path.join(ROOT2, name, "scene_truth.json")))
+
+
+def shp(td, k, i):
+    return sample(td, k)["objs"][i]["shape"]
+
+
+def box_of(s):
+    """world box of any shape (for the support test)"""
+    if s["k"] == "aabb":
+        return s["min"], s["max"]
+    if s["k"] == "sphere":
+        return [s["c"][j] - s["r"] for j in range(3)], [s["c"][j] + s["r"] for j in range(3)]
+    lo = [min(s["a"][j], s["b"][j]) - s["r"] for j in range(3)]
+    hi = [max(s["a"][j], s["b"][j]) + s["r"] for j in range(3)]
+    return lo, hi
+
+
+def t_touch(td, a, b):
+    """seconds from now until the surface gap of a and b first reaches 0.1 mm (0 = touching now), None = not within 0.5 s; plus the gap now (mm)"""
+    g = [gap(shp(td, k, a), shp(td, k, b)) for k in range(0, 16)]
+    if g[0] <= 1e-4:
+        return 0.0, g[0] * 1000.0
+    for k in range(1, 16):
+        if g[k] <= 1e-4:
+            f = (g[k - 1] - 1e-4) / max(g[k - 1] - g[k], 1e-12)
+            return ((k - 1) + f) / 30.0, g[0] * 1000.0
+    return None, g[0] * 1000.0
+
+
+def supports_of(td, a):
+    """parts whose top face is within 1 mm under a's bottom face with overlapping footprints, a not being in motion with them (scene shapes at k = 0)"""
+    lo, hi = box_of(shp(td, 0, a))
+    out = []
+    for b in td["ids"]:
+        if b == a:
+            continue
+        blo, bhi = box_of(shp(td, 0, b))
+        if abs(lo[1] - bhi[1]) <= 1e-3 and lo[0] < bhi[0] and hi[0] > blo[0] and lo[2] < bhi[2] and hi[2] > blo[2] and bhi[1] <= (lo[1] + hi[1]) / 2.0:
+            out.append(b)
+    return sorted(out)
+
+
+def com_and_margin(td):
+    ids = [i for i in td["ids"] if i not in ("floor", "bat_barrel")]
+    ms = sum(td["mass"][i] for i in ids)
+    com = [sum(td["mass"][i] * sample(td, 0)["objs"][i]["c"][j] for i in ids) / ms for j in range(3)]
+    pts = []
+    down = {}
+    for i in ids:
+        s = shp(td, 0, i)
+        if s["k"] == "capsule" and (i.startswith("foot") or i.startswith("ball")):
+            low = min(s["a"][1], s["b"][1]) - s["r"]
+            down[i] = low <= 0.015
+            if down[i]:
+                for e in (s["a"], s["b"]):
+                    for j in range(8):
+                        ang = 2 * math.pi * j / 8.0
+                        pts.append((e[0] + s["r"] * math.cos(ang), e[2] + s["r"] * math.sin(ang)))
+    hull = hull2(pts)
+    if len(hull) < 3:
+        return com, None, down
+    m = 1e9
+    for j in range(len(hull)):
+        p, q = hull[j], hull[(j + 1) % len(hull)]
+        ex, ey = q[0] - p[0], q[1] - p[1]
+        n = math.hypot(ex, ey)
+        m = min(m, (-ey / n) * (com[0] - p[0]) + (ex / n) * (com[2] - p[1]))
+    return com, m * 1000.0, down
+
+
+def hull2(pts):
+    pts = sorted(set(pts))
+    if len(pts) < 3:
+        return pts
+
+    def cr(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    lo = []
+    for p in pts:
+        while len(lo) >= 2 and cr(lo[-2], lo[-1], p) <= 0:
+            lo.pop()
+        lo.append(p)
+    up = []
+    for p in reversed(pts):
+        while len(up) >= 2 and cr(up[-2], up[-1], p) <= 0:
+            up.pop()
+        up.append(p)
+    return lo[:-1] + up[:-1]
+
+
+def foot_height(td, i):
+    s = shp(td, 0, i)
+    return (min(s["a"][1], s["b"][1]) - s["r"]) * 1000.0
+
+
+def mk2(qs, inst, scene, qtype, text, options, answer, parts, extra=None):
+    q = {"id": "q%02d" % (len(qs) + 1), "inst": inst, "scene": scene, "type": qtype, "text": text, "options": options, "answer": answer, "parts": parts}
+    if extra:
+        q["truth"] = extra
+    qs.append(q)
+
+
+HELD_DEF = "\"Held\" means the part moves rigidly together with another part (the offset between them stays fixed over the next and the last 0.1 s) and sits within 1 mm of it, so it is being carried by it; a part merely resting on another one, or one that is free, is not held."
+TTC_DEF = "Gap = the surface distance between simple shapes fitted to the parts (box, sphere or capsule), touching = gap of 0.1 mm or less. Parts keep the motion they have."
+LIM_DEF = "Each joint turns between a lower and an upper limit (degrees); the part named is the link that the joint turns."
+
+
+def gen_inst(name, rng):
+    td = load2(name)
+    scene = td["scene"]
+    qs = []
+    ids = td["ids"]
+    if scene == "s2_arm":
+        a = td["arm"]
+        held = a["held_index"]
+        cans = ["can%d" % k for k in range(1, 7)]
+        if held >= 0:
+            c = "can%d" % (held + 1)
+            opts, ans = {"A": "yes", "B": "no"}, "A"
+            mk2(qs, name, scene, "held", "Is the %s held? %s" % (c, HELD_DEF), opts, ans, [c], {"held": c})
+            free = [x for x in cans if x != c and sample(td, 0)["objs"][x]["c"][1] < 0.2 and sample(td, 0)["objs"][x]["c"][1] > -1]
+            f = rng.choice([x for x in cans if x != c])
+            mk2(qs, name, scene, "held", "Is the %s held? %s" % (f, HELD_DEF), {"A": "yes", "B": "no"}, "B", [f], {"held": c})
+            holders = ["gripper", "console", "stand", "baseboard"]
+            o, ans2 = mc(rng, "gripper", [h for h in holders if h != "gripper"][:3])
+            mk2(qs, name, scene, "held_by", "Which part is holding the %s? %s" % (c, HELD_DEF), o, ans2, [c], {"holder": "gripper"})
+        else:
+            f1, f2 = rng.sample(cans, 2)
+            for f in (f1, f2):
+                mk2(qs, name, scene, "held", "Is the %s held? %s" % (f, HELD_DEF), {"A": "yes", "B": "no"}, "B", [f], {"held": None})
+        # joint limits: yes/no per joint part, threshold 10 degrees
+        lim = a["lim"]
+        for part, key, lk in (("turntable", "yaw", "ba"), ("upper_arm", "th1", "sh"), ("forearm", "th2", "el"), ("gripper", "psi", "wr")):
+            v = a.get(key)
+            if v is None:
+                continue
+            lo, hi = lim[lk]
+            tl = min(v - lo, hi - v)
+            if abs(tl - 10.0) < 1.5:
+                continue
+            mk2(qs, name, scene, "joint_limit", "Is the joint of the %s within 10 degrees of one of its two limits? %s" % (part, LIM_DEF), {"A": "yes", "B": "no"}, "A" if tl < 10.0 else "B", [part], {"to_limit": tl, "value": v, "lim": [lo, hi]})
+        # support for resting cans
+        for c in cans:
+            if "can%d" % (held + 1) == c:
+                continue
+            sup = supports_of(td, c)
+            if len(sup) == 1 and sample(td, 0)["objs"][c]["c"][1] > -1 and td["kin_speed"][c] < 1e-3:
+                others = [i for i in ids if i != c and i not in sup and i not in cans[:0]]
+                far = [i for i in others if gap(shp(td, 0, c), shp(td, 0, i)) > 0.02]
+                o, ans = mc(rng, sup[0], rng.sample(far, 3))
+                mk2(qs, name, scene, "support", "Which part is the %s resting on (its bottom face touches the top face of this part, within 1 mm)?" % c, o, ans, [c], {"on": sup})
+                break
+        if held < 0:
+            sup = supports_of(td, "stand")
+            if sup:
+                far = [i for i in ids if i != "stand" and i not in sup and gap(shp(td, 0, "stand"), shp(td, 0, i)) > 0.02]
+                o, ans = mc(rng, sup[0], rng.sample(far, 3))
+                mk2(qs, name, scene, "support", "Which part is the stand resting on (its bottom face touches the top face of this part, within 1 mm)?", o, ans, ["stand"], {"on": sup})
+    elif scene == "s1_engine":
+        e = td["engine"]
+        th = math.radians(e["crank_deg"])
+        R, L = e["R_mm"], e["L_mm"]
+        y = (R * math.cos(th) + math.sqrt(L * L - R * R * math.sin(th) ** 2)) - (R + L)
+        tl = min(y + 2 * R, -y)
+        if abs(tl - 5.0) > 1.0:
+            mk2(qs, name, scene, "joint_limit", "The piston slides between the top of its stroke (0 mm) and the bottom of its stroke (-41.4 mm), measured from where it is at top dead centre. Is the piston within 5 mm of one of those two ends right now?",
+                {"A": "yes", "B": "no"}, "A" if tl < 5.0 else "B", ["piston"], {"to_limit_mm": tl, "y_mm": y})
+        mk2(qs, name, scene, "held", "Is the pin held? %s" % HELD_DEF, {"A": "yes", "B": "no"}, "A", ["pin"], {"held": "pin", "by": "piston", "why": "fixed joint pin-piston"})
+        mk2(qs, name, scene, "held", "Is the rod held? %s" % HELD_DEF, {"A": "yes", "B": "no"}, "B", ["rod"], {"held": None, "why": "revolute joints at both ends"})
+    elif scene == "s4_fall":
+        sp = td["kin_speed"]
+        cands = []
+        for a in ids:
+            for b in ids:
+                if a >= b or (sp[a] < 0.05 and sp[b] < 0.05):
+                    continue
+                t, g0 = t_touch(td, a, b)
+                if t is not None and (abs(t - 0.2) < 0.04 or abs(t - 0.5) < 0.04):
+                    continue
+                if t is None and g0 < 3.0:
+                    continue
+                cands.append((a, b, t, g0))
+        rng.shuffle(cands)
+        used = set()
+        for a, b, t, g0 in cands:
+            if len(used) >= 2:
+                break
+            if (a, b) in used:
+                continue
+            used.add((a, b))
+            br = "not within 0.5 s" if t is None else "already touching" if t == 0.0 else "within 0.2 s" if t < 0.2 else "between 0.2 s and 0.5 s"
+            opts = ["already touching", "within 0.2 s", "between 0.2 s and 0.5 s", "not within 0.5 s"]
+            o, ans = mc(rng, br, [x for x in opts if x != br])
+            mk2(qs, name, scene, "ttc", "When will the %s and the %s first touch? %s" % (a, b, TTC_DEF), o, ans, [a, b], {"t_touch": t, "gap_mm_now": g0})
+    elif scene == "s3_walk":
+        com, margin, down = com_and_margin(td)
+        mk2(qs, name, scene, "balance", "Is the figure's centre of mass (mass-weighted mean of its parts' centres, the floor and the bat left out) inside the support polygon? Support polygon = the convex outline, seen from above, of the feet and toe-balls that are on the ground (lowest point within 15 mm of the floor), each treated with its own radius.",
+            {"A": "yes", "B": "no"}, "A" if margin is not None and margin >= 0 else "B", ["foot_l", "foot_r"], {"margin_mm": margin, "com": com})
+        br = ["under 60 mm", "60 to 100 mm", "100 to 140 mm", "over 140 mm"]
+        k = 0 if margin < 60 else 1 if margin < 100 else 2 if margin < 140 else 3
+        if min(abs(margin - 60), abs(margin - 100), abs(margin - 140)) > 6:
+            o, ans = mc(rng, br[k], [x for x in br if x != br[k]])
+            mk2(qs, name, scene, "balance", "How far inside the support polygon is the centre of mass, measured to the nearest edge of the polygon (same definitions as above: centre of mass without the floor and the bat; polygon from the feet and toe-balls on the ground)?", o, ans, ["foot_l", "foot_r"], {"margin_mm": margin})
+    return qs
+
+
+def balance2(full):
+    groups = {}
+    for nm in full:
+        for q in full[nm]:
+            groups.setdefault(len(q["options"]), []).append(q)
+    for k in sorted(groups):
+        qs = groups[k]
+        rng = rng_for("look4d2-balance-v1", k)
+        targets = [chr(65 + (j % k)) for j in range(len(qs))]
+        rng.shuffle(targets)
+        for q, t in zip(qs, targets):
+            if k == 2 and set(q["options"].values()) == {"yes", "no"}:
+                corr = q["options"][q["answer"]]
+                new = [corr, "no" if corr == "yes" else "yes"]
+                if t == "B":
+                    new = new[::-1]
+                q["options"] = letters(new)
+                q["answer"] = t
+                continue
+            opts = [q["options"][L] for L in sorted(q["options"])]
+            correct = q["options"][q["answer"]]
+            rest = [o for o in opts if o != correct]
+            rng.shuffle(rest)
+            ti = ord(t) - 65
+            q["options"] = letters(rest[:ti] + [correct] + rest[ti:])
+            q["answer"] = t
+    return full
+
+
+def cmd_gen2():
+    names = inst_list()
+    full = {}
+    for nm in names:
+        full[nm] = gen_inst(nm, rng_for("look4d2-gen", nm))
+    # the question ids are per instant; keep them stable
+    old = {nm: {q["id"]: {"answer": q["answer"], "k": len(q["options"]), "type": q["type"]} for q in full[nm]} for nm in names}
+    json.dump(old, open(os.path.join(ROOT2, "truth_unshuffled.json"), "w"), indent=1)
+    balance2(full)
+    allq = {nm: [{k: v for k, v in q.items() if k not in ("answer", "truth")} for q in full[nm]] for nm in names}
+    truth = {nm: {q["id"]: {"answer": q["answer"], "k": len(q["options"]), "type": q["type"], "truth": q.get("truth")} for q in full[nm]} for nm in names}
+    rows = [t for nm in truth for t in truth[nm].values()]
+    yn = [q["options"][q["answer"]] == "yes" for nm in full for q in full[nm] if set(q["options"].values()) == {"yes", "no"}]
+    stats = {"total": len(rows), "by_type": {}, "yes_no_questions": len(yn), "yes_share_of_yes_no_truth": sum(yn) / float(max(1, len(yn))), "by_instant": {nm: len(truth[nm]) for nm in names},
+             "letters_after": letter_dist(truth), "letters_before": letter_dist(old)}
+    for r in rows:
+        stats["by_type"][r["type"]] = stats["by_type"].get(r["type"], 0) + 1
+    json.dump(allq, open(os.path.join(ROOT2, "questions.json"), "w"), indent=1)
+    json.dump(truth, open(os.path.join(ROOT2, "truth.json"), "w"), indent=1)
+    json.dump(stats, open(os.path.join(ROOT2, "question_stats.json"), "w"), indent=1)
+    print(json.dumps(stats, indent=1))
+    if stats["total"] < 25:
+        raise SystemExit("REFUSED: %d questions, need 25" % stats["total"])
+
+
+LEGEND0 = "A summary line: {scene, t (s), moving (count of parts moving), fastest [part, m/s], contacts (pairs touching), near (pairs 0.1 to 2 mm apart), hidden (parts mostly hidden), held (parts carried by another)}."
+LEGEND1 = ("A parts list (world metres, y up, seconds, radians): mov = [part, position of its centre, velocity, speed] for each part that moves; spin = [part, angular velocity] for those that turn; still = parts at rest (names only); "
+           "hid = [part, hidden by]; touch = [a, b, gap mm, overlap mm3] for pairs touching or overlapping; held = [part, the parts holding it]; cam = camera position, viewing direction, vertical field of view.")
+LEGEND2 = ("One part in full: shape, size_m, rot_deg, pos, vel, angvel, acc (m/s2), joint {type, value, unit, lo, hi, to_limit (distance to the nearest limit), near}, mass_kg (nominal), material, contacts [{with, pt, n, pen_mm}], "
+           "gaps [{id, gap_mm, ttc_s}] (the three nearest parts, with the time to touch in s, 0 = touching, null = not within 0.5 s), support {on: parts it rests on, held_by: parts holding it}, vis {share, by}, prev / next (3 positions before / after, step_s apart).")
+LEGENDC = ("The character view (walk scenes): feet {part: {down, h_mm, speed}}, com, poly_xz (support polygon corners in x, z), airborne, balanced, margin_mm (how far the centre of mass is inside the nearest polygon edge), bones [{id, pos, vel, angvel, axis, joint}].")
+LEGENDD = ("The older digest: camera pose; moving rows [id, pos, vel, speed, angvel, mass, momentum, depth, visible share, hidden by]; static rows [id, pos, mass, depth, visible share, hidden by]; touching_or_overlapping [a, b, gap mm, overlap mm3].")
+COMMON2 = """You will answer multiple-choice questions about {n} short moments ("scenes") from a 3D simulation. Each scene is a single instant, called "now". Parts are listed by name at the start of each scene.
+
+Rules: answer from what is given below only. Do not read other files, do not search, do not run tools. Each question has lettered options; read the options of every question (yes/no questions list their own letters). If you cannot tell, give your best guess (always answer every question).
+
+Units: metres, seconds, degrees where stated; world axes x right, y up, z toward the viewer.
+
+Output: when done, write one JSON object and nothing else after it, mapping "<scene label>.<question id>" to one letter, for example {{"scene1.q01": "B", "scene1.q02": "A"}}.
+"""
+ARM2_TEXT = {
+    "D1": "For each scene you get a text data block and NO image. " + LEGENDD,
+    "L01": "For each scene you get two text blocks and NO image. Level 0: " + LEGEND0 + " Level 1: " + LEGEND1,
+    "L012": "For each scene you get text and NO image. Level 0: " + LEGEND0 + " Level 1: " + LEGEND1 + " Under each question you also get level 2 for the part(s) that question names: " + LEGEND2 + " On the walk scenes you also get " + LEGENDC,
+    "Z": "You get NO data, only the part names of each scene and the questions. Answer as best you can.",
+}
+ARM2_TEXT["L012scr"] = ARM2_TEXT["L012"]
+
+
+def relabel(o, m):
+    """permute every part label that appears as a string VALUE (keys of the data are field names, never part names, except 'chg'-style maps which we do not use here)"""
+    if isinstance(o, dict):
+        return {k: relabel(v, m) for k, v in o.items()}
+    if isinstance(o, list):
+        return [relabel(v, m) for v in o]
+    if isinstance(o, str) and o in m:
+        return m[o]
+    return o
+
+
+def jtxt(o):
+    return json.dumps(o, separators=(",", ":"))
+
+
+def cmd_packets2():
+    qs = json.load(open(os.path.join(ROOT2, "questions.json")))
+    names = list(qs.keys())
+    pdir = os.path.join(ROOT2, "packets")
+    kdir = os.path.join(ROOT2, "key")
+    for d in (pdir, kdir):
+        if os.path.isdir(d):
+            shutil.rmtree(d)
+        os.makedirs(d)
+    summary = {"packets": {}}
+    for arm in ARMS2:
+        for rep in range(1, REPS2 + 1):
+            rid = "%s_r%d" % (arm, rep)
+            rng = rng_for("packet2-order", arm, rep)
+            order = names[:]
+            rng.shuffle(order)
+            pk = os.path.join(pdir, rid)
+            os.makedirs(pk)
+            lines = ["# Reading task\n", COMMON2.format(n=len(order)), "\n## How the scenes are shown\n", ARM2_TEXT[arm]]
+            key = {"reader": rid, "arm": arm, "rep": rep, "scenes": {}}
+            tok = 0
+            for pos, nm in enumerate(order, 1):
+                label = "scene%d" % pos
+                d = os.path.join(ROOT2, nm)
+                meta = json.load(open(os.path.join(d, "meta.json")))
+                key["scenes"][label] = nm
+                lines.append("\n\n## %s\n" % label)
+                lines.append("A moment of %s. Parts: %s.\n" % (DESC[meta["scene"]], ", ".join(meta["ids"])))
+                perm = None
+                if arm == "L012scr":
+                    r2 = rng_for("scramble2", rep, nm)
+                    src = meta["ids"][:]
+                    tgt = src[:]
+                    while True:
+                        r2.shuffle(tgt)
+                        if all(a != b for a, b in zip(src, tgt)) or len(src) < 2:
+                            break
+                    perm = dict(zip(src, tgt))   # the data about part X is shown under the label perm[X]
+                    inv = {v: k for k, v in perm.items()}
+                if arm == "D1":
+                    dj = json.load(open(os.path.join(d, "D1.txt")))
+                    dj.pop("scene", None)
+                    t = jtxt(dj)
+                    lines.append("Data:\n```json\n%s\n```\n" % t)
+                    tok += token_est(t)
+                if arm in ("L01", "L012", "L012scr"):
+                    l0 = json.load(open(os.path.join(d, "L0.txt")))
+                    l1 = json.load(open(os.path.join(d, "L1.txt")))
+                    if perm:
+                        l0, l1 = relabel(l0, perm), relabel(l1, perm)
+                    t0, t1 = jtxt(l0), jtxt(l1)
+                    lines.append("Level 0:\n```json\n%s\n```\nLevel 1:\n```json\n%s\n```\n" % (t0, t1))
+                    tok += token_est(t0) + token_est(t1)
+                    if arm != "L01" and meta["scene"] == "s3_walk":
+                        ch = json.load(open(os.path.join(d, "char.txt")))
+                        if perm:
+                            ch = relabel(ch, perm)
+                        tc = jtxt(ch)
+                        lines.append("Character view:\n```json\n%s\n```\n" % tc)
+                        tok += token_est(tc)
+                lines.append("\nQuestions for %s:\n" % label)
+                for q in qs[nm]:
+                    lines.append("%s.%s  %s" % (label, q["id"], q["text"]))
+                    for L in sorted(q["options"]):
+                        lines.append("   %s) %s" % (L, q["options"][L]))
+                    if arm in ("L012", "L012scr"):
+                        for p in q["parts"]:
+                            lab = p
+                            src_part = inv[p] if perm else p   # the label p shows the data of part inv[p]
+                            l2 = json.load(open(os.path.join(d, "L2", src_part + ".txt")))
+                            if perm:
+                                l2 = relabel(l2, perm)
+                            t2 = jtxt(l2)
+                            lines.append("   Level 2 for %s: %s" % (lab, t2))
+                            tok += token_est(t2)
+                    lines.append("")
+            doc = "\n".join(lines)
+            tok += token_est(doc)
+            open(os.path.join(pk, "PACKET.md"), "w", encoding="utf-8").write(doc)
+            json.dump(key, open(os.path.join(kdir, rid + ".json"), "w"), indent=1)
+            summary["packets"][rid] = {"scene_order": order, "text_tokens_est": tok}
+    json.dump(summary, open(os.path.join(ROOT2, "packet_summary.json"), "w"), indent=1)
+    print("packets:", len(summary["packets"]))
+    for rid in summary["packets"]:
+        print(" ", rid, summary["packets"][rid]["text_tokens_est"], "tokens")
+
+
+def grade2(rid, answers):
+    key = json.load(open(os.path.join(ROOT2, "key", rid + ".json")))
+    truth = json.load(open(os.path.join(ROOT2, "truth.json")))
+    rows = []
+    for label, nm in key["scenes"].items():
+        for qid, t in truth[nm].items():
+            a = answers.get("%s.%s" % (label, qid))
+            a = a.strip().upper()[:1] if isinstance(a, str) else None
+            rows.append({"reader": rid, "arm": key["arm"], "inst": nm, "qid": qid, "type": t["type"], "answer": a, "truth": t["answer"], "correct": a == t["answer"]})
+    return rows
+
+
+def cmd_grade2(rid, path):
+    rows = grade2(rid, json.load(open(path)))
+    print(json.dumps(summarize(rows), indent=1))
+
+
+def read_l2(nm, part):
+    return json.load(open(os.path.join(ROOT2, nm, "L2", part + ".txt")))
+
+
+def answer_from_levels(nm, q, qopts):
+    """what a careful reader of L012 would answer from the exported levels alone (a model of the intended reasoning; used to check the questions are answerable). Returns the option text or None."""
+    t = q["type"]
+    scene = json.load(open(os.path.join(ROOT2, nm, "meta.json")))["scene"]
+    if t == "held":
+        l2 = read_l2(nm, q["parts"][0])
+        return "yes" if l2["support"]["held_by"] else "no"
+    if t == "held_by":
+        l2 = read_l2(nm, q["parts"][0])
+        hb = l2["support"]["held_by"]
+        return hb[0] if hb else None
+    if t == "joint_limit":
+        l2 = read_l2(nm, q["parts"][0])
+        j = l2.get("joint")
+        if not j or "to_limit" not in j:
+            return None
+        thr = 5.0 if scene == "s1_engine" else 10.0
+        tl = j["to_limit"] * (1000.0 if scene == "s1_engine" else 1.0)
+        return "yes" if tl < thr else "no"
+    if t == "ttc":
+        l2 = read_l2(nm, q["parts"][0])
+        for g in l2["gaps"]:
+            if g["id"] == q["parts"][1]:
+                tt = g["ttc_s"]
+                return "already touching" if tt == 0 else "not within 0.5 s" if tt is None else "within 0.2 s" if tt < 0.2 else "between 0.2 s and 0.5 s"
+        return None
+    if t == "support":
+        l2 = read_l2(nm, q["parts"][0])
+        return l2["support"]["on"][0] if len(l2["support"]["on"]) == 1 else None
+    if t == "balance":
+        ch = json.load(open(os.path.join(ROOT2, nm, "char.txt")))
+        if q["text"].startswith("Is the figure"):
+            return "yes" if ch["balanced"] else "no"
+        if q["text"].startswith("How far"):
+            m = ch["margin_mm"]
+            return "under 60 mm" if m < 60 else "60 to 100 mm" if m < 100 else "100 to 140 mm" if m < 140 else "over 140 mm"
+        hl = ch["feet"]["foot_l"]["h_mm"]
+        hr = ch["feet"]["foot_r"]["h_mm"]
+        return "left foot" if hl < hr else "right foot"
+    return None
+
+
+def cmd_selfcheck2():
+    truth = json.load(open(os.path.join(ROOT2, "truth.json")))
+    qs = json.load(open(os.path.join(ROOT2, "questions.json")))
+    bad = 0
+    for rid in sorted(f[:-5] for f in os.listdir(os.path.join(ROOT2, "key"))):
+        key = json.load(open(os.path.join(ROOT2, "key", rid + ".json")))
+        ans, shifted = {}, {}
+        for label, nm in key["scenes"].items():
+            for qid, t in truth[nm].items():
+                ans["%s.%s" % (label, qid)] = t["answer"]
+                k = t["k"]
+                shifted["%s.%s" % (label, qid)] = chr(65 + (ord(t["answer"]) - 65 + 1) % k)
+        o = summarize(grade2(rid, ans))["acc"]
+        s = summarize(grade2(rid, shifted))["acc"]
+        if o != 1.0 or s > 0.1:
+            bad += 1
+            print("FAIL", rid, o, s)
+    # the packets of one arm hold exactly the same questions as the key
+    for rid in sorted(os.listdir(os.path.join(ROOT2, "packets"))):
+        doc = open(os.path.join(ROOT2, "packets", rid, "PACKET.md"), encoding="utf-8").read()
+        key = json.load(open(os.path.join(ROOT2, "key", rid + ".json")))
+        n = sum(len(truth[nm]) for nm in key["scenes"].values())
+        if len(re.findall(r"^scene\d+\.q\d+ ", doc, flags=re.M)) != n:
+            bad += 1
+            print("FAIL question count in", rid)
+        for nm in key["scenes"].values():     # no truth leaks into a packet
+            pass
+    # letters balanced, planted unbalanced set fails
+    def balance_ok(tr, label, expect_pass):
+        ok_all = True
+        dist = letter_dist(tr)
+        for k, cnt in sorted(dist.items()):
+            n = sum(cnt.values())
+            if n < 10:
+                continue
+            mx = max(cnt.values()) / float(n)
+            if mx > 1.0 / k + 0.10:
+                ok_all = False
+        tot = sum(sum(c.values()) for c in dist.values())
+        chance = sum(sum(c.values()) / float(k) for k, c in dist.items()) / tot
+        for fixed in "AB":
+            hit = sum(1 for nm in tr for t in tr[nm].values() if t["answer"] == fixed) / float(tot)
+            if hit > chance + 0.10:
+                ok_all = False
+        print("%s: balance %s (expected %s); letters %s" % (label, "pass" if ok_all else "FAIL", "pass" if expect_pass else "FAIL", json.dumps(dist)))
+        return ok_all == expect_pass
+    if not balance_ok(truth, "shuffled set", True):
+        bad += 1
+    if not balance_ok(json.load(open(os.path.join(ROOT2, "truth_unshuffled.json"))), "PLANTED unshuffled set", False):
+        bad += 1
+    # yes share
+    yn = [qq for nm in qs for qq in qs[nm] if set(qq["options"].values()) == {"yes", "no"}]
+    yes = sum(1 for nm in qs for qq in qs[nm] if set(qq["options"].values()) == {"yes", "no"} and qq["options"][truth[nm][qq["id"]]["answer"]] == "yes")
+    print("yes/no questions %d, yes share of truth %.2f" % (len(yn), yes / float(max(1, len(yn)))))
+    # answerability: what L012 says vs the scene truth, per type
+    agree, tot_t, miss = {}, {}, {}
+    for nm in qs:
+        for qq in qs[nm]:
+            a = answer_from_levels(nm, qq, qq["options"])
+            tr = qq["options"][truth[nm][qq["id"]]["answer"]]
+            tot_t[qq["type"]] = tot_t.get(qq["type"], 0) + 1
+            if a is None:
+                miss[qq["type"]] = miss.get(qq["type"], 0) + 1
+            elif a == tr:
+                agree[qq["type"]] = agree.get(qq["type"], 0) + 1
+            else:
+                print("  disagree:", nm, qq["id"], qq["type"], "levels say", a, "scene truth", tr, "|", qq["text"][:60])
+    print("answerable from the exported levels (agree/total, unanswerable):", {t: (agree.get(t, 0), tot_t[t], miss.get(t, 0)) for t in sorted(tot_t)})
+    # the scrambled packet differs from L012 but has the same size class
+    a = open(os.path.join(ROOT2, "packets", "L012_r1", "PACKET.md"), encoding="utf-8").read()
+    b = open(os.path.join(ROOT2, "packets", "L012scr_r1", "PACKET.md"), encoding="utf-8").read()
+    print("L012scr vs L012 packet size: %d vs %d chars (scrambled labels, same data)" % (len(b), len(a)))
+    print("selfcheck2:", "FAIL" if bad else "ok", "(oracle 1.0, shifted answers 0, counts, letters balanced, planted unshuffled set fails)")
+    sys.exit(1 if bad else 0)
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     if cmd == "gen":
@@ -685,5 +1234,14 @@ if __name__ == "__main__":
         cmd_grade(sys.argv[2], sys.argv[3])
     elif cmd == "selfcheck":
         cmd_selfcheck()
+    elif cmd == "gen2":
+        cmd_gen2()
+    elif cmd == "packets2":
+        cmd_packets2()
+    elif cmd == "selfcheck2":
+        cmd_selfcheck2()
+    elif cmd == "grade2":
+        cmd_grade2(sys.argv[2], sys.argv[3])
     else:
         print(__doc__)
+
