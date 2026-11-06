@@ -179,8 +179,19 @@ class Log:
         return v
 
 
+COLORS = {"PIPE_": [0.15, 0.35, 0.65], "PUMP": [0.85, 0.30, 0.10], "ALUM": [0.95, 0.80, 0.15], "MCC_": [0.20, 0.60, 0.30], "STUB": [0.15, 0.35, 0.65], "B_": [0.74, 0.72, 0.66]}
+
+
+def paint():
+    for k, r in RECORDS.items():
+        col = next(v for pre, v in COLORS.items() if k.startswith(pre))
+        r["features"].append({"t": "appear", "id": "f%d" % (len(r["features"]) + 1), "name": "Appear%d" % (len(r["features"]) + 1), "body": 0.0, "color": col, "metal": 0.0, "rough": 0.8, "preset": "Custom"})
+        r["seq"] = len(r["features"])
+
+
 def main():
     build_plant()
+    paint()
     out = {"meta": {"Q_m3s": 1.0e6 * 0.003785411784 / 86400.0, "note": "docs/CH17_BRIEF.md"}, "records": RECORDS, "parts": PARTS, "connections": CONNS,
            "envelopes": ENVS, "source": "INTAKE", "sinks": ["STUBA", "STUBB"],
            "prices": {"concrete_rc": {"density_kg_m3": 2400.0, "price_per_kg": 0.0625}, "steel": {"density_kg_m3": 7850.0, "price_per_kg": 3.0}},

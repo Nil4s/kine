@@ -18,7 +18,7 @@ extends SceneTree
 ##  6 BOM         mass = sum(hand volume x density), cost = sum(mass x price), equal to the MCP bom in the data to 1e-9; a line per distinct record.
 ##                PLANTED: dropping one pipe from the hand sum is caught.
 ## AMENDED after the first run (the first run's FAIL lines stay in docs/CH17_FEEDBACK.md): the hand-vs-solid tolerance of bars 1, 4 and 6 is 1e-6, not 1e-9. Measured worst 3.7e-8:
-##  the kernel is fed float32 numbers (Vector3 / float radii), so a radius of 136.5 mm is not 136.5 mm to 1e-9. Bar 6 now compares the MCP mass and cost to THIS test's own
+##  the exact volume of the cut concrete boxes is 1e-8..4e-8 off the formula (cause not isolated; see G46). Bar 6 now compares the MCP mass and cost to THIS test's own
 ##  exact-solid sum at 1e-9 (the same quantity, independent code) and to the hand sum at 1e-6. Bar 3's single-failure rule is "at least one stub always; both stubs for the
 ##  raw pumps and filters" (each high-service pump feeds its own stub). Nothing else changed.
 ##  7 SHEETS      (window) a plan drawing (AssemblyDraw) and a 3D frame (AssemblyRender) are written.
@@ -558,6 +558,9 @@ func bar7() -> void:
 	var rr: Dictionary = await AssemblyRender.render(root, asm, {"dir": out_dir() + "/view", "width": 1280, "height": 720, "times": [0.0], "mp4": false, "sheet": false, "keep_images": true,
 		"camera": {"pos": Vector3(20.0, 38.0, 55.0), "look": Vector3(18.0, 0.0, 0.0), "fov": 45.0}})
 	ok(bool(rr.get("ok", false)), "7 3D frame rendered %s" % str(rr.get("why", "")))
+	var rt: Dictionary = await AssemblyRender.render(root, asm, {"dir": out_dir() + "/view_top", "width": 1600, "height": 600, "times": [0.0], "mp4": false, "sheet": false, "keep_images": true,
+		"camera": {"pos": Vector3(17.0, 75.0, 0.5), "look": Vector3(17.0, 0.0, 0.0), "fov": 50.0}})
+	ok(bool(rt.get("ok", false)), "7 top view rendered %s" % str(rt.get("why", "")))
 	done.append("7")
 
 
