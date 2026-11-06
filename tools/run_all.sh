@@ -1068,3 +1068,4 @@ EXTRA="$EXTRA n041:w"   # N041 lock truth: partner joint limits judge an armbar 
 EXTRA="$EXTRA bgthread:w"   # L42 throw judge + Bake sim off the main thread (tests/bgthread_test.gd)
 EXTRA="$EXTRA render1:w"   # L49 RENDER1: Final HQ preset: GI raise, DOF edge width, motion-blur streak, accumulation 1/sqrt(N) (tests/render1_test.gd, scripts/final_hq.gd)
 EXTRA="$EXTRA render2:w"   # L51 RENDER2: native accumulate == GDScript, 1080p x16 <= 150 ms, edge-aware a-trous denoise (tests/render2_test.gd)
+EXTRA="$EXTRA dyntopo:w"   # L52 DYNTOPO: split long / collapse short edges under the brush: band, outside hash, manifold, 200k step <= 16 ms native, native == GDScript, undo, UI toggle, agent tool (tests/dyntopo_test.gd)
