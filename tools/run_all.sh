@@ -1051,3 +1051,5 @@ EXTRA="$EXTRA install:w"   # L16 installer
 EXTRA="$EXTRA undotpl:w"   # L24 template undo
 EXTRA="$EXTRA softwire:w"   # L22 soft wiring
 EXTRA="$EXTRA layouts:w"   # L20 layouts
+
+EXTRA="$EXTRA autorig:w"   # L29 quick rig: markers/template -> skeleton inside the mesh -> geodesic voxel weights -> character (tests/autorig_test.gd)

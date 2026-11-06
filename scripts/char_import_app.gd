@@ -92,6 +92,14 @@ static func open(m: Node, path: String, key := {}, review := false, from_scene :
 	return _finish(m, ch, mapping, from_scene)
 
 
+## a character built in memory by AutoRig.to_character (the quick rig): the same finish as an imported file, no map screen.
+## (The scene key keeps a path; an auto-rig has none yet, so a saved scene reopens with the Kine body: AutoRig.Session.save keeps the rig.)
+static func adopt(m: Node, ch: Dictionary) -> Dictionary:
+	var mapping := CharImport.map_bones(ch["src"])
+	mapping["method"] = String(mapping.get("method", "name"))
+	return _finish(m, ch, mapping, false)
+
+
 static func _finish(m: Node, ch: Dictionary, mapping: Dictionary, from_scene: bool) -> Dictionary:
 	var src: Dictionary = ch["src"]
 	var B: Body = m.B
