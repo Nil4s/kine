@@ -24,6 +24,16 @@ const CREASE := "crease"
 ## it has one (else all smooth); a float = that sharpness on every edge; a PackedFloat32Array = one per edge in
 ## mesh.edges() order; a Dictionary {Vector2i(a, b): sharpness} (either order).
 static func subdivide(mesh: KMesh, levels := 1, creases = null) -> KMesh:
+	# L60: no attribute channels and a uniform (or no) crease: the whole thing in C++ (KineKMeshNative), same result
+	if KMeshNatDoor.on() and mesh.attrs.is_empty() and (creases == null or creases is float or creases is int):
+		var nr: Dictionary = KMeshNatDoor.door().subdivide(mesh.verts, mesh.faces, maxi(levels, 0), -1.0 if creases == null else float(creases))
+		var nout := KMesh.new()
+		nout.normal_mode = mesh.normal_mode
+		nout.auto_angle = mesh.auto_angle
+		nout.verts = nr["verts"]
+		nout.faces = nr["faces"]
+		nout._apply_topo(nr)
+		return nout
 	var V := mesh.verts.duplicate()
 	var nf := mesh.faces.size()
 	var fs := PackedInt32Array()   # face starts into fv (size nf + 1)

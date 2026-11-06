@@ -10,6 +10,7 @@
 #include "kine_softskin_native.h"
 #include "kine_meshcheck_native.h"
 #include "kine_meshops_native.h"
+#include "kine_kmesh_native.h"
 #include "kine_parkour_native.h"
 #include "kine_retopo_native.h"
 #include "kine_solve_native.h"
@@ -28,6 +29,7 @@
 #include "kine_ik_native.h"
 #include "kine_blend_native.h"
 #include "kine_tpaint_native.h"
+#include "kine_props_native.h"
 
 using namespace godot;
 
@@ -42,6 +44,7 @@ void kine_native_initialize(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(KineSoftSkinNative);
 	GDREGISTER_ABSTRACT_CLASS(KineMeshCheckNative);
 	GDREGISTER_ABSTRACT_CLASS(KineMeshOpsNative);
+	GDREGISTER_ABSTRACT_CLASS(KineKMeshNative);
 	GDREGISTER_ABSTRACT_CLASS(KineParkourNative);
 	GDREGISTER_CLASS(KineRetopoNative);
 	GDREGISTER_ABSTRACT_CLASS(KineSolveNative);
@@ -60,6 +63,7 @@ void kine_native_initialize(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(KineIKNative);
 	GDREGISTER_ABSTRACT_CLASS(KineBlendNative);
 	GDREGISTER_CLASS(KineTPaintNative);
+	GDREGISTER_ABSTRACT_CLASS(KinePropsNative);
 }
 
 void kine_native_terminate(ModuleInitializationLevel p_level) {

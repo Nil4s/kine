@@ -61,10 +61,53 @@ static func run(a: KMesh, b: KMesh, op: String) -> KMesh:
 			last_error = "the %s is not closed (%d border edges): a boolean needs closed meshes. Fill its holes first (Repair, or F)." % ["target" if m == a else "operand", m.boundary_edge_count()]
 			return null
 	var t0 := Time.get_ticks_usec()
+	if KMeshNatDoor.on() and a.attrs.is_empty():   # L60: the whole run in C++ (no attribute channels to carry), same result
+		var nres := _run_native(a, b, op)
+		last["ms"] = (Time.get_ticks_usec() - t0) / 1000.0
+		return nres
 	var r := _Run.new()
 	var res := r.go(a, b, op)
 	last = r.stats
 	last["ms"] = (Time.get_ticks_usec() - t0) / 1000.0
+	return res
+
+
+## the triangle tables of a mesh with n-gons: 3 local corners per triangle, and its source face
+static func _tri_table(m: KMesh) -> Array:
+	var tc := PackedInt32Array()
+	var tf := PackedInt32Array()
+	for fi in m.faces.size():
+		var f: PackedInt32Array = m.faces[fi]
+		var tr: Array = [[0, 1, 2]] if f.size() == 3 else KMeshTopo.face_tris(m, f)
+		for t in tr:
+			tc.append(t[0])
+			tc.append(t[1])
+			tc.append(t[2])
+			tf.append(fi)
+	return [tc, tf]
+
+
+static func _run_native(a: KMesh, b: KMesh, op: String) -> KMesh:
+	var code: int = OPS.find(op)   # union 0, difference 1, intersect 2
+	var door = KMeshNatDoor.door()
+	var empty := PackedInt32Array()
+	var r: Dictionary = door.boolean(a.verts, a.faces, empty, empty, b.verts, b.faces, empty, empty, code, SNAP_MIN)
+	if r.has("need_tris"):
+		var ta := _tri_table(a)
+		var tb := _tri_table(b)
+		r = door.boolean(a.verts, a.faces, ta[0], ta[1], b.verts, b.faces, tb[0], tb[1], code, SNAP_MIN)
+	var res := KMesh.new()
+	res.verts = r["verts"]
+	res.faces = r["faces"]
+	res._apply_topo(r)
+	res.normal_mode = a.normal_mode
+	res.auto_angle = a.auto_angle
+	res.modifiers = a.modifiers.duplicate(true)
+	res.materials = a.materials.duplicate(true)
+	var stats := {}
+	for k in ["pairs", "segments", "coplanar_pairs", "split_tris", "pieces", "patches", "unresolved", "clamped", "aliased", "ngons", "faces_as_were", "tri_faces"]:
+		stats[k] = r[k]
+	last = stats
 	return res
 
 

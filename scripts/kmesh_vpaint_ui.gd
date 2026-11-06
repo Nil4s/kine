@@ -39,6 +39,8 @@ var tex_mode := false   # L53 Texture mode: strokes write the TEXELS of a textur
 var tp: KMeshTPaint
 var _tp_mesh: KMesh
 var tex_size := 1024
+var tex_pending := {}   # L55: a texture loaded with the scene ({data, size, uv, sha}), applied when Texture mode meets a mesh with the same UVs
+var _blank := ""        # L55: the SHA-256 of the texture as Texture mode made it (unpainted)
 var _last_px := Vector2.ZERO
 var dropper := false    # the panel's eyedropper: the next click on the mesh picks its colour
 var _stroking := false
@@ -130,6 +132,28 @@ func start() -> void:
 	m._say("Paint: vertex paint on. Drag on the mesh to paint (%s). [ ] radius, Shift+[ ] strength, O falloff, N blend, X symmetry, F fill the selection, Ctrl+click eyedropper, Shift blurs, Esc leaves" % mode)
 
 
+## L55: the auto-unwrap Texture mode runs on a mesh without UVs (seams at 60 degrees, LSCM) as ONE undo step on u (the model's undo).
+## A mesh that has UVs is left as it is.
+static func unwrap_undoable(u: KMeshUndo, mesh: KMesh) -> void:
+	if mesh.has_attr("uv"):
+		return
+	u.begin(mesh)
+	KMeshUV.seams_by_angle(mesh, 60.0)
+	KMeshUV.unwrap_lscm(mesh)
+	u.commit("texture unwrap")
+
+
+## L55: what the scene saves: {data, size, uv} of the texture as it stands (painted, or still the loaded one); {} = nothing painted
+func texture_source() -> Dictionary:
+	if tp != null and _tp_mesh != null:
+		if tp.hash() == _blank:
+			return {}
+		return {"data": tp.data(), "size": tp.size, "uv": KMeshTPaintFile.uv_hash(_tp_mesh)}
+	if tex_pending.is_empty():
+		return {}
+	return {"data": tex_pending["data"], "size": tex_pending["size"], "uv": tex_pending["uv"]}
+
+
 func set_tex_mode(v: bool) -> void:
 	tex_mode = v
 	if v:
@@ -143,11 +167,17 @@ func set_tex_mode(v: bool) -> void:
 ## Texture mode: the mesh gets UVs when it has none (seams at 60 degrees, LSCM, packed), a texture of its own, and the view shows it
 func _enter_tex() -> void:
 	if not mesh.has_attr("uv"):
-		KMeshUV.seams_by_angle(mesh, 60.0)
-		KMeshUV.unwrap_lscm(mesh)
+		unwrap_undoable(ui.undo, mesh)
 	if tp == null or _tp_mesh != mesh:
 		tp = KMeshTPaint.new(mesh, tex_size)
 		_tp_mesh = mesh
+		_blank = tp.hash()
+		if not tex_pending.is_empty():
+			if KMeshTPaintFile.apply(tp, tex_pending, KMeshTPaintFile.uv_hash(mesh)):
+				m._say("Paint: the scene's painted texture is back (%d px)" % tp.size)
+			else:
+				m._say("Paint: the scene's painted texture does not fit this mesh's UVs (or size), so it is not used")
+		tex_pending = {}
 	view.paint_tex = ImageTexture.create_from_image(tp.image())
 	view.mark_dirty()
 	m._say("Paint: TEXTURE mode (%s, %d px texture). A stamp across a UV seam colours both islands; the back and hidden side stay clean. Ctrl+Z undoes a stroke" % [tp.engine, tex_size])
