@@ -185,7 +185,7 @@ func _lob_run(res: int, gate: bool, taus: Array) -> Array:
 			F.advance(d)
 			t += d
 		out.append(_front(F, h, LH, xg))
-		vols.append(F.volume_smooth())
+		vols.append(F.volume_smooth() * F.particle_count())
 	return [out, vols]
 
 
@@ -204,14 +204,14 @@ func _l2_volume() -> void:
 	var sc: Dictionary = FluidScenes.dam_break_mm(F, 20)
 	FluidScenes.dam_break_release_now(F)
 	var tscale := sqrt(float(sc["a"]) / (2.0 * G))
-	var v0: float = F.volume_smooth()
+	var v0: float = F.volume_smooth() * F.particle_count()   # volume_smooth() is per particle: multiply by the count (as ch8 (b4) does), else a deleted particle is invisible
 	var worst := 0.0
 	var t := 0.0
 	var T := 0.25
 	while T <= 5.0 + 1e-9:
 		F.advance(T * tscale - t)
 		t = T * tscale
-		worst = maxf(worst, absf(F.volume_smooth() / v0 - 1.0))
+		worst = maxf(worst, absf(F.volume_smooth() * F.particle_count() / v0 - 1.0))
 		T += 0.25
 	var r := _lob_run(20, true, [0.5, 1.0, 1.5, 2.0])
 	var vs: Array = r[1]
@@ -222,5 +222,5 @@ func _l2_volume() -> void:
 	ok(worst <= 0.01, "(L2) M&M dam break to T = 5: smoothed volume drift %.2f %% (bar 1 %%)" % [worst * 100.0])
 	ok(wl <= 0.01, "(L2) Lobovsky run to tau 2: smoothed volume drift %.2f %% (bar 1 %%)" % [wl * 100.0])
 	F.remove_every(50)
-	var d := absf(F.volume_smooth() / v0 - 1.0)
+	var d := absf(F.volume_smooth() * F.particle_count() / v0 - 1.0)
 	ok(d > 0.01, "(g) CONTROL (L2) 2 %% of the particles deleted reads %.2f %% drift and fails the same 1 %% bar (the bar can fail)" % [d * 100.0])
