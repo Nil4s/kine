@@ -120,3 +120,12 @@ static func dam_break_mm(F: Object, res := 20, cfg := "mm") -> Dictionary:
 	var sc := dam_break(F, res)
 	F.set_wall_friction(MM_WFR)
 	return sc
+
+
+## L44: the M&M diaphragm hold, in T units (T = t sqrt(2g/a)). STUB (bars first): 0 = instantaneous release.
+const MM_RELEASE_T := 0.0
+
+
+## L44: cancel the diaphragm hold of dam_break_mm (instantaneous release). STUB.
+static func dam_break_release_now(_F: Object) -> void:
+	pass
