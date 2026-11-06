@@ -1035,3 +1035,4 @@ EXTRA="$EXTRA g21compare:w"   # g21compare: shared render-vs-reference stats and
 EXTRA="$EXTRA g16open:w"   # g16open (gap G16): stroke retopo across open edges, boundary as side / close the hole (tests/g16open_test.gd)
 EXTRA="$EXTRA g4dbl:w"   # G4DBL: CAD poses in doubles (Xform64, Assembly.xf64_of, place64): round trip 1e-12, CH13 pin height 1e-9 mm, display = float32 rounding, save/load bit-exact, tests/g4dbl_test.gd
 EXTRA="$EXTRA g3fits:w"   # G3FITS: ISO 286 fit classes on Part dimensions (iso_fits.gd, dim_fit.gd), mating-pair kind + clearance, stack-up panel (worst case, RSS, CSV), agent call fits, tests/g3fits_test.gd
+EXTRA="$EXTRA mcpfast:w"   # MCPFAST: the CAD tools of the local MCP (cad_part, cad_asm, check_fit, bom, eval_gd, batch), cache by record hash, terse replies, CH13 through MCP (tests/mcpfast_test.gd, docs/MCPFAST_FEEDBACK.md)
