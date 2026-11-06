@@ -160,6 +160,21 @@ func check_seq(dir: String, n: int, w: int, h: int) -> String:
 	return ""
 
 
+## the fraction of pixels within tol (every channel) of any of the colours
+func near_frac(img: Image, cols: Array, tol: float) -> float:
+	var n := 0
+	var w := img.get_width()
+	var h := img.get_height()
+	for y in h:
+		for x in w:
+			var c := img.get_pixel(x, y)
+			for k in cols:
+				if absf(c.r - k.r) <= tol and absf(c.g - k.g) <= tol and absf(c.b - k.b) <= tol:
+					n += 1
+					break
+	return float(n) / float(maxi(w * h, 1))
+
+
 func probe(fp: String, mp4: String) -> Dictionary:
 	var out := []
 	OS.execute(fp, ["-v", "error", "-count_frames", "-select_streams", "v:0", "-show_entries", "stream=nb_read_frames,width,height", "-of", "csv=p=0", mp4], out, true)
@@ -336,6 +351,56 @@ func _init() -> void:
 	var planted := scan_media(ud).size()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(plant))
 	ok(planted == media_before + 1, "  CONTROL: the scan sees a png planted in user:// (%d -> %d)" % [media_before, planted])
+
+	# ---------------------------------------------------------------- bar 6: no editor overlays in the final frame
+	m.grid_node.visible = true
+	var grow0: float = m._body_outline.get_shader_parameter("grow")
+	var axis0: bool = m._axis_node() != null and m._axis_node().visible
+	m.sel_card = 0
+	m._refresh()
+	await idle(2)
+	got.clear()
+	m._render_shots(out_root, "", {"preset": "final", "w": 1280, "h": 720, "first": 34, "count": 1})
+	await process_frame
+	while m._sr_busy:
+		await process_frame
+	await idle(2)
+	var r6: Dictionary = got[0] if not got.is_empty() else {}
+	var f6 := Image.load_from_file(String(r6.get("dir", "")) + "/frame_0000.png") if not r6.is_empty() else null
+	# the editor's own picture of the same frame (look-through, UI hidden): the control
+	m.clean = true
+	m._sides_apply()
+	m.ui_root.visible = false
+	await process_frame
+	var sb: Dictionary = m._shot_blast_begin()
+	m.playhead = 34.0 / S.fps
+	m._ps().apply(m.B, m.playhead)
+	m._refresh()
+	m._shot_blast_frame(sb)
+	await process_frame
+	await RenderingServer.frame_post_draw
+	var ed6: Image = m._shot_blast_image(sb, root.get_viewport().get_texture().get_image())
+	m._shot_blast_end(sb)
+	m.ui_root.visible = true
+	m.clean = false
+	m._sides_apply()
+	var oc: Color = Tok.c("body_outline")
+	var gc1: Color = Tok.c("grid").linear_to_srgb()
+	var gc2: Color = Tok.c("grid_major").linear_to_srgb()
+	var fo := near_frac(f6, [oc], 0.03) if f6 != null else 1.0
+	var fg := near_frac(f6, [gc1, gc2], 0.015) if f6 != null else 1.0
+	var eo := near_frac(ed6, [oc], 0.03)
+	var eg := near_frac(ed6, [gc1, gc2], 0.015)
+	print("     outline-coloured pixels: final %.4f%%, editor grab %.4f%%; grid-coloured: final %.4f%%, editor grab %.4f%%" % [fo * 100.0, eo * 100.0, fg * 100.0, eg * 100.0])
+	if look_dir != "" and f6 != null:
+		f6.save_png(look_dir + "/look_bar6_final.png")
+		ed6.save_png(look_dir + "/look_bar6_editor.png")
+	ok(f6 != null and f6.get_width() == 1280 and fo < 0.0005, "6 the final frame has no outline pixels: %.4f%% (< 0.05%%)" % (fo * 100.0))
+	ok(f6 != null and fg < 0.0005, "  and no grid-coloured pixels: %.4f%% (< 0.05%%)" % (fg * 100.0))
+	ok(eo >= 0.0005, "  CONTROL: the editor's own picture of the same frame is caught for the outline: %.4f%% (>= 0.05%%)" % (eo * 100.0))
+	ok(eg >= 0.0005, "  CONTROL: ... and for the grid: %.4f%% (>= 0.05%%)" % (eg * 100.0))
+	ok(m.grid_node.visible and m._axis_node() != null and m._axis_node().visible == axis0 and is_equal_approx(float(m._body_outline.get_shader_parameter("grow")), grow0) and grow0 > 0.0,
+		"  after the render the grid, the axes and the outline are back in the editor (outline grow %.4f)" % grow0)
 
 	_rm(out_root)
 	print("frender: %d fail" % fails)
