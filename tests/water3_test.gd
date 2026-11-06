@@ -259,10 +259,99 @@ func _glass() -> Dictionary:
 	return {"mesh": mesh, "pos": bs["pos"], "idx": bs["idx"], "mugc": Vector3(m["cx"], flo + 0.035, m["cz"]), "cx": m["cx"], "cz": m["cz"], "volume": bs["volume"]}
 
 
-func _render_glass(gl: Dictionary, ssf: bool) -> Dictionary:
+func _stripes(p: Vector3, s: Vector3) -> MeshInstance3D:
+	var img := Image.create(64, 64, false, Image.FORMAT_RGB8)
+	for y in 64:
+		for x in 64:
+			img.set_pixel(x, y, Color(0.12, 0.14, 0.2) if (x / 8) % 2 == 0 else Color(0.96, 0.94, 0.88))
+	var mi := MeshInstance3D.new()
+	var b := BoxMesh.new()
+	b.size = s
+	mi.mesh = b
+	mi.position = p
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_texture = ImageTexture.create_from_image(img)
+	m.uv1_triplanar = true
+	m.uv1_scale = Vector3(12, 12, 12)   # a band = 1.04 cm
+	mi.material_override = m
+	return mi
+
+
+## stripe edges tracked down the rows: {j, cov, tracks, n}
+func _edge_straightness(img: Image, mask: PackedByteArray, mw: int, mh: int) -> Dictionary:
+	var lum := _lum(img, Rect2i(0, 0, mw, mh))
+	var vals := PackedFloat32Array()
+	for i in lum.size():
+		if mask[i] != 0:
+			vals.append(lum[i])
+	if vals.size() < 100:
+		return {"j": 0.0, "cov": 0.0, "tracks": 0, "n": 0}
+	vals.sort()
+	var th := 0.5 * (vals[int(vals.size() * 0.1)] + vals[int(vals.size() * 0.9)])
+	var active: Array = []   # {dir, xs: PackedFloat32Array}
+	var done: Array = []
+	for y in mh:
+		var cross := []
+		for x in mw - 1:
+			var i := y * mw + x
+			if mask[i] == 0 or mask[i + 1] == 0:
+				continue
+			var a := lum[i] - th
+			var b := lum[i + 1] - th
+			if a * b < 0.0:
+				cross.append([float(x) + a / (a - b), 1 if b > a else -1])
+		var nxt: Array = []
+		var used := {}
+		for c in cross:
+			var best := -1
+			var bd := 5.0
+			for k in active.size():
+				var tr: Dictionary = active[k]
+				if tr["dir"] != c[1] or used.has(k):
+					continue
+				var xs0: PackedFloat32Array = tr["xs"]
+				var d := absf(xs0[xs0.size() - 1] - float(c[0]))
+				if d < bd:
+					bd = d
+					best = k
+			if best >= 0:
+				used[best] = true
+				var xs1: PackedFloat32Array = active[best]["xs"]
+				xs1.append(c[0])
+				active[best]["xs"] = xs1
+				nxt.append(active[best])
+			else:
+				var xs := PackedFloat32Array()
+				xs.append(c[0])
+				nxt.append({"dir": c[1], "xs": xs})
+		for k in active.size():
+			if not used.has(k):
+				done.append(active[k])
+		active = nxt
+	done.append_array(active)
+	var total := 0
+	var longn := 0
+	var s2 := 0.0
+	var n2 := 0
+	var tracks := 0
+	for tr in done:
+		var xs: PackedFloat32Array = tr["xs"]
+		total += xs.size()
+		if xs.size() >= 60:
+			longn += xs.size()
+			tracks += 1
+			for i in range(1, xs.size() - 1):
+				var d2 := xs[i - 1] - 2.0 * xs[i] + xs[i + 1]
+				s2 += d2 * d2
+				n2 += 1
+	return {"j": sqrt(s2 / maxf(n2, 1.0)), "cov": float(longn) / maxf(total, 1.0), "tracks": tracks, "n": total}
+
+
+func _render_glass(gl: Dictionary, ssf: bool, stripes := false) -> Dictionary:
 	var mugc: Vector3 = gl["mugc"]
-	var back := _soft_backdrop(Vector3(gl["cx"], mugc.y, float(gl["cz"]) - 0.16), Vector3(0.7, 0.4, 0.01))
-	var table := _soft_backdrop(Vector3(gl["cx"], -0.01, gl["cz"]), Vector3(0.7, 0.02, 0.5))
+	var back: MeshInstance3D = _stripes(Vector3(gl["cx"], mugc.y, float(gl["cz"]) - 0.16), Vector3(0.7, 0.4, 0.01)) if stripes else _soft_backdrop(Vector3(gl["cx"], mugc.y, float(gl["cz"]) - 0.16), Vector3(0.7, 0.4, 0.01))
+	var table: MeshInstance3D = _stripes(Vector3(gl["cx"], -0.01, gl["cz"]), Vector3(0.7, 0.02, 0.5)) if stripes else _soft_backdrop(Vector3(gl["cx"], -0.01, gl["cz"]), Vector3(0.7, 0.02, 0.5))
 	var gp := {"sky_top": Color(0.45, 0.62, 0.9), "sky_horizon": Color(0.95, 0.96, 1.0), "scatter_col": Color(0.05, 0.30, 0.38), "scatter_k": 14.0, "foam_gain": 0.0}
 	return await WaterRender.render(root, {"size": SIZE, "cam_pos": mugc + Vector3(0.0, 0.085, 0.30), "cam_look": mugc, "fov": 22.0, "water": gl["mesh"], "bg": Color(0.88, 0.9, 0.93),
 		"props": [back, table], "params": gp, "ssf": ssf})
@@ -360,8 +449,8 @@ func _init() -> void:
 	# ---- W5 frame cost (information)
 	var out := []
 	for ssf in [false, true]:
-		var t: float = await WaterRender.time_frames(root, {"size": SIZE, "cam_pos": Vector3(gl["cx"], 0.12, float(gl["cz"]) + 0.3), "cam_look": gl["mugc"], "fov": 22.0, "water": gl["mesh"], "ssf": ssf}, 60)
-		out.append("%s %.2f ms/frame" % ["smoothing passes on" if ssf else "L5 (off)", t])
+		var t: Dictionary = await WaterRender.time_frames(root, {"size": SIZE, "cam_pos": Vector3(gl["cx"], 0.12, float(gl["cz"]) + 0.3), "cam_look": gl["mugc"], "fov": 22.0, "water": gl["mesh"], "ssf": ssf}, 60)
+		out.append("%s: %.2f ms/frame wall, smoothing viewports %.3f ms GPU" % ["smoothing passes on" if ssf else "L5 (off)", t["wall"], t["gpu"]])
 	print("      W5 FRAME COST (information, no bar): ", " | ".join(out))
 	print("water3: %d fail  (%.0f s)" % [fails, (Time.get_ticks_msec() - t0) / 1000.0])
 	quit(1 if fails > 0 else 0)
