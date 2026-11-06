@@ -138,3 +138,24 @@ OpenStreetMap (Overpass, way 1068372646, Angra 3 reactor building outline under 
 
 ## 8. Construction (bar 7)
 Order [E]: start of construction = reactor building base plate concrete 14.09.81; start of steel containment erection 18.10.82; electromechanical erection 06.96; commissioning 03.98; first criticality 14.07.00; grid 21.07.00. The sequence modelled: 1 excavation + base mat; 2 lower cup + sphere lower half; 3 sphere upper half; 4 internal concrete (cavity, deck); 5 polar crane runway + crane; 6 vessel, SGs, pumps, pressurizer, loops (lifted in by the crane through the open shield); 7 shield wall; 8 shield dome; 9 turbine hall mat, table, turbines, generator, condensers, hall; 10 auxiliary, switchgear, fuel, diesel, feedwater buildings, switchyard, intake, outfall. Stage order within the reactor building ASSUMED from KWU practice (the shield is closed after the big lifts).
+
+## 9. L4 additions (lane w4-eng2, 2026-11-05): short-circuit, external-pressure buckling, core-history decay heat
+Written before the bars ran (header of tests/ch15_test.gd, bars 10-12). Status words as above. New sources are only the URLs below; they were searched, and where the snippet did not show the formula it is MEMORY and said so.
+- [IEC] IEC 60909-0 (2016) method. Search found the structure (equivalent voltage source c Un at the fault, impedances in series) at https://power-grid-model.readthedocs.io/en/stable/algorithms/sc-algorithms.html and https://pacbasics.org/short-circuit-impedance-calculation-iec60909/ ; the standard's own equations and the table of c were NOT read: Ik'' = c Un / (sqrt3 Zk), c_max = 1.10 above 1 kV, KT = 0.95 c_max / (1 + 0.6 xT), KG = c_max / (1 + xd'' sin phi) are MEMORY.
+- [NASA] NASA SP-8032 (1969), buckling of thin-walled doubly curved shells, https://everyspec.com/NASA/NASA-SP-PUBS/NASA_SP-8032_46171/ : the knock-down method (classical linear load x empirical factor) is SEEN in the search description; the Zoelly formula p_cl = 2E / sqrt(3 (1 - nu^2)) (t/R)^2 and the knock-down value 0.2 are MEMORY / ASSUMED (the PDF was not opened).
+
+| quantity | value | status |
+|---|---|---|
+| grid short-circuit power at 500 kV | 25 000 MVA | ASSUMED |
+| MT uk | 14 pct | ASSUMED |
+| generator xd'' | 0.28 (unsaturated, on its 1458 MVA, cos phi 0.9) | ASSUMED |
+| GCB breaking rating | 210 kA symmetrical | ASSUMED |
+| UAT uk | 10 pct on 50 MVA, 25 / 10.5 kV | ASSUMED |
+| motors on one 10.5 kV bus | 80 pct of 35 MW, eta 0.95, cos phi 0.85, ILR/Ir 5 | ASSUMED |
+| 10.5 kV switchgear rating | 50 kA | ASSUMED |
+| emergency diesel (5.4 MW / 6.6 MVA) subtransient xd'' | 0.16 | ASSUMED |
+| diesel start sequence (MW) | 1.2, 1.2, 0.9, 0.8, 0.5 (sum 4.6 = P_SAFE / 2); ILR/Ir 5.5; dip limit 20 pct | ASSUMED |
+| sphere E (145 C), nu | 195 GPa, 0.3 | ASSUMED |
+| knock-down gamma, safety factor, external differential | 0.2, 2, 0.02 MPa | ASSUMED |
+| batches, outage | 3 equal thirds irradiated 1, 2, 3 cycles of 13 months, 30 d between | ASSUMED (the Angra 2 batch scheme is not public) |
+Not done, said plainly: ANS-5.1 itself (Way-Wigner superposition is not ANS-5.1: no fission-product group data), peak factor kappa and the DC component, KTA 3401.2 load combinations, penetrations.
