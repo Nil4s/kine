@@ -1,0 +1,82 @@
+{
+ "godot_boot_s": 0.1,
+ "total_s": 81.1,
+ "calls": 9,
+ "reply_bytes": 9929,
+ "sent_bytes": 14247,
+ "call_ms": 80080.3,
+ "rows": [
+  {
+   "label": "cad_reset",
+   "tool": "cad_reset",
+   "ms": 79711.1,
+   "reply_bytes": 137,
+   "sent_bytes": 2,
+   "error": false
+  },
+  {
+   "label": "batch cad_part x22",
+   "tool": "batch",
+   "ms": 190.9,
+   "reply_bytes": 3425,
+   "sent_bytes": 7199,
+   "error": false
+  },
+  {
+   "label": "cad_asm add x33",
+   "tool": "cad_asm",
+   "ms": 1.0,
+   "reply_bytes": 2588,
+   "sent_bytes": 3400,
+   "error": false
+  },
+  {
+   "label": "check_fit (plant)",
+   "tool": "check_fit",
+   "ms": 68.3,
+   "reply_bytes": 284,
+   "sent_bytes": 10,
+   "error": false
+  },
+  {
+   "label": "eval_gd bom (exact volumes)",
+   "tool": "eval_gd",
+   "ms": 4.5,
+   "reply_bytes": 182,
+   "sent_bytes": 422,
+   "error": false
+  },
+  {
+   "label": "batch cad_part envelopes x9",
+   "tool": "batch",
+   "ms": 10.0,
+   "reply_bytes": 1440,
+   "sent_bytes": 2039,
+   "error": false
+  },
+  {
+   "label": "cad_asm add envelopes",
+   "tool": "cad_asm",
+   "ms": 4.0,
+   "reply_bytes": 855,
+   "sent_bytes": 882,
+   "error": false
+  },
+  {
+   "label": "check_fit (envelopes)",
+   "tool": "check_fit",
+   "ms": 89.5,
+   "reply_bytes": 833,
+   "sent_bytes": 10,
+   "error": false
+  },
+  {
+   "label": "cad_asm remove envelopes",
+   "tool": "cad_asm",
+   "ms": 1.0,
+   "reply_bytes": 185,
+   "sent_bytes": 283,
+   "error": false
+  }
+ ]
+}
