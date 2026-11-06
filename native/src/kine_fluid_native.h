@@ -58,7 +58,12 @@ public:
 	double wmin = 0.02;       // an open fraction below this is closed (a tiny fraction makes a stiff, nearly isolated row)
 	double push_margin = 0.02; // particles are kept at phi >= push_margin * h
 	std::vector<double> phi, wxp, wyp, wzp, vfrac;
+	std::vector<double> mtri;               // cut meshes: 9 doubles per triangle (exact particle projection, thin walls)
+	std::vector<int> mbucket_start, mbucket_items;   // per-cell triangle lists (CSR), a triangle in every cell its box touches grown by one cell
+	std::vector<double> Pold;               // particle positions before the move being corrected (picks the side a thin-wall crossing came from)
+	bool mesh_flip = false;                 // signed volume < 0: triangle normals are reversed
 	void add_cut_box(Vector3 p_min, Vector3 p_max);
+	void clear_cut();
 	void add_cut_halfspace(Vector3 p_point, Vector3 p_normal);
 	int add_cut_mesh(const PackedVector3Array &p_verts, const PackedInt32Array &p_tris);
 	void set_cut_wmin(double w) { wmin = w; wdirty = true; }

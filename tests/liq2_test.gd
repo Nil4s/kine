@@ -289,30 +289,39 @@ func _pour(F: Object, m: Dictionary) -> Dictionary:
 	var rim: float = m["rim"]
 	var cap: float = m["cap"]
 	var step_t := 0.003
-	var half := 0.014
-	var poured := 0.0
+	var half := 0.010   # round 2: a thinner stream (0.010 not 0.014), every third step (0.33 m/s, 0.13 L/s instead of 1 L/s) and a spout that follows the free surface (it
+	var poured := 0.0   # starts 6 mm above the water, not 3 cm above the rim): the first pour splashed over the rim
 	var leak := 0
 	var t := 0.0
 	var seed_i := 100
 	var pouring := true
 	var t_end := 0.0
 	var nsteps := 0
+	var flo: float = 1.4 * h + float(m["floor"])
+	var area: float = PI * float(m["R_in"]) * float(m["R_in"])
+	var spout := flo + 0.01
 	while true:
 		F.advance(step_t)
 		t += step_t
 		nsteps += 1
-		if pouring:
-			var n: int = F.add_fluid_box(Vector3(cx - half, rim + 0.03, cz - half), Vector3(cx + half, rim + 0.03 + h, cz + half), Vector3(0, -1.0, 0), seed_i)
+		if nsteps % 10 == 0:
+			var cnt := 0
+			for p in F.positions():
+				if p.y < rim and Vector2(p.x - cx, p.z - cz).length() < m["R_in"]:
+					cnt += 1
+			spout = clampf(flo + float(cnt) / 8.0 * h * h * h / area + 0.006, flo + 0.01, rim + 0.03)
+		if pouring and nsteps % 3 == 0:
+			var n: int = F.add_fluid_box(Vector3(cx - half, spout, cz - half), Vector3(cx + half, spout + h, cz + half), Vector3(0, -0.33, 0), seed_i)
 			seed_i += 1
 			poured += float(n) / 8.0 * h * h * h
-			if poured >= 1.5 * cap:
+			if poured >= 1.15 * cap:
 				pouring = false
 				t_end = t + 0.8
 		if nsteps % 10 == 0 and poured < 0.9 * cap:
 			for p in F.positions():
 				if p.y < rim - 3.0 * h and Vector2(p.x - cx, p.z - cz).length() > m["R_out"] + 2.0 * h:
 					leak += 1
-		if (not pouring and t_end > 0.0 and t >= t_end) or t > 4.0:
+		if (not pouring and t_end > 0.0 and t >= t_end) or t > 7.0:
 			break
 	var ps2: PackedVector3Array = F.positions()
 	var inside := 0

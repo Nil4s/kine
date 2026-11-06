@@ -191,6 +191,7 @@ void KineFluidNative::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_extrapolation", "on"), &KineFluidNative::set_extrapolation);
 	ClassDB::bind_method(D_METHOD("surface_aniso", "iso", "ndiv"), &KineFluidNative::surface_aniso);
 	ClassDB::bind_method(D_METHOD("add_cut_box", "min", "max"), &KineFluidNative::add_cut_box);
+	ClassDB::bind_method(D_METHOD("clear_cut"), &KineFluidNative::clear_cut);
 	ClassDB::bind_method(D_METHOD("add_cut_halfspace", "point", "normal"), &KineFluidNative::add_cut_halfspace);
 	ClassDB::bind_method(D_METHOD("add_cut_mesh", "verts", "tris"), &KineFluidNative::add_cut_mesh);
 	ClassDB::bind_method(D_METHOD("set_cut_wmin", "w"), &KineFluidNative::set_cut_wmin);
@@ -203,6 +204,7 @@ void KineFluidNative::setup(int p_nx, int p_ny, int p_nz, double p_h, Vector3 p_
 	nx = p_nx; ny = p_ny; nz = p_nz; h = p_h;
 	ox = p_origin.x; oy = p_origin.y; oz = p_origin.z;
 	size_t nc = (size_t)nx * ny * nz;
+	mtri.clear(); mbucket_start.clear(); mbucket_items.clear(); mesh_flip = false;
 	solid.assign(nc, 0);
 	type.assign(nc, 0);
 	cnt.assign(nc, 0);
@@ -282,6 +284,13 @@ int KineFluidNative::add_solid_mesh(const PackedVector3Array &vs, const PackedIn
 }
 
 // ---------------------------------------------------------------- cut-cell walls (L5 liquids)
+// drops every cut solid (a moving wall is rebuilt each step: clear_cut, then add_cut_box at the new place)
+void KineFluidNative::clear_cut() {
+	cut = false; wdirty = true;
+	phi.clear(); vfrac.clear(); wxp.clear(); wyp.clear(); wzp.clear();
+	mtri.clear(); mbucket_start.clear(); mbucket_items.clear(); mesh_flip = false;
+}
+
 void KineFluidNative::add_cut_box(Vector3 mn, Vector3 mx) {
 	cut = true; wdirty = true;
 	if (phi.empty()) phi.assign((size_t)(nx + 1) * (ny + 1) * (nz + 1), 1e9);
@@ -343,6 +352,30 @@ double pt_tri_d2(const double p[3], const double a[3], const double b[3], const 
 	double den = 1.0 / (va + vb + vc), v = vb * den, w = vc * den;
 	return fin(a[0] + ab[0] * v + ac[0] * w, a[1] + ab[1] * v + ac[1] * w, a[2] + ab[2] * v + ac[2] * w);
 }
+// closest point on triangle abc to p (same case analysis as above)
+void pt_tri_cp(const double p[3], const double a[3], const double b[3], const double c[3], double q[3]) {
+	auto sub = [](const double *x, const double *y, double *o) { o[0] = x[0] - y[0]; o[1] = x[1] - y[1]; o[2] = x[2] - y[2]; };
+	auto dot = [](const double *x, const double *y) { return x[0] * y[0] + x[1] * y[1] + x[2] * y[2]; };
+	double ab[3], ac[3], ap[3];
+	sub(b, a, ab); sub(c, a, ac); sub(p, a, ap);
+	auto set = [&](double x, double y, double z) { q[0] = x; q[1] = y; q[2] = z; };
+	double d1 = dot(ab, ap), d2 = dot(ac, ap);
+	if (d1 <= 0 && d2 <= 0) { set(a[0], a[1], a[2]); return; }
+	double bp[3]; sub(p, b, bp);
+	double d3 = dot(ab, bp), d4 = dot(ac, bp);
+	if (d3 >= 0 && d4 <= d3) { set(b[0], b[1], b[2]); return; }
+	double vc = d1 * d4 - d3 * d2;
+	if (vc <= 0 && d1 >= 0 && d3 <= 0) { double v = d1 / (d1 - d3); set(a[0] + v * ab[0], a[1] + v * ab[1], a[2] + v * ab[2]); return; }
+	double cp[3]; sub(p, c, cp);
+	double d5 = dot(ab, cp), d6 = dot(ac, cp);
+	if (d6 >= 0 && d5 <= d6) { set(c[0], c[1], c[2]); return; }
+	double vb = d5 * d2 - d1 * d6;
+	if (vb <= 0 && d2 >= 0 && d6 <= 0) { double w = d2 / (d2 - d6); set(a[0] + w * ac[0], a[1] + w * ac[1], a[2] + w * ac[2]); return; }
+	double va = d3 * d6 - d5 * d4;
+	if (va <= 0 && (d4 - d3) >= 0 && (d5 - d6) >= 0) { double w = (d4 - d3) / ((d4 - d3) + (d5 - d6)); set(b[0] + w * (c[0] - b[0]), b[1] + w * (c[1] - b[1]), b[2] + w * (c[2] - b[2])); return; }
+	double den = 1.0 / (va + vb + vc), v = vb * den, w = vc * den;
+	set(a[0] + ab[0] * v + ac[0] * w, a[1] + ab[1] * v + ac[1] * w, a[2] + ab[2] * v + ac[2] * w);
+}
 } // namespace
 
 // A mesh as a cut solid: signed distance at the cell corners. Unsigned distance is exact (point - triangle) inside a band of 3 cells, the sign is ray parity
@@ -354,6 +387,38 @@ int KineFluidNative::add_cut_mesh(const PackedVector3Array &vs, const PackedInt3
 	const double band = 3.0 * h;
 	std::vector<double> ud(nn, band * band);
 	int nt3 = tr.size() / 3;
+	{   // keep the triangles and bucket them per cell for the exact particle projection
+		double vol6 = 0;
+		for (int t = 0; t < nt3; t++) {
+			for (int c = 0; c < 3; c++) { const Vector3 &v = vs[tr[3 * t + c]]; mtri.push_back(v.x); mtri.push_back(v.y); mtri.push_back(v.z); }
+		}
+		size_t ntot = mtri.size() / 9;
+		for (size_t t = 0; t < ntot; t++) {
+			const double *a = &mtri[9 * t], *b = a + 3, *c = a + 6;
+			vol6 += a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0]);
+		}
+		mesh_flip = vol6 < 0;
+		size_t nc = (size_t)nx * ny * nz;
+		std::vector<std::vector<int>> bk(nc);
+		for (size_t t = 0; t < ntot; t++) {
+			const double *a = &mtri[9 * t], *b = a + 3, *c = a + 6;
+			int i0[3], i1[3];
+			int dim[3] = { nx, ny, nz };
+			double org[3] = { ox, oy, oz };
+			for (int ax = 0; ax < 3; ax++) {
+				double lo = std::min(a[ax], std::min(b[ax], c[ax])), hi = std::max(a[ax], std::max(b[ax], c[ax]));
+				i0[ax] = std::max(0, (int)std::floor((lo - org[ax]) / h) - 1);
+				i1[ax] = std::min(dim[ax] - 1, (int)std::floor((hi - org[ax]) / h) + 1);
+			}
+			for (int k = i0[2]; k <= i1[2]; k++)
+				for (int j = i0[1]; j <= i1[1]; j++)
+					for (int i = i0[0]; i <= i1[0]; i++) bk[cid(i, j, k)].push_back((int)t);
+		}
+		mbucket_start.assign(nc + 1, 0);
+		for (size_t c = 0; c < nc; c++) mbucket_start[c + 1] = mbucket_start[c] + (int)bk[c].size();
+		mbucket_items.resize(mbucket_start[nc]);
+		for (size_t c = 0; c < nc; c++) std::copy(bk[c].begin(), bk[c].end(), mbucket_items.begin() + mbucket_start[c]);
+	}
 	std::vector<std::vector<double>> xs((size_t)(ny + 1) * (nz + 1));
 	const double sy = 0.0137 * h, sz = 0.0071 * h;
 	for (int t = 0; t < nt3; t++) {
@@ -523,6 +588,45 @@ void KineFluidNative::push_out() {
 				for (int a = 0; a < 3; a++) x[a] += s * n[a];
 				double vn = v[0] * n[0] + v[1] * n[1] + v[2] * n[2];
 				if (vn < 0) for (int a = 0; a < 3; a++) v[a] -= vn * n[a];
+			}
+			if (!mbucket_start.empty()) {   // exact point-triangle projection: walls thinner than the corner field resolves
+				int ci = std::min(nx - 1, std::max(0, (int)std::floor((x[0] - ox) / h)));
+				int cj = std::min(ny - 1, std::max(0, (int)std::floor((x[1] - oy) / h)));
+				int ck = std::min(nz - 1, std::max(0, (int)std::floor((x[2] - oz) / h)));
+				size_t cc = cid(ci, cj, ck);
+				// the triangle that was crossed: among the triangles whose outer side held the particle BEFORE the move, the nearest; else the nearest of all
+				double best = 1e30, bq[3] = { 0, 0, 0 }, bn[3] = { 0, 0, 0 };
+				double bestA = 1e30, bqA[3] = { 0, 0, 0 }, bnA[3] = { 0, 0, 0 };
+				const double *xo = Pold.size() == P.size() ? &Pold[3 * p] : x;
+				for (int q = mbucket_start[cc]; q < mbucket_start[cc + 1]; q++) {
+					const double *a = &mtri[9 * (size_t)mbucket_items[q]], *b = a + 3, *c = a + 6;
+					double qp[3];
+					pt_tri_cp(x, a, b, c, qp);
+					double dd = (x[0] - qp[0]) * (x[0] - qp[0]) + (x[1] - qp[1]) * (x[1] - qp[1]) + (x[2] - qp[2]) * (x[2] - qp[2]);
+					if (dd >= best && dd >= bestA) continue;
+					double e1[3] = { b[0] - a[0], b[1] - a[1], b[2] - a[2] }, e2[3] = { c[0] - a[0], c[1] - a[1], c[2] - a[2] };
+					double nn[3] = { e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0] };
+					double l = std::sqrt(nn[0] * nn[0] + nn[1] * nn[1] + nn[2] * nn[2]);
+					double sg = (mesh_flip ? -1.0 : 1.0) / std::max(l, 1e-30);
+					for (int a2 = 0; a2 < 3; a2++) nn[a2] *= sg;
+					double so = (xo[0] - a[0]) * nn[0] + (xo[1] - a[1]) * nn[1] + (xo[2] - a[2]) * nn[2];
+					if (dd < best) { best = dd; for (int a2 = 0; a2 < 3; a2++) { bq[a2] = qp[a2]; bn[a2] = nn[a2]; } }
+					if (so > 0 && dd < bestA) { bestA = dd; for (int a2 = 0; a2 < 3; a2++) { bqA[a2] = qp[a2]; bnA[a2] = nn[a2]; } }
+				}
+				if (bestA < 1e29) {   // a triangle the particle came from the outer side of: use it when the particle is now behind it or too close
+					double sA = (x[0] - bqA[0]) * bnA[0] + (x[1] - bqA[1]) * bnA[1] + (x[2] - bqA[2]) * bnA[2];
+					if (sA < 0 || std::sqrt(bestA) < m) { best = bestA; for (int a2 = 0; a2 < 3; a2++) { bq[a2] = bqA[a2]; bn[a2] = bnA[a2]; } }
+				}
+				if (best < 1e29) {
+					double d = std::sqrt(best);
+					double side = (x[0] - bq[0]) * bn[0] + (x[1] - bq[1]) * bn[1] + (x[2] - bq[2]) * bn[2];
+					bool inside = side < 0;
+					if (inside || d < m) {
+						for (int a = 0; a < 3; a++) x[a] = bq[a] + bn[a] * m;
+						double vn = v[0] * bn[0] + v[1] * bn[1] + v[2] * bn[2];
+						if (vn < 0) for (int a = 0; a < 3; a++) v[a] -= vn * bn[a];
+					}
+				}
 			}
 		}
 	});
@@ -1218,6 +1322,7 @@ void KineFluidNative::step(double dt) {
 	// threads only pay on a big grid or many particles: the pool barriers cost more than a small loop (and much more when the machine is shared)
 	nte = (nt > 1 && ((size_t)nx * ny * nz >= 40000 || particle_count() >= 16384)) ? nt : 1;
 	if (wdirty || wxp.empty()) rebuild_weights();
+	if (!mbucket_start.empty()) Pold = P;
 	mark_cells();
 	if (dmode == 1) {
 		density_project();
@@ -1232,6 +1337,7 @@ void KineFluidNative::step(double dt) {
 	g2p();
 	tm_g2p = ms_since(t0);
 	t0 = Clk::now();
+	if (!mbucket_start.empty()) Pold = P;
 	advect(dt);
 	tm_adv = ms_since(t0);
 }
