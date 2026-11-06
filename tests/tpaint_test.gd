@@ -175,7 +175,7 @@ func seam_de(img: Image) -> float:
 
 
 func seam_mesh() -> KMesh:
-	return quads([quad_xy(-1, 0, -1, 1, 0, Rect2(0.1, 0.1, 0.398, 0.8)), quad_xy(0, 1, -1, 1, 0, Rect2(0.502, 0.1, 0.398, 0.8))])
+	return quads([quad_xy(-1, -0.0022, -1, 1, 0, Rect2(0.1, 0.1, 0.398, 0.8)), quad_xy(-0.0022, 1, -1, 1, 0, Rect2(0.502, 0.1, 0.398, 0.8))])
 
 
 # ---------------------------------------------------------------- the bars
@@ -190,7 +190,7 @@ func run() -> void:
 	var scr := Vector2i(W, W)
 	var green := Color(0.1, 0.8, 0.1)
 	var red := Color(0.9, 0.1, 0.1)
-	var native_ok := ClassDB.class_exists("KineTPaintNative")
+	var native_ok := NativeExt.ensure("kine_native", "KineTPaintNative")
 	ok(native_ok, "native class KineTPaintNative is loaded")
 
 	# a SEAM
@@ -204,7 +204,7 @@ func run() -> void:
 	var nr := changed_in(t0, t1, 1024, Rect2(0.502, 0.1, 0.398, 0.8))
 	var img := await render(t1, 1024)
 	var de := seam_de(img)
-	img.save_png("user://tpaint_seam.png")
+	img.save_png("C:/Temp/claude/L53/seam.png")
 	ok(nl >= 100 and nr >= 100 and de < 2.0, "a SEAM: texels changed left %d, right %d (each >= 100); render seam dE %.3f (< 2); engine %s" % [nl, nr, de, tp.engine])
 	var tpn := KMeshTPaint.new(sm, 1024)
 	tpn.stamp(mv, cp, scr, Vector2(256, 256), 80.0, red, 1.0, 0.7, 0)
@@ -218,13 +218,14 @@ func run() -> void:
 	var tb := KMeshTPaint.new(qm, 1024)
 	tb.stamp(mv, cp, scr, Vector2(256, 256), 100.0, Color(0.1, 0.9, 0.1), 1.0, 1.0, 2)
 	var ib := await render(tb.data(), 1024)
-	ib.save_png("user://tpaint_disk.png")
+	ib.save_png("C:/Temp/claude/L53/disk.png")
 	var cnt := 0
 	var sx := 0.0
 	var sy := 0.0
 	for y in W:
 		for x in W:
-			if ib.get_pixel(x, y).r < 0.55:   # white r = 1, painted r = 0.1 (mid 0.55)
+			var pc := ib.get_pixel(x, y)
+			if pc.g - pc.r > 0.4:   # painted (0.1, 0.9, 0.1): g - r = 0.8; white and the grey background 0 (mid 0.4)
 				cnt += 1
 				sx += x + 0.5
 				sy += y + 0.5
@@ -277,8 +278,8 @@ func run() -> void:
 	var pn := KMeshTPaint.new(sph, 256, true)
 	var pg := KMeshTPaint.new(sph, 256, false)
 	for p in [pn, pg]:
-		p.stamp(mv2, cp, Vector2i(256, 256), Vector2(240, 250), 70.0, red, 0.8, 0.3, 2)
-		p.stamp(mv2, cp, Vector2i(256, 256), Vector2(300, 270), 50.0, green, 1.0, 0.0, 2)
+		p.stamp(mv2, cp, Vector2i(256, 256), Vector2(120, 125), 40.0, red, 0.8, 0.3, 2)
+		p.stamp(mv2, cp, Vector2i(256, 256), Vector2(150, 135), 30.0, green, 1.0, 0.0, 2)
 	var dd := max_diff(pn.data(), pg.data())
 	var wrote := changed_in(KMeshTPaint.new(sph, 256, false).data(), pg.data(), 256, Rect2(0, 0, 1, 1))
 	ok(native_ok and pn.engine == "native" and pg.engine == "gdscript" and dd <= 1 and wrote > 300,
@@ -308,8 +309,8 @@ func run() -> void:
 	var pu := KMeshTPaint.new(sph, 256, true)
 	var h0 := pu.hash()
 	pu.begin_stroke()
-	pu.stamp(mv2, cp, Vector2i(256, 256), Vector2(240, 250), 70.0, red, 0.8, 0.3, 2)
-	pu.stamp(mv2, cp, Vector2i(256, 256), Vector2(260, 260), 40.0, green, 1.0, 0.3, 2)
+	pu.stamp(mv2, cp, Vector2i(256, 256), Vector2(120, 125), 40.0, red, 0.8, 0.3, 2)
+	pu.stamp(mv2, cp, Vector2i(256, 256), Vector2(130, 130), 30.0, green, 1.0, 0.3, 2)
 	pu.end_stroke()
 	var h1 := pu.hash()
 	var undone := pu.undo()
@@ -360,14 +361,15 @@ func app_bars() -> void:
 	var s0 := cam.unproject_position(wc)
 	pu.color = Color(0.0, 1.0, 0.0, 1.0)
 	pu.radius = 0.12
+	pu.softness = 0.0   # a hard round brush: full colour inside the radius, so the probe pixel beside the click is not on a soft falloff
 	pu.strength = 1.0
 	m.ui_root.visible = false
 	await idle(4)
 	await RenderingServer.frame_post_draw
 	var a0 := root.get_texture().get_image().get_pixelv(Vector2i((s0 + Vector2(9, 5)).round()))
 	m.ui_root.visible = true
-	var h0 := pu.tp.hash() if pu.tp != null else ""
-	var col0 := ui.mesh.attr_data(KMeshVPaint.CH).duplicate() if ui.mesh.has_attr(KMeshVPaint.CH) else null
+	var h0 = pu.tp.hash() if pu.tp != null else ""
+	var col0 = ui.mesh.attr_data(KMeshVPaint.CH).duplicate() if ui.mesh.has_attr(KMeshVPaint.CH) else null
 	var ev := InputEventMouseButton.new()
 	ev.button_index = MOUSE_BUTTON_LEFT
 	ev.position = s0
@@ -381,7 +383,7 @@ func app_bars() -> void:
 	ev2.button_mask = 0
 	root.push_input(ev2)
 	await idle(3)
-	var h1 := pu.tp.hash() if pu.tp != null else ""
+	var h1 = pu.tp.hash() if pu.tp != null else ""
 	m.ui_root.visible = false
 	await idle(4)
 	await RenderingServer.frame_post_draw
@@ -391,9 +393,9 @@ func app_bars() -> void:
 	var grn := a1.g > a1.r + 0.25 and a1.g > a1.b + 0.25
 	var was := a0.g > a0.r + 0.25 and a0.g > a0.b + 0.25
 	var col_same: bool = (col0 == null and not ui.mesh.has_attr(KMeshVPaint.CH)) or (col0 != null and ui.mesh.attr_data(KMeshVPaint.CH) == col0)
-	shot.save_png("user://tpaint_app.png")
+	shot.save_png("C:/Temp/claude/L53/app.png")
 	ok(h1 != h0 and grn and not was and col_same,
-		"i2 a real click painted the texture (hash changed %s), PLACEMENT pixel at the click %s -> %s (green %s, was %s), vertex colours untouched %s" % [h1 != h0, a0, a1, grn, was, col_same])
+		"i2 a real click painted the texture (view tex %s, uv fmt %s, hash changed %s), PLACEMENT pixel at the click %s -> %s (green %s, was %s), vertex colours untouched %s" % [ui.view.paint_tex != null, int(ui.view._surf.mesh.surface_get_format(0)) & Mesh.ARRAY_FORMAT_TEX_UV, h1 != h0, a0, a1, grn, was, col_same])
 	for down in [true, false]:
 		var ke := InputEventKey.new()
 		ke.keycode = KEY_Z

@@ -33,6 +33,8 @@ static func op(name: String, m) -> String:
 			ui.snap.toggle()
 		"pivot":
 			said = "Model: pivot " + KMeshPivot.NAMES[ui.pivot.cycle()]
+		"tpaint":   # L53: Texture mode of the paint panel
+			return KMeshVPaintUI.toggle_tex(m)
 		"vpaint", "vpaint_fill":   # E04
 			return KMeshVPaintUI.toggle(m) if name == "vpaint" else KMeshVPaintUI.fill_op(m)
 		"armour":   # B23 (scripts/armour_from_body.gd, armour_ui.gd)
