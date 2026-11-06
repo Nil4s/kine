@@ -146,3 +146,93 @@ static func containment(case := "angra2", formula := "sphere") -> Dictionary:
 	var r := D_SPHERE / 2.0 * 1000.0
 	var sig := P_DESIGN * r / ((2.0 if formula == "sphere" else 1.0) * t)
 	return {"sigma": sig, "allow": allow, "p": P_DESIGN, "R": r, "t": t}
+
+
+# ------------------------------------------------ L4 (docs/CH15_REFERENCE.md section 9; every input there is ASSUMED)
+const SK_GRID := 25000.0     # MVA at 500 kV
+const UK_MT := 0.14
+const XD2 := 0.28
+const C_MAX := 1.1
+const UK_UAT := 0.10
+const V_HOUSE := 10.5
+const MOT_SHARE := 0.8
+const MOT_LOAD_MW := 35.0
+const MOT_ETA := 0.95
+const MOT_COS := 0.85
+const ILR := 5.0
+
+
+## IEC 60909 initial symmetrical short-circuit currents (kA). opts uk_uat. ik_sys / ik_gen: what a GCB must break (fault on the generator / transformer side);
+## ik_net10 + ik_mot10 = ik_house: the 10.5 kV house bus (both sources in parallel behind one UAT, plus the motors)
+static func short_circuit(opts := {}) -> Dictionary:
+	var c := C_MAX
+	var kt := 0.95 * c / (1.0 + 0.6 * UK_MT)
+	var zq := c * V_GEN * V_GEN / SK_GRID
+	var zt := kt * UK_MT * V_GEN * V_GEN / S_MT
+	var zs := zq + zt
+	var kg := c / (1.0 + XD2 * sin(acos(PF)))
+	var zg := kg * XD2 * V_GEN * V_GEN / S_NAME
+	var zp := zs * zg / (zs + zg) * pow(V_HOUSE / V_GEN, 2.0)
+	var uk_u := float(opts.get("uk_uat", UK_UAT))
+	var ku := 0.95 * c / (1.0 + 0.6 * uk_u)
+	var zu := ku * uk_u * V_HOUSE * V_HOUSE / S_UAT
+	var ik_net := c * V_HOUSE / (sqrt(3.0) * (zp + zu))
+	var sm := MOT_SHARE * MOT_LOAD_MW / (MOT_ETA * MOT_COS)
+	var zm := V_HOUSE * V_HOUSE / (ILR * sm)
+	var ik_mot := c * V_HOUSE / (sqrt(3.0) * zm)
+	return {"ik_sys": c * V_GEN / (sqrt(3.0) * zs), "ik_gen": c * V_GEN / (sqrt(3.0) * zg), "ik_net10": ik_net, "ik_mot10": ik_mot, "ik_house": ik_net + ik_mot}
+
+
+const DG_XD2 := 0.16
+const DG_SEQ := [1.2, 1.2, 0.9, 0.8, 0.5]   # MW per step
+const ILR_DG := 5.5
+
+
+## emergency diesel: voltage dip of each start step, S_start / (S_start + Sk''gen). opts one_step: the whole sequence at once (the planted control)
+static func diesel_start(opts := {}) -> Dictionary:
+	var ssc := DG_MVA / DG_XD2
+	var steps: Array = [0.0]
+	var tot := 0.0
+	for p in DG_SEQ:
+		tot += p
+	steps = [tot] if opts.get("one_step", false) else DG_SEQ
+	var dips := []
+	for p in steps:
+		var ss: float = ILR_DG * p / (MOT_ETA * MOT_COS)
+		dips.append(ss / (ss + ssc))
+	return {"ssc": ssc, "dips": dips, "total_MW": tot}
+
+
+## external-pressure buckling of the sphere (Zoelly x knock-down). opts t (mm)
+static func buckling(opts := {}) -> Dictionary:
+	var t := float(opts.get("t", 30.0))
+	var e := 195000.0
+	var nu := 0.3
+	var r := D_SPHERE / 2.0 * 1000.0
+	var pcl := 2.0 * e / sqrt(3.0 * (1.0 - nu * nu)) * pow(t / r, 2.0)
+	return {"p_cl": pcl, "p_allow": 0.2 * pcl / 2.0, "p_ext": 0.02, "t": t}
+
+
+const OUTAGE := 30.0 * 86400.0
+
+
+## decay heat fraction of a core of `batches` equal-weight batches irradiated 1..batches cycles (T_OP each, OUTAGE between), Way-Wigner superposition
+## (an interval that ended tau_e and began tau_s before shutdown adds 0.0622 [(t + tau_e)^-0.2 - (t + tau_s)^-0.2]). Weights must sum to 1: -1 otherwise.
+static func decay_history(t: float, opts := {}) -> float:
+	var nb := int(opts.get("batches", 3))
+	if nb != 3:
+		return -1.0   # the equal thirds of a 3-batch core are the only weights on offer: any other count does not sum to 1
+	var s := 0.0
+	for b in range(1, nb + 1):
+		for j in b:
+			var te := float(j) * (T_OP + OUTAGE)
+			s += 0.0622 * (pow(t + te, -0.2) - pow(t + te + T_OP, -0.2))
+	return s / float(nb)
+
+
+static func boiloff_history(t: float) -> Dictionary:
+	var fr := decay_history(t)
+	var p := fr * Q_TH
+	var th := W.tsat(P_SG)
+	var dh := float(W.r2(P_SG, th)["h"]) - float(W.r1(P_SG, T_EFW)["h"])
+	return {"frac": fr, "P_MW": p, "m": p * 1000.0 / dh}
