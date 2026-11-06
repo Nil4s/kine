@@ -157,8 +157,15 @@ func _refresh() -> void:
 	var t := "%d strokes, %d patches" % [s["strokes"], s["patches"]]
 	if int(s["unsolved"]) > 0:
 		t += ", %d red (counts do not fit)" % s["unsolved"]
-	if int(s["skipped"]) > 0:
-		t += ", %d regions skipped" % s["skipped"]
+	var skipped: Array = net.skipped_regions()
+	if not skipped.is_empty():
+		t += ", %d skipped (%s)" % [skipped.size(), String(skipped[0]["reason"])]
+		var lines: PackedStringArray = []
+		for r in skipped:
+			lines.append("Region %d: %s" % [int(r["patch"]) + 1, String(r["reason"])])
+		status.tooltip_text = "\n".join(lines)
+	else:
+		status.tooltip_text = ""
 	status.text = t
 	ui._ov.queue_redraw()
 

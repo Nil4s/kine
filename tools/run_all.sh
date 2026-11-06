@@ -1031,3 +1031,4 @@ EXTRA="$EXTRA g33stage:w"   # G33STAGE: Assembly build stages: ordered stages ad
 EXTRA="$EXTRA g45dist:w"   # G45DIST: KCad.distance (OCCT BRepExtrema_DistShapeShape, KineCAD 6): boxes / spheres vs hand to 1e-9 m, the G33 support check on one distance per pair (same verdict as the seven-boolean test on every g33stage fixture and CH15, >= 5x faster), tests/g45dist_test.gd
 EXTRA="$EXTRA ch16:w"   # ch16: Sony a7 / ILCE-7 class camera, separate Parts, mount/sensor stack, electronics, staged movie, sheets and AssemblyBom (docs/CH16_REFERENCE.md), tests/ch16_test.gd
 EXTRA="$EXTRA g30draw:w"   # G30DRAW: Assembly exact-solid plan/front/section drawing + rated power/signal schematic, SVG/PNG and UI export (gaps G30/G31)
+EXTRA="$EXTRA g21compare:w"   # g21compare: shared render-vs-reference stats and side-by-side (CompareShot)

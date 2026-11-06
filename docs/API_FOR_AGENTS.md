@@ -38,7 +38,8 @@ Optional record fields (all backward compatible; old records must save back unch
 ## 5. Characters, hands, mesh
 - `Balance.com(body)` (`scripts/balance.gd`): whole-body centre of mass (do not approximate with the pelvis).
 - `HandShape.caps(B, hand, fingers := true)`, `HandShape.palm_flat(B, h, contact, normal, opts)`, `HandShape.close_on(B, h, obstacles)`, `HandShape.legacy` for the old capsule.
-- Retopo: `KMeshRetopoNet` / `KMeshRetopoFill` / `KineRetopoNative` (Q in the model preview).
+- Retopo: `KMeshRetopoNet` / `KMeshRetopoFill` / `KineRetopoNative` (Q in the model preview). `net.skipped_regions()` names each skipped region and why.
+- Render vs reference: `CompareShot.stats/compare/side_by_side/write` (scripts/build/compare_shot.gd).
 - Involute gears: `scripts/build/part_gear.gd`, `clock_ch2.gd involute_outline()`. STL: `scripts/build/mesh_export.gd write_stl`.
 
 ## 6. Lane rules that cost money when forgotten
