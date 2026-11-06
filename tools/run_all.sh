@@ -1045,3 +1045,4 @@ EXTRA="$EXTRA charimp:w"   # L9 CHARIMP: a rigged character (mesh, skin, blend s
 EXTRA="$EXTRA uiexp:w ch17:w frender:w"   # UIEXP (lane L2): Expert Part / Assembly / Engineering on a wide window: tool rail with icons, nothing outside the window, no panel overlap, every old function reachable, window start inside the usable screen (tests/uiexp_test.gd, docs/UIEXP_DESIGN.md)
 EXTRA="$EXTRA soft:w"   # L17 soft-body
 EXTRA="$EXTRA install:w"   # L16 installer
+EXTRA="$EXTRA softwire:w"   # L22 soft wiring
