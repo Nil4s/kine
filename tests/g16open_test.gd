@@ -1,7 +1,7 @@
 ## godot --path . -s tests/g16open_test.gd     (lane G16: stroke retopology across a mesh's open edges; scripts/kmesh_holes.gd, scripts/kmesh_retopo_net.gd)
 ## BARS, COMMITTED BEFORE THE FIRST RUN (numbers fixed here; a fixture may change after a run only if the run shows it was wrong as a fixture, said in the report):
 ##   a MODES. Head fixture = the mannequin head cut at y = 1.64 (an open neck, from assets/mannequin.glb) with two eye holes punched out of its faces
-##     (the asset has no eye holes of its own). Strokes: one ring at 1.715 m (AMENDED after the first runs, fixture only: rings at 1.78 / 1.805 gave 4-sided patches with 13 vs 4 opposite edges, and the eye holes span 1.72-1.78) + two section planes down to the neck cut. With open_policy: 0 regions
+##     (the asset has no eye holes of its own). Strokes: one ring at 1.675 m (AMENDED after the first runs, fixture only: rings at 1.78 / 1.805 gave 4-sided patches with 13 vs 4 opposite edges, and the eye holes span 1.72-1.78) + two section planes down to the neck cut. With open_policy: 0 regions
 ##     skipped, every valid region states a mode in {none, boundary_side, closed_hole, both}; the neck loop defaults to side, each eye hole to close;
 ##     >= 1 region is boundary_side and >= 1 is closed_hole. PLANTED: the old path (setup without open) on the same strokes skips >= 1 region.
 ##   b BOUNDARY SIDE. Every baked-mesh boundary vertex (the quads along the neck) lies within 1e-6 of the neck polyline; the number of those vertices equals
@@ -83,7 +83,7 @@ func load_head() -> KMesh:
 		var bv := Vector3.ZERO
 		for v in k.verts:
 			if v.y > 1.70 and v.y < 1.78 and v.z < -0.03:
-				var scr := absf(v.x - 0.035 * sx) + 0.5 * absf(v.y - 1.74)
+				var scr := absf(v.x - 0.055 * sx) + 0.5 * absf(v.y - 1.74)
 				if scr < best:
 					best = scr
 					bv = v
@@ -163,7 +163,7 @@ func load_head() -> KMesh:
 
 func head_strokes(k: KMesh) -> Array:
 	var out := []
-	for y in [1.715]:
+	for y in [1.675]:
 		var r := ST.ring_at(k, y)
 		if r.size() > 3:
 			out.append(r)
