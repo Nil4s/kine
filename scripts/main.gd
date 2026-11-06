@@ -1149,7 +1149,10 @@ func nav_clear_rect() -> Rect2:
 	var vs := get_viewport().get_visible_rect().size
 	var x0 := lw() + (bld.easy_inset() if bld != null else 0.0)   # Easy BUILD: the column takes the left
 	var x1 := vs.x - rw() - (ViewCube.SIZE + 24)   # the cube's strip (RR4: the nav bar is at the bottom, under the say-line's band)
-	return Rect2(x0, TOP_H, x1 - x0, vs.y - bottom_h - 88 - TOP_H)   # above the say-line
+	var y0 := float(TOP_H)
+	if bld != null and bld.shell != null:
+		y0 = bld.shell.top_y(y0)   # L2: the Part / Assembly screens start under the ribbon bar (81 px), not over its last 7
+	return Rect2(x0, y0, x1 - x0, vs.y - bottom_h - 88 - y0)   # above the say-line
 
 
 func fit_points() -> Array:
@@ -2051,7 +2054,49 @@ func _render_estimate() -> Dictionary:
 
 
 
-func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary:
+## the axes' MeshInstance3D (stage_marks holds it with the floor square)
+func _axis_node() -> Node3D:
+	for sm in stage_marks:
+		if sm is MeshInstance3D and (sm as MeshInstance3D).mesh == axis_mesh:
+			return sm
+	return null
+
+
+var ui_fr_dlg: ConfirmationDialog
+var ui_fr_res: OptionButton
+
+
+## "Final render...": pick the resolution, OK renders (the shot camera over every frame; exports/shots/<scene>_<stamp>_final/)
+func _final_render_dialog() -> void:
+	if ui_fr_dlg == null:
+		ui_fr_dlg = ConfirmationDialog.new()
+		ui_fr_dlg.name = "final_render_dialog"
+		ui_fr_dlg.title = "Final render"
+		ui_fr_dlg.min_size = Vector2i(380, 0)
+		var v := VBoxContainer.new()
+		var l := Label.new()
+		l.text = "Client-ready frames from the shot camera: SSAO, reflections, global light, soft shadows, 4x MSAA, no glow. Makes a PNG sequence and an .mp4."
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size = Vector2(360, 0)
+		v.add_child(l)
+		ui_fr_res = OptionButton.new()
+		ui_fr_res.name = "opt_resolution"
+		for r in FinalRender.RES:
+			ui_fr_res.add_item("%d x %d" % [r.x, r.y])
+		ui_fr_res.select(FinalRender.RES.find(FinalRender.DEFAULT_RES))
+		v.add_child(ui_fr_res)
+		ui_fr_dlg.add_child(v)
+		ui_fr_dlg.confirmed.connect(func():
+			var r: Vector2i = FinalRender.RES[ui_fr_res.selected]
+			_render_shots(ShotRender.ROOT, "", {"preset": "final", "w": r.x, "h": r.y}))
+		add_child(ui_fr_dlg)
+	ui_fr_dlg.popup_centered()
+
+
+## FINAL RENDER (GAP_AUDIT_1106 #3; scripts/final_render.gd): opts {"preset": "final"|"draft", "w", "h", "first", "count"} makes this the same
+## render through a SubViewport of w x h (default 1920x1080) with the quality preset on, over the frame range first .. first+count-1
+## (default: every frame); the PNGs are numbered from 0000 within that range and the mp4 is made of exactly them.
+func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "", opts := {}) -> Dictionary:
 	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
 	if _sr_busy:
 		_say_plain("A shot render is already running: press Esc (or Cancel render) to stop it, then run Render shots to video again")
@@ -2069,7 +2114,11 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 	var n := ShotRender.frame_count(length, fps)
 	var rng := ShotRender.ranges(_shot_shots(), length, fps)
 	var nm := safe_file(S.name) if S.name != "" else "scene"
-	var dir := "%s/%s_%s" % [root_dir, nm, _stamp()]
+	var preset := String(opts.get("preset", ""))
+	var first_f := clampi(int(opts.get("first", 0)), 0, n - 1)
+	var last_f := mini(n, first_f + int(opts.get("count", n)))
+	n = last_f - first_f   # the frames this render makes
+	var dir := "%s/%s_%s%s" % [root_dir, nm, _stamp(), ("_" + preset) if preset != "" else ""]
 	var gdir := ProjectSettings.globalize_path(dir)
 	if DirAccess.make_dir_recursive_absolute(gdir) != OK:
 		_say_plain("NOT DONE: the folder %s could not be made: close anything using it, or choose another place, and run Render shots to video again" % dir)
@@ -2091,15 +2140,41 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 	var shot := _shot_blast_begin()
 	clean = keep_clean
 	_sides_apply()
+	var svp: SubViewport = null
+	var svp_cam: Camera3D = null
+	var fr_lights := [light_key, light_fill, light_rim]
+	var fr_saved := {}
+	var fr_hide := []
+	var fr_outline: Variant = null
+	if preset != "":
+		svp = SubViewport.new()
+		svp.size = Vector2i(int(opts.get("w", FinalRender.DEFAULT_RES.x)), int(opts.get("h", FinalRender.DEFAULT_RES.y)))
+		svp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		add_child(svp)   # no own world: it draws this scene's World3D
+		svp_cam = Camera3D.new()
+		svp_cam.keep_aspect = Camera3D.KEEP_HEIGHT
+		svp.add_child(svp_cam)
+		svp_cam.current = true
+		fr_saved = FinalRender.apply(preset, world_env, svp, fr_lights)
+		# the editor's own visuals are not part of the picture: the grid, the axes, the body's sky outline (collapsed to zero thickness)
+		for nd in [grid_node, _axis_node()]:
+			if nd != null:
+				fr_hide.append([nd, nd.visible])
+				nd.visible = false
+		if _body_outline != null:
+			fr_outline = _body_outline.get_shader_parameter("grow")
+			_body_outline.set_shader_parameter("grow", 0.0)
 	var done := 0
 	for r in rng:
 		for j in int(r["count"]):
 			if _sr_cancel:
 				break
 			var f: int = int(r["first"]) + j
-			_sr_label.text = "Rendering shots: frame %d of %d  (shot %d of %d: %s)" % [f + 1, n, int(r["shot"]) + 1, _shot_shots().size(), _shot_shots()[int(r["shot"])]["name"]]
+			if f < first_f or f >= last_f:
+				continue
+			_sr_label.text = "Rendering shots: frame %d of %d  (shot %d of %d: %s)" % [f - first_f + 1, n, int(r["shot"]) + 1, _shot_shots().size(), _shot_shots()[int(r["shot"])]["name"]]
 			_sr_bar.value = 100.0 * float(done) / float(n)
-			_say_plain("rendering shots: %d%%  (frame %d of %d; Esc or Cancel render stops it)" % [int(100.0 * done / n), f + 1, n])
+			_say_plain("rendering shots: %d%%  (frame %d of %d; Esc or Cancel render stops it)" % [int(100.0 * done / n), f - first_f + 1, n])
 			await RenderingServer.frame_post_draw   # one drawn frame WITH the progress panel; a click on Cancel is read meanwhile
 			if _sr_cancel:
 				break
@@ -2115,10 +2190,20 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 				wt.render_active = true   # R23
 				_refresh()
 				_shot_blast_frame(shot)
-				await get_tree().process_frame
-				await RenderingServer.frame_post_draw
-				sub_imgs.append(_shot_blast_image(shot, get_viewport().get_texture().get_image()))
-			(sub_imgs[0] if sub_imgs.size() == 1 else PlayblastExport.average(sub_imgs)).save_png("%s/frame_%04d.png" % [gdir, f])
+				if svp != null:
+					var sv := shot_view_at(playhead)   # the shot camera itself, the whole frame (no crop of the window)
+					svp_cam.global_transform = sv["xf"]
+					svp_cam.fov = ShotCam.fov_v(float(sv["f"]))
+					svp_cam.attributes = cam.attributes
+					if preset == "final":
+						await get_tree().process_frame   # SSAO / SDFGI settle on the new pose
+						await get_tree().process_frame
+					sub_imgs.append(await FinalRender.grab(get_tree(), svp))
+				else:
+					await get_tree().process_frame
+					await RenderingServer.frame_post_draw
+					sub_imgs.append(_shot_blast_image(shot, get_viewport().get_texture().get_image()))
+			(sub_imgs[0] if sub_imgs.size() == 1 else PlayblastExport.average(sub_imgs)).save_png("%s/frame_%04d.png" % [gdir, f - first_f])
 			wt.render_active = false
 			ui_root.visible = true
 			_sr_layer.visible = true
@@ -2129,6 +2214,13 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 		if _sr_cancel:
 			break
 	_shot_blast_end(shot)
+	if svp != null:
+		FinalRender.restore(fr_saved, world_env, svp, fr_lights)
+		for h in fr_hide:
+			(h[0] as Node3D).visible = h[1]
+		if _body_outline != null and fr_outline != null:
+			_body_outline.set_shader_parameter("grow", fr_outline)
+		svp.queue_free()
 	ui_root.visible = true
 	clean = keep_clean
 	_sides_apply()
@@ -2149,7 +2241,7 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 		ff = PlayblastExport.find_ffmpeg(ffmpeg_path)
 		if ff == "":
 			how = ". No .mp4: ffmpeg was not found; install it (winget install Gyan.FFmpeg, or ffmpeg.org), then run Render shots to video again, or set POSER_FFMPEG to ffmpeg.exe"
-		elif PlayblastExport.encode(ff, gdir, fps, "%s/%s.mp4" % [gdir, nm], AudioTrack.audible_list(S.audio_tracks), 0.0) == OK and FileAccess.file_exists("%s/%s.mp4" % [gdir, nm]):
+		elif PlayblastExport.encode(ff, gdir, fps, "%s/%s.mp4" % [gdir, nm], AudioTrack.audible_list(S.audio_tracks), float(first_f) / float(fps)) == OK and FileAccess.file_exists("%s/%s.mp4" % [gdir, nm]):
 			mp4 = "%s/%s.mp4" % [gdir, nm]
 			how = " and %s.mp4" % nm
 		else:
@@ -3037,6 +3129,12 @@ func _ready() -> void:
 	# THE QUALITY WORKER (Easy's My scenes badges): Kine --headless --kine-quality-worker <list.json> grades the list and quits
 	# before anything else starts (no UI, no autosave). Checked first, so the app's start-up never runs in that process.
 	var wargs := OS.get_cmdline_args()
+	var smoke_args := PackedStringArray(wargs) + OS.get_cmdline_user_args()
+	if InstallSmoke.wanted(smoke_args):   # L16: the clean-machine install test's launch; checks the install, writes nothing, exits 0 or 3
+		process_mode = Node.PROCESS_MODE_DISABLED
+		var smoke_code := InstallSmoke.run(smoke_args)
+		get_tree().quit(smoke_code)
+		return
 	var wi := wargs.find("--kine-quality-worker")
 	if wi >= 0 and wi + 1 < wargs.size():
 		process_mode = Node.PROCESS_MODE_DISABLED   # the app's per-frame work (autosave, auto-version) must not run in this process
@@ -3160,6 +3258,8 @@ func _ready() -> void:
 	# the smallest window the layout is made for (round 21, GATES BB1): at 1024 x 768 the scene row and the play row ran
 	# off the right and the view was ~390 px between the side panels; Windows now stops a drag below it
 	get_window().min_size = Vector2i(MIN_ROOM)
+	if not testing:
+		UiExpShell.fit_window(get_window())   # L2: the first window is never bigger than the usable screen
 	get_viewport().size_changed.connect(func(): _fit_rows.call_deferred(); _fit_top.call_deferred(); _fit_page_bar.call_deferred(); _place_nav.call_deferred(); _place_akey_frame.call_deferred(); _strip_fit.call_deferred(); _browser_fit.call_deferred())
 	_world()
 	_gfx_start(testing)
@@ -3447,6 +3547,7 @@ func _ready() -> void:
 		get_tree().quit()
 
 
+	_after_first_frame(_update_check_now.bind(false))   # L16: opt-in (off, and no feed address, by default): does nothing unless the user turned it on
 	if args.has("--selfcheck-save"):   # an exported build's own check (see _selfcheck_save); nothing happens without the argument
 		await _selfcheck_save()
 		return
@@ -4052,7 +4153,7 @@ func _tl_height() -> void:
 func _tl_under_ruler() -> float:
 	if ui_timeline == null:
 		return 0.0
-	return (Timeline.FD_H + 3.0 if not ui_timeline.fd.is_empty() else 0.0) + ui_timeline.bx_px() + ui_timeline.shots_px() + ui_timeline.sp_px() + ui_timeline.iq_px() + ui_timeline.sc_px()   # + the sound cue lane (I35) + the video confidence lane (VIDEO IQ)
+	return ui_timeline.fd_px() + ui_timeline.bx_px() + ui_timeline.shots_px() + ui_timeline.sp_px() + ui_timeline.iq_px() + ui_timeline.sc_px()   # + the sound cue lane (I35) + the video confidence lane (VIDEO IQ)
 
 
 # ---------------------------------------------------------------- FRAME DATA (ROADMAP 12; scripts/frame_data.gd)
@@ -5263,6 +5364,7 @@ func _refresh() -> void:
 	var _pk := PerfDoc.t()
 	if not PerfStub.skip("skinning"):
 		Overlays.pose_skeleton(skel, bone_idx, B)
+	CharImportApp.update(self)   # L9: an imported rigged character stands on the pose (scripts/char_import_app.gd)
 	PerfDoc.add("skinning", _pk)
 	corr.update(B)
 	dq_skin_pass.update(S.dq_skin)   # H04: after the corrective (its mesh is the rest DQ corrects)
@@ -8125,6 +8227,7 @@ func _scene_dict(frames := true) -> Dictionary:
 	var ar := ArmourFromBody.to_file(self)   # B23: the armour plates on the fighter, when there are any (scripts/armour_from_body.gd)
 	if not ar.is_empty():
 		d[ArmourFromBody.KEY] = ar
+	CharImportApp.put_key(self, d)   # L9: the imported character (its file, its bone map by name)
 	return d
 
 
@@ -12560,7 +12663,7 @@ const ICON_OF := {"Library": "library", "Export model (GLB / OBJ)": "export_glb"
 	"Light: three-point": "lit_three", "Light: rim": "lit_rim", "Light: noir": "lit_noir", "Light: daylight": "lit_day",
 	"Add prop": "prop", "Object library...": "library", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective", "Local API": "api",
-	"Pose from words...": "say_it", "Sketch to pose": "sketch_pose", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Stay in place": "stay_in_place", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong",
+	"Pose from words...": "say_it", "Sketch to pose": "sketch_pose", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Stay in place": "stay_in_place", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "Final render...": "render_shots", "What went wrong?": "whywrong",
 	"Test cube": "mesh_cube", "Edit body": "mannequin", "Save": "save", "Save to body": "body_save", "Open...": "open", "Use in scene": "use_scene", "Move": "xf_move", "Rotate": "xf_rot", "Scale": "xf_scale",
 	"Extrude": "part_extrude", "Inset": "inset", "Loop cut": "loopcut", "Knife": "knife", "Bevel": "part_chamfer", "Proportional": "proportional", "Modifiers": "stack", "Validate": "validate", "Repair": "wrench",
 	"Test sphere": "sphere", "Sculpt the body": "sculpt_body", "Voxel remesh": "remesh", "Draw": "brush_draw", "Inflate": "brush_inflate", "Grab": "brush_grab", "Clay": "brush_clay", "Crease": "brush_crease", "Smooth": "smooth", "Flatten": "brush_flat", "Pinch": "brush_pinch", "Snake": "brush_snake",
@@ -13153,6 +13256,7 @@ func _ui() -> void:
 	ui_ribbon["EXPORT"].add_child(_button("Open exports folder", func(): _shell_open(UserPaths.w("res://exports")), "open the exports folder in Explorer (where Export model and the other exports are written)"))
 	ui_ribbon["EXPORT"].add_child(_button("Export frame data (json)...", _fd_export, "startup, active, recovery and the hitboxes per frame, in metres (Y up), saved where you pick (FRAME_DATA: docs/research/FRAME_DATA.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Render shots (mp4)", _render_shots, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode an .mp4 in exports/shots/ with ffmpeg; progress shows, Esc or Cancel stops it"))
+	ui_ribbon["EXPORT"].add_child(_button("Final render...", _final_render_dialog, "client-ready output from the shot camera: SSAO, reflections, global light, soft shadows and 4x MSAA, glow off; a PNG sequence and an .mp4 at the resolution you pick (1920x1080 default) in exports/shots/; slower than Render shots (mp4)"))
 	if fp_ui == null:
 		fp_ui = FloorPlanUI.new(self)
 	ui_ribbon["EXPORT"].add_child(_button("Floor plan", fp_ui.show, "a top-down rehearsal plan of the fight for the stunt crew: every foot placement numbered with its time, each fighter's path, the strike lines and the safety margins on a 100 cm grid; Export page writes a printable page and a PNG"))
@@ -16801,6 +16905,10 @@ func _commands() -> Array:
 	add.call("Sculpt: a test sphere (preview)", "", _sculpt_start, "sculpt brush draw clay inflate smooth flatten pinch crease grab snake hook pressure tablet zbrush", false, "add a test sphere to the stage and sculpt it: drag to stroke, D C I S F P E G K brushes, [ ] radius, Shift+[ ] strength, O falloff, X symmetry, Ctrl invert, Shift smooth, Ctrl+Z undo, Esc leaves (nothing is saved)")
 	add.call("Rig: bone editor (add / delete / parent bones)", "", func(): _bone_ui().toggle(), "bone bones rig skeleton add delete parent extrude roll rest edit armature tail chain joint", false, "open / close the bone editor: your own bones on the body (E extrude from a tail, Shift+A add, X delete, drag the end balls; name, parent, length, roll in its panel). Each edit is one undo step; the body's own skeleton is not edited")
 	add.call("Model: edit a test cube (preview)", "", _kmesh_edit_start, "model mesh cube edit select vertex edge face box lasso xray polygon modeling", false, "add a 4x4-per-side test cube to the stage and select on it: click, Shift+click, B box, L lasso, X x-ray, 1/2/3 vertex / edge / face, Esc leaves (nothing is saved)")
+	add.call("Character: import a rigged character (glb / fbx)", "", func(): CharImportApp.ask(self), "character import rigged rig skin skinned mesh blendshape blend shape fbx glb mixamo unreal rigify vrm own model mapping bring in", false, "a .glb / .fbx with a skinned mesh becomes the fighter: its mesh, skin weights and blend shapes, its skeleton mapped onto Kine's body (names, then geometry; a map screen to fix bones). Kine's poses, limits, balance and contacts then drive it, on its own proportions")
+	add.call("Character: map the imported skeleton (fix bones)", "", func(): CharImportApp.map_cmd(self), "character map bones skeleton retarget fix rig imported joints", false, "the bone-map screen for the imported character: pick another bone for any Kine joint")
+	add.call("Character: show the Kine body beside the import", "", func(): CharImportApp.beside_toggle(self), "character beside compare kine body import side", false, "the Kine body and the imported character side by side, 1 m each side of the origin; run again for the import alone")
+	add.call("Character: remove the import (the Kine body again)", "", func(): CharImportApp.remove_cmd(self), "character remove clear imported rigged kine body back", false, "take the imported character off; the Kine mannequin is the fighter again")
 	add.call("Model: edit the body mesh", "", func(): BaseBody.start(self), "model mesh body skin fighter mannequin character edit sculpt base topology weights rigged", false, "open the fighter's skinned body in the model preview (its skin weights ride along as attributes); every model key works on it; Esc leaves without changing the fighter")
 	add.call("Model: apply the body mesh to the fighter", "", func(): BaseBody.apply_cmd(self), "apply write commit body mesh fighter skin weights save model", true, "the edited body becomes the fighter's skinned mesh, with its weights (new verts carry their neighbours'); one undo step")
 	add.call("Body: save the fighter's body (.kbody)", "", func(): BodyFile.save_cmd(self), "body save kbody file keep library mesh skin weights fighter character", false, "the fighter's body (mesh, skin weights, the scene's proportions) as a NEW .kbody in bodies/ (the same body twice is the same file); the Browser lists it under Bodies with a picture, a click puts it back")
@@ -17034,6 +17142,9 @@ func _commands() -> Array:
 	add.call("File > Restore...", "", _restore_open, "restore autosave autosaved unsaved crash lost back earlier kept", false, "the last 5 autosaves (time, scene, cards) with a picture of each: pick one, it opens as a NEW copy in scenes/_wip (never over a file; the scene on screen asks first)")
 	add.call("File: restore unsaved work", "", _journal_restore, "journal unsaved recover restore crash lost work back", false, "bring back the work a session left unsaved when Kine did not close cleanly: the state after its last edit, still unsaved (the status line offers it at start)")
 	add.call("File > Crash report (last 20 commands)", "", _crash_report_now, "crash report bug problem error problem send lost last commands history what did i do", false, "writes the last 20 things you ran and the page you were on to a text file: you can read it and send it yourself. Nothing is sent")
+	add.call("Setting: update check on/off (off by default)", "", _update_toggle, "update check new version release feed setting online opt in", false, "turn the update check on or off. Off by default; it reads the feed address in user://online.cfg and shows a note on the status line when a newer version is listed. Nothing is downloaded")
+	add.call("File: check for updates now", "", func(): _update_check_now(true), "update check new version release now", false, "check the feed once (only if the update check is on and a feed address is set)")
+	add.call("File > Send crash report...", "", _crash_send_open, "crash report send upload bug problem error preview redacted", false, "shows exactly what would be sent (paths and your user name removed). Off by default: it only sends after you turn it on, set an endpoint and press Send")
 	add.call("Export...", "", _export_dialog_open, "export engine target unreal ue5 unity godot blender maya motionbuilder web three raw data format glb bvh usda game", false, "one dialog for every target: pick the engine or tool, see its format, what it needs, the frame rate and a checklist for this scene, then export")
 	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
 	add.call("Export animation (.glb)", "", _export_glb, "gltf glb blender unreal ue5 unity godot universal export fbx", false, "the scene as exports/<scene>.glb, the open 3D standard: the mannequin, its skeleton (UE5 bone names) and the animation, for any engine")
@@ -17048,6 +17159,7 @@ func _commands() -> Array:
 	add.call("Deliver: breakdown video (with the judges drawn)", "", _export_judge_render, "breakdown judge render overlay balance centre of mass support polygon force ground reaction hit boxes joint limit verdict caption side by side video avi mp4 coach review", false, "the scene as a video with the judges drawn: left clean, right with the centre of mass over its support, the ground-force arrow, the hit boxes and red joint-limit markers; under each frame a caption with the time, the card and the Check verdicts that fire on that frame (off balance, foot slides ...); in user://breakdowns/")
 	add.call("Export playblast (video)", "", _export_playblast, "playblast render video mp4 png sequence ffmpeg movie export", false, "render the scene from the current camera, frame by frame at its fps over the preview range (or all of it): a PNG folder in exports/playblast/, and an .mp4 when ffmpeg is installed")
 	add.call("Render shots to video (mp4)", "", _render_shots, "render shots video mp4 camera sequence cuts sequencer movie export deliver ffmpeg", false, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode them to exports/shots/<scene>_<stamp>/<scene>.mp4 with ffmpeg; progress shows, Esc or Cancel stops it")
+	add.call("Final render (PNG sequence + mp4)", "", _final_render_dialog, "final render client quality ssao ssr shadows msaa 1080p 4k shot camera png sequence mp4 deliver ffmpeg", false, "the quality preset (SSAO, SSR, SDFGI, soft shadows, 4x MSAA, glow off) through the shot camera at the resolution you pick, as a PNG sequence and an .mp4 in exports/shots/<scene>_<stamp>_final/")
 	add.call("Review: export a review page", "", _export_review, "review comments frame notes feedback director page html share local", false, "one self-contained HTML file in exports/review/: the playblast frames, a scrubber, a comment box per frame, and Download comments (.json). Nothing is uploaded")
 	add.call("Review: import comments...", "", _review_import_ask, "review comments frame notes feedback director import json markers", true, "pick a comments .json from a review page: each comment becomes a marker on the timeline at its frame (click it to jump; Ctrl+Z undoes)")
 	add.call("Deliver: export the posed body as OBJ", "", _export_obj, "obj wavefront mesh export deliver posed body weapon blender maya zbrush static model", false, "the body as it stands at the playhead (its skinned meshes in world space) and the held weapon, as user://exports/<scene>.obj + .mtl: metres, Y up, v / vt / vn / f with one group per part (a static mesh, not an animation)")
@@ -21339,6 +21451,78 @@ func _crash_note(n: String) -> void:
 
 
 ## File > Crash report: the last 20 commands (the session that did not quit, when there is one) and the page, in a text file
+## L16 OPT-IN UPDATE CHECK (scripts/update_check.gd): off and no address until the user sets both. The notice is the status line, never a dialog.
+func _update_check_now(manual: bool) -> void:
+	var cfg: Dictionary = OnlineOpt.load_cfg()["update"]
+	if not bool(cfg["enabled"]):
+		if manual:
+			_say("update check is off: turn it on with 'Setting: update check on/off', then set the feed address in user://online.cfg")
+		return
+	var url := str(cfg["feed_url"])
+	var body = null
+	if url.begins_with("http://") or url.begins_with("https://"):
+		body = await _http_get_text(url)
+	var reader := func(u: String):
+		return body if body != null else UpdateCheck.file_reader(u)
+	var r := UpdateCheck.check(cfg, str(ProjectSettings.get_setting("application/config/version", "0.0.0")), reader)
+	if bool(r.get("notify", false)) or manual or r.get("state") == "no_feed":
+		if str(r.get("text", "")) != "":
+			_say(str(r["text"]))
+
+
+## the only place that opens the network for the update check; reached only when the user set a web address
+func _http_get_text(url: String):
+	var h := HTTPRequest.new()
+	h.timeout = 8.0
+	add_child(h)
+	if h.request(url) != OK:
+		h.queue_free()
+		return null
+	var res: Array = await h.request_completed
+	h.queue_free()
+	if res[0] != HTTPRequest.RESULT_SUCCESS or res[1] != 200:
+		return null
+	return (res[3] as PackedByteArray).get_string_from_utf8()
+
+
+func _update_toggle() -> void:
+	var c := OnlineOpt.load_cfg()
+	c["update"]["enabled"] = not bool(c["update"]["enabled"])
+	OnlineOpt.save_cfg(OnlineOpt.PATH, c)
+	_say("update check: " + ("on" if c["update"]["enabled"] else "off") + (" (no feed address set yet: edit user://online.cfg [update] feed_url)" if c["update"]["enabled"] and str(c["update"]["feed_url"]) == "" else ""))
+
+
+## L16 OPT-IN CRASH UPLOAD (scripts/crash_upload.gd): shows the redacted payload first; sends only after Send is pressed, only when
+## the user turned it on and an endpoint is set. Both are off/empty by default, so by default this only shows the preview.
+func _crash_send_open() -> void:
+	var lines: Array = crash_prev if not crash_prev.is_empty() else crash_cmds
+	var raw := "Page: %s\n%s" % [cur_page, "\n".join(lines.slice(-CrashReport.KEEP))]
+	var users := [OS.get_environment("USERNAME"), OS.get_environment("USER")]
+	var payload := CrashUpload.build_payload(raw, {"version": str(ProjectSettings.get_setting("application/config/version", "")), "os": OS.get_name(), "users": users})
+	var cfg: Dictionary = OnlineOpt.load_cfg()["crash"]
+	var d := ConfirmationDialog.new()
+	d.title = "Send crash report?"
+	d.dialog_text = CrashUpload.preview(payload, cfg)
+	d.ok_button_text = "Send" if bool(cfg["enabled"]) and str(cfg["endpoint"]) != "" else "Close"
+	d.size = Vector2i(760, 520)
+	add_child(d)
+	d.confirmed.connect(func():
+		var r := CrashUpload.send(cfg, payload, true, _crash_http_sink)
+		_say("crash report sent" if r["sent"] else "crash report not sent: " + str(r["why"]))
+		d.queue_free())
+	d.canceled.connect(d.queue_free)
+	d.popup_centered()
+
+
+func _crash_http_sink(endpoint: String, body: String) -> bool:
+	var h := HTTPRequest.new()
+	h.timeout = 8.0
+	add_child(h)
+	var ok_ := h.request(endpoint, ["Content-Type: text/plain; charset=utf-8"], HTTPClient.METHOD_POST, body) == OK
+	h.request_completed.connect(func(_a, _b, _c, _d): h.queue_free())
+	return ok_
+
+
 func _crash_report_now() -> void:
 	if crash_dir == "":
 		_say("the crash report is off in this test run")
@@ -21456,6 +21640,7 @@ func _restore_work(a: Dictionary) -> void:
 		BaseBody.restore_gen(self, 0)   # the mannequin as shipped (the state held no applied body)
 	BodyFile.from_scene(self, a["scene"])   # G07: an applied body back, from its file or inline
 	ArmourFromBody.from_scene(self, a["scene"])   # B23: the armour plates back
+	CharImportApp.from_scene(self, a["scene"])   # L9
 	camx.from_scene(a["scene"])   # C01
 	scene_path = path
 	if ui_loop != null:
@@ -22659,6 +22844,15 @@ var face_brow: Array = []       # [brow_l, brow_r] MeshInstance3D (BoxMesh)
 var face_eye: Array = []        # [eye_l, eye_r] (sclera, SphereMesh)
 var face_pupil: Array = []      # [pupil_l, pupil_r]
 var face_ui: FaceUI
+## I01-I04 (scripts/face_geo.gd): the face as REAL GEOMETRY, opt-in (default off: the painted face above is untouched)
+var face_geo_on := false
+var face_geo_au := {}              # extra AU weights {"AU12": 1.0} added to what the face channels give (presets, the test)
+var face_geo_data := {}
+var face_geo_root: Node3D
+var face_geo_mask: MeshInstance3D
+var face_geo_eye_nodes: Array = []
+var face_geo_head0: Mesh           # the head piece's own mesh, put back when the geometry goes off
+var face_geo_key := ""
 
 
 func _face_make() -> void:
@@ -22695,8 +22889,10 @@ func _face_draw() -> void:
 	var live := face_ui != null and face_ui.live()
 	var ex: Dictionary = S.expr_at(playhead)
 	var elp := el_ui != null and el_ui.pv   # I08: the living eyes preview shows its track
-	var on := live or elp or not S.lip.is_empty() or not S.face.is_empty() or not ex.is_empty()
+	var on := live or elp or not S.lip.is_empty() or not S.face.is_empty() or not ex.is_empty() or face_geo_on
 	if not on:
+		if face_geo_root != null:
+			face_geo_root.visible = false
 		if mouth_mi != null:
 			mouth_mi.visible = false
 		if face_root != null:
@@ -22714,6 +22910,11 @@ func _face_draw() -> void:
 	if face_root == null:
 		_face_make()
 	var P: Dictionary = Face.pose(face_ui.values(), {}, playhead) if live else (el_ui.pose_now() if elp else Face.at(S.face, S.lip, playhead, ex))
+	if face_geo_on and face_geo_root != null:
+		_face_geo_draw(P)
+		face_root.visible = false
+		mouth_mi.visible = false
+		return
 	var geo := _face_geo()
 	if geo.is_empty():
 		return   # no head mesh to anchor on
@@ -22752,6 +22953,79 @@ func _face_draw() -> void:
 	var pr := float(P["press"])   # AU23/24: the lips tighten into a thin line (R22)
 	sz = Vector3(sz.x * (1.0 - 0.25 * pr), sz.y * (1.0 - 0.5 * pr), sz.z)
 	mouth_mi.transform = Transform3D(Basis(g) * Basis.from_scale(Vector3(sz.x * Face.MOUTH_W_K, sz.y, sz.z)), face_at(geo["mouth"]) + front * 0.002 - up * sz.y * 0.25)
+
+
+## the face geometry on or off. On: the mask, two eyes and the mouth cavity are built (once), the head piece loses its lower-face
+## triangles (restored when off). One undo-free view switch, like the shading modes.
+func _face_geo_set(on: bool) -> void:
+	if on == face_geo_on or not pieces.has("head"):
+		return
+	var hp: MeshInstance3D = pieces["head"]
+	if on:
+		if face_geo_data.is_empty():
+			face_geo_data = FaceGeo.build(_head_pts())
+		face_geo_head0 = hp.mesh
+		hp.mesh = FaceGeo.cut_head(hp.mesh as ArrayMesh, face_geo_data)
+		if face_geo_root == null:
+			face_geo_root = Node3D.new()
+			face_geo_root.name = "face_geometry"
+			add_child(face_geo_root)
+			face_geo_mask = MeshInstance3D.new()
+			var mm := StandardMaterial3D.new()
+			mm.vertex_color_use_as_albedo = true
+			mm.roughness = 0.8
+			face_geo_mask.material_override = mm
+			face_geo_root.add_child(face_geo_mask)
+			for e in face_geo_data["eyes"]:
+				var en := MeshInstance3D.new()
+				en.mesh = FaceGeo.eye_mesh(float(e["r"]))
+				var em := StandardMaterial3D.new()
+				em.vertex_color_use_as_albedo = true
+				em.roughness = 0.25
+				en.material_override = em
+				face_geo_root.add_child(en)
+				face_geo_eye_nodes.append(en)
+			var cav := MeshInstance3D.new()
+			cav.mesh = FaceGeo.cavity_mesh(face_geo_data)
+			var cm := StandardMaterial3D.new()
+			cm.albedo_color = Color(0.08, 0.03, 0.03)
+			cm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			cav.material_override = cm
+			face_geo_root.add_child(cav)
+		face_geo_key = ""
+		face_geo_on = true
+	else:
+		face_geo_on = false
+		if face_geo_head0 != null:
+			hp.mesh = face_geo_head0
+		if face_geo_root != null:
+			face_geo_root.visible = false
+	_refresh()
+
+
+## draw the geometry for the face pose P (Face.pose): the channels map to AUs (brows +: AU1, -: AU4; blink: AU45; squint: AU6),
+## the jaw channel to the jaw bone, the eye angles to the eye bones; face_geo_au adds more AU weights
+func _face_geo_draw(P: Dictionary) -> void:
+	var d: Dictionary = face_geo_data
+	face_geo_root.visible = true
+	var g: Quaternion = B.G["head"]
+	face_geo_root.transform = Transform3D(Basis(g), face_at(Vector3.ZERO))
+	var bv := (float(P["brow_l"]) + float(P["brow_r"])) * 0.5
+	var au := {"AU1": maxf(bv, 0.0), "AU4": maxf(-bv, 0.0), "AU45": float(P["blink"]), "AU6": float(P["squint"])}
+	for k in face_geo_au:
+		au[k] = float(au.get(k, 0.0)) + float(face_geo_au[k])
+	var st := {"au": au, "jaw_deg": float(P["jaw_deg"]), "eye_pitch_deg": float(P["eye_pitch_deg"]), "eye_yaw_deg": float(P["eye_yaw_deg"])}
+	var key := str(st)
+	if key != face_geo_key:
+		face_geo_key = key
+		var skin := FaceGeo.SKIN
+		var hm: Material = (pieces["head"] as MeshInstance3D).material_override
+		if hm is StandardMaterial3D:
+			skin = (hm as StandardMaterial3D).albedo_color
+		face_geo_mask.mesh = FaceGeo.mask_mesh(d, FaceGeo.posed(d, st), skin)
+		var tf := FaceGeo.eye_transforms(d, st)
+		for i in 2:
+			(face_geo_eye_nodes[i] as Node3D).transform = tf[i]
 
 
 var face_geo: Dictionary = {}   # the anchors on the head mesh in rest space (Face.anchors), read once from the head piece
@@ -23954,6 +24228,10 @@ func _import_file(path: String) -> Dictionary:
 	if r["kind"] == "rigged" and AnimImport.load_source(path)["ok"]:   # a skeleton WITH an animation: the animation import
 		var o := _import_anim(path)
 		return {"ok": o != "", "path": o, "why": "" if o != "" else "refused (the reason is on the status line)"}
+	if r["kind"] == "rigged":   # L9: a skeleton with a skinned mesh and no animation is a CHARACTER
+		var cr := CharImportApp.open(self, path, {}, true)
+		if cr["ok"]:
+			return {"ok": true, "path": path, "why": ""}
 	if r["kind"] == "rigged":
 		var aa: Dictionary = Importer.accept(path, "animation", library)
 		_say(("%s has a skeleton: importing animations comes later (UPGRADES #209); it was kept in your library. To use a model as a prop, drop one without a skeleton" % path.get_file()) if aa["ok"] else "could not import %s: %s Try another .glb, or open it in Blender and export it as .glb again" % [path.get_file(), aa["why"]])
@@ -24541,6 +24819,7 @@ func _open_scene_dict(path: String, d: Dictionary, work: bool, built := false) -
 			_say.call_deferred("this scene's set names models your library does not have (%s): they were left out" % ", ".join(S.props_skipped))
 		BodyFile.from_scene(self, d)   # G07: the body the scene was saved with back on the fighter
 		ArmourFromBody.from_scene(self, d)   # B23: the armour plates the scene was saved with (none when the file has none)
+		CharImportApp.from_scene(self, d)   # L9: the imported character the scene was saved with (none: the Kine body)
 		camx.from_scene(d)   # C01: the cube's Top the scene was saved with
 	else:   # an old move file: its keys become cards
 		var prev := 0.0

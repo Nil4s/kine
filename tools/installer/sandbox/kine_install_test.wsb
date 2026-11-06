@@ -1,0 +1,25 @@
+<Configuration>
+  <!-- L16 clean-machine install test. Do not open this file directly: run_in_sandbox.ps1 fills in the two host folders. -->
+  <VGpu>Enable</VGpu>
+  <Networking>Disable</Networking>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>__INSTALLER_DIR__</HostFolder>
+      <SandboxFolder>C:\KineInstall</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+    <MappedFolder>
+      <HostFolder>__SCRIPT_DIR__</HostFolder>
+      <SandboxFolder>C:\KineScript</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+    <MappedFolder>
+      <HostFolder>__RESULT_DIR__</HostFolder>
+      <SandboxFolder>C:\KineResult</SandboxFolder>
+      <ReadOnly>false</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+  <LogonCommand>
+    <Command>powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\KineScript\kine_install_test.ps1 -ResultFile C:\KineResult\result.txt</Command>
+  </LogonCommand>
+</Configuration>
