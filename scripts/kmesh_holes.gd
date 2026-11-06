@@ -7,6 +7,7 @@ extends RefCounted
 ## the interior vertices minimise sum |L x|^2 (uniform umbrella L, boundary fixed), solved with conjugate gradients (Liepa 2003 style).
 
 const SMALL_DIAM := 0.12   # a hole whose bbox diagonal is at most this x the mesh's bbox diagonal is closed by default
+const SMALL_N := 12        # ... or has at most this many boundary vertices (a puncture)
 const MAX_DP := 90         # loops longer than this are filled by a fan round a centre vertex instead of the O(n^3) search
 const MODE_SIDE := "side"
 const MODE_CLOSE := "close"
@@ -75,18 +76,19 @@ static func loops(m: KMesh) -> Array:
 			var diam := lb.size.length()
 			var ok := simple and closed and lp.size() >= 3
 			res.append({"verts": lp, "key": mn, "n": lp.size(), "len": ln, "diam": diam, "simple": ok,
-					"mode": MODE_CLOSE if (ok and diam <= SMALL_DIAM * diag) else MODE_SIDE})
+					"mode": MODE_CLOSE if (ok and (diam <= SMALL_DIAM * diag or lp.size() <= SMALL_N)) else MODE_SIDE})
 	return res
 
 
 ## a copy of the mesh with the given loops (entries of loops()) filled; the fill faces are appended after the original faces
 static func close(m: KMesh, which: Array, fair := true) -> KMesh:
+	var outer := _outside_nbrs(m)
 	var vs := m.verts.duplicate()
 	var fs: Array = []
 	for f in m.faces:
 		fs.append(f)
 	for lp in which:
-		var r := fill(vs, lp["verts"], fair)
+		var r := fill(vs, lp["verts"], fair, outer)
 		vs = r["verts"]
 		for t in r["faces"]:
 			fs.append(t)
@@ -95,7 +97,24 @@ static func close(m: KMesh, which: Array, fair := true) -> KMesh:
 
 ## fill one loop (indices into vs, in face direction a -> b): {verts: all vertices (the old ones first), faces: triangles of vertex indices,
 ## "first": index of the first new vertex}. fair = false leaves the refinement vertices where the splits put them (the planted control)
-static func fill(vs: PackedVector3Array, loop: PackedInt32Array, fair := true) -> Dictionary:
+static func _outside_nbrs(m: KMesh) -> Dictionary:
+	var nb := {}
+	for f in m.faces:
+		for c in f.size():
+			var a: int = f[c]
+			var b: int = f[(c + 1) % f.size()]
+			if not nb.has(a):
+				nb[a] = {}
+			if not nb.has(b):
+				nb[b] = {}
+			nb[a][b] = true
+			nb[b][a] = true
+	return nb
+
+
+## outer = the mesh's vertex neighbours (from _outside_nbrs): the loop vertices' rows of the fairing then use them too, so the fill leaves the rim with
+## the surface's own tangent (without them the fairing of fixed positions alone is the flat membrane's neighbour: a disc under a spherical rim)
+static func fill(vs: PackedVector3Array, loop: PackedInt32Array, fair := true, outer := {}) -> Dictionary:
 	var vp := vs.duplicate()
 	var base := vp.size()
 	var P := PackedInt32Array()
@@ -111,10 +130,14 @@ static func fill(vs: PackedVector3Array, loop: PackedInt32Array, fair := true) -
 		var cost := []
 		var cut := []
 		for i in n:
-			cost.append(PackedFloat64Array())
-			(cost[i] as PackedFloat64Array).resize(n)
-			cut.append(PackedInt32Array())
-			(cut[i] as PackedInt32Array).resize(n)
+			var row := []
+			row.resize(n)
+			row.fill(0.0)
+			cost.append(row)
+			var row2 := []
+			row2.resize(n)
+			row2.fill(0)
+			cut.append(row2)
 		for span in range(2, n):
 			for i in n - span:
 				var j := i + span
@@ -179,7 +202,7 @@ static func fill(vs: PackedVector3Array, loop: PackedInt32Array, fair := true) -
 			break
 	var first := base if vp.size() == base else base
 	if fair:
-		_fair(st, P)
+		_fair(st, P, outer, vs)
 	var out_f: Array = []
 	for t in st.tris:
 		if t != null:
@@ -246,7 +269,7 @@ class _State extends RefCounted:
 			for key in emap.keys():
 				if not emap.has(key) or loop_edges.has(key):
 					continue
-				var tl: Array = emap[key]
+				var tl: Array = (emap[key] as Array).duplicate()
 				if tl.size() != 2:
 					continue
 				var t1: PackedInt32Array = tris[tl[0]]
@@ -291,7 +314,7 @@ class _State extends RefCounted:
 
 
 ## minimise sum over the fill's vertices of |x_v - mean(x_nbrs)|^2 with the loop fixed (the new vertices are the unknowns)
-static func _fair(st: _State, P: PackedInt32Array) -> void:
+static func _fair(st: _State, P: PackedInt32Array, outer: Dictionary, vs: PackedVector3Array) -> void:
 	var fixed := {}
 	for v in P:
 		fixed[v] = true
@@ -322,11 +345,22 @@ static func _fair(st: _State, P: PackedInt32Array) -> void:
 		idx[all[i]] = i
 	var nn := all.size()
 	var lists: Array = []
+	var deg := PackedFloat64Array()
+	var ext: Array = []   # per vertex: the sum of the outside neighbours' positions (fixed, so a constant of the row)
 	for v in all:
 		var l := PackedInt32Array()
 		for w in nb[v].keys():
 			l.append(idx[w])
 		lists.append(l)
+		var e := Vector3.ZERO
+		var d := float(l.size())
+		if fixed.has(v) and outer.has(v):
+			for w in outer[v].keys():
+				if not nb[v].has(w) and not fixed.has(w) or (fixed.has(w) and not nb[v].has(w)):
+					e += vs[w]
+					d += 1.0
+		deg.append(d)
+		ext.append(e)
 	var is_u := PackedByteArray()
 	is_u.resize(nn)
 	for v in unk:
@@ -336,7 +370,10 @@ static func _fair(st: _State, P: PackedInt32Array) -> void:
 		x0.resize(nn)
 		for i in nn:
 			x0[i] = 0.0 if is_u[i] == 1 else st.vp[all[i]][comp]
-		var b := _lt_l(lists, x0)
+		var exc := PackedFloat64Array()
+		for i in nn:
+			exc.append(ext[i][comp])
+		var b := _lt_l(lists, deg, x0, exc)
 		for i in nn:
 			b[i] = -b[i] if is_u[i] == 1 else 0.0
 		var x := PackedFloat64Array()
@@ -347,7 +384,7 @@ static func _fair(st: _State, P: PackedInt32Array) -> void:
 		var rs0 := rs
 		if rs0 > 1e-30:
 			for it in 4 * unk.size() + 60:
-				var ap := _lt_l(lists, p)
+				var ap := _lt_l(lists, deg, p, PackedFloat64Array())
 				for i in nn:
 					if is_u[i] == 0:
 						ap[i] = 0.0
@@ -380,7 +417,7 @@ static func _dot(a: PackedFloat64Array, b: PackedFloat64Array) -> float:
 
 
 ## L^T L x for the uniform umbrella operator L = I - D^-1 A over the fill's adjacency lists
-static func _lt_l(lists: Array, x: PackedFloat64Array) -> PackedFloat64Array:
+static func _lt_l(lists: Array, deg: PackedFloat64Array, x: PackedFloat64Array, ext: PackedFloat64Array) -> PackedFloat64Array:
 	var n := x.size()
 	var y := PackedFloat64Array()
 	y.resize(n)
@@ -389,14 +426,14 @@ static func _lt_l(lists: Array, x: PackedFloat64Array) -> PackedFloat64Array:
 		var s := 0.0
 		for j in l:
 			s += x[j]
-		y[i] = x[i] - s / float(l.size())
+		y[i] = x[i] - (s + (ext[i] if ext.size() > 0 else 0.0)) / deg[i]
 	var z := PackedFloat64Array()
 	z.resize(n)
 	for i in n:
 		z[i] = y[i]
 	for i in n:
 		var l2: PackedInt32Array = lists[i]
-		var w: float = y[i] / float(l2.size())
+		var w: float = y[i] / deg[i]
 		for j in l2:
 			z[j] -= w
 	return z
@@ -422,22 +459,25 @@ static func edge_stats(faces: Array) -> Dictionary:
 	return {"open_edges": open, "same_direction_edges": same_dir, "multi": multi}
 
 
-## triangles whose normal points against a neighbour across a shared edge (a flipped face); the faces must be triangles
+## faces that disagree with a neighbour across a shared edge: the edge traversed the same way by both, or the normals opposed
 static func flipped(vs: PackedVector3Array, faces: Array) -> int:
-	var emap := {}
+	var em := {}
+	var nrm := []
 	for fi in faces.size():
 		var f: PackedInt32Array = faces[fi]
+		nrm.append((vs[f[1]] - vs[f[0]]).cross(vs[f[2]] - vs[f[0]]))
 		for c in f.size():
-			emap[Vector2i(f[c], f[(c + 1) % f.size()])] = fi
+			var a: int = f[c]
+			var b: int = f[(c + 1) % f.size()]
+			var key := Vector2i(mini(a, b), maxi(a, b))
+			if not em.has(key):
+				em[key] = []
+			(em[key] as Array).append([fi, a < b])
 	var bad := 0
-	for fi in faces.size():
-		var f: PackedInt32Array = faces[fi]
-		var n1 := (vs[f[1]] - vs[f[0]]).cross(vs[f[2]] - vs[f[0]])
-		for c in f.size():
-			var o: Variant = emap.get(Vector2i(f[(c + 1) % f.size()], f[c]), null)
-			if o != null and int(o) > fi:
-				var g: PackedInt32Array = faces[int(o)]
-				var n2 := (vs[g[1]] - vs[g[0]]).cross(vs[g[2]] - vs[g[0]])
-				if n1.dot(n2) <= 0.0:
-					bad += 1
+	for key in em:
+		var l: Array = em[key]
+		if l.size() != 2:
+			continue
+		if l[0][1] == l[1][1] or (nrm[l[0][0]] as Vector3).dot(nrm[l[1][0]]) <= 0.0:
+			bad += 1
 	return bad

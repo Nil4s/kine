@@ -430,6 +430,10 @@ func rebuild() -> void:
 		node_tags.append(tags)
 	var pr := project(node_pos)
 	node_pos = pr["pts"]
+	for i in node_pos.size():   # G16: a node on a boundary loop stays ON the loop's polyline (the surface projection would step off it)
+		for sid in node_tags[i]:
+			if int(sid) < 0:
+				node_pos[i] = _closest_on(sk[sid], pr["pts"][i] if false else (node_pos[i]))
 	for i in node_pos.size():
 		nodes.append({"pos": node_pos[i], "nrm": (pr["nrm"] as PackedVector3Array)[i], "hes": []})
 	# 4 arcs: along each stroke between consecutive node tags
@@ -495,6 +499,21 @@ func rebuild() -> void:
 	_topology()
 	auto_fix()
 	_layout_and_solve()
+
+
+func _closest_on(pl: PackedVector3Array, p: Vector3) -> Vector3:
+	var best := INF
+	var bp := p
+	for i in pl.size() - 1:
+		var ab := pl[i + 1] - pl[i]
+		var l2 := ab.length_squared()
+		var t := 0.0 if l2 < 1e-18 else clampf((p - pl[i]).dot(ab) / l2, 0.0, 1.0)
+		var c := pl[i] + ab * t
+		var d := p.distance_to(c)
+		if d < best:
+			best = d
+			bp = c
+	return bp
 
 
 func _avg(a: Array) -> float:
