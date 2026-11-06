@@ -90,6 +90,7 @@ var _plant_out := {}      # FootPlant.out_frames cache: {plant index: {"sig", "n
 var free_memo = null   # R2 (VideoCleanup.reachable): the plants-off reads of one reachable() call (PoseCache.plant_ref), null outside it, where the cards are fixed
 var drivers := []      # USER DRIVERS (GAP_ANALYSIS row 15): [{"driven", "axis", "source", "src_axis", "factor", "offset", "from"?}]; scripts/drivers.gd
 var cape := {}        # CAPE (ROADMAP 86; scripts/cloth.gd): the baked cloth frames; in the file as "cape" only when baked
+var soft := {}   # SOFT-BODY FLESH (L17; scripts/soft_body.gd): {"regions": ["belly", "thigh_l", ...]}; in the file as "soft" only when a region is on
 var secondary := {}   # SECONDARY MOTION (ROADMAP 26): {"items": [chains / rods], "keys": {"<name>_<i>": [[t, deg]]}, "fps"}; scripts/secondary_motion.gd; in the file as "secondary" only when there is an item
 var hair := {}         # HAIR STRANDS (ROADMAP 87): the ponytail's parameters (hair.gd); in the file as "hair" only when set; the frames are baked again on bake
 var rigx := []         # RIG FROM WORDS (J24; scripts/rig_words.gd): extra bone chains (tail, ears, cape); in the file as "rigx" only when there is one
@@ -1744,6 +1745,7 @@ func clone() -> Scene:
 	c.cons = cons.duplicate(true)   # constraints (constraints.gd)
 	c.drivers = drivers.duplicate(true)   # user drivers (drivers.gd)
 	c.secondary = secondary.duplicate(true)   # secondary motion (secondary_motion.gd)
+	c.soft = soft.duplicate(true)   # soft-body flesh regions (soft_body.gd)
 	c.hair = hair.duplicate(true)   # hair strands (hair.gd)
 	c.rigx = rigx.duplicate(true)   # the words-made rig (rig_words.gd)
 	c.bones = bones.duplicate(true)   # the user's extra bones (bone_editor.gd)
@@ -2377,6 +2379,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["drivers"] = Drivers.to_file(drivers)   # user drivers: the same, only when there is one
 	if not cape.is_empty():
 		out["cape"] = Cloth.to_file(cape)   # the cape: the baked frames, only when there is one
+	if not (soft.get("regions", []) as Array).is_empty():
+		out["soft"] = {"regions": (soft["regions"] as Array).duplicate()}   # soft-body flesh: only when a region is on
 	if not secondary.is_empty():
 		out["secondary"] = SecondaryMotion.to_file(secondary)   # secondary motion: the same, only when there is an item
 	if not hair.is_empty():
@@ -2420,6 +2424,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "held_parts": "free (
 	"attrs": "SIDED: CustomAttr.mirror_file (each attribute's id moves to its twin part: hand_r.grip -> hand_l.grip; min, max, default and keys free)",
 	"face": "SIDED: Face.mirror_file (brow_l <-> brow_r, eye_yaw negated; jaw, visemes, blink and eye pitch free)",
 	"drivers": "SIDED: Drivers.mirror_file (driven and source to their twins; each factor and offset reflected by its axes' signs)",
+	"soft": "SIDED: SoftBody.mirror_file (thigh_l <-> thigh_r, arm_l <-> arm_r; belly and chest have no side)",
 	"secondary": "SIDED: SecondaryMotion.mirror_file (the attach joint to its twin, the offset x negated, an x-swinging chain's angles negated)",
 	"plants": "SIDED: foot_l <-> foot_r (the times are free; scripts/foot_plant.gd)",
 	"asserts": "SIDED: BodyAssert.mirror_file (left <-> right, _l <-> _r in each line; fighters and times free)",
@@ -2491,6 +2496,8 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 		d2["asserts"] = BodyAssert.mirror_file(d2["asserts"])   # N002: left <-> right in each line
 	if d2.has("drivers"):
 		d2["drivers"] = Drivers.mirror_file(d2["drivers"], M)   # user drivers (drivers.gd), before S2 reads the file
+	if d2.has("soft"):
+		d2["soft"] = SoftBody.mirror_file(d2["soft"])   # soft-body flesh regions to their twins (soft_body.gd)
 	if d2.has("secondary"):
 		d2["secondary"] = SecondaryMotion.mirror_file(d2["secondary"])   # secondary motion (secondary_motion.gd)
 	if d2.has("constraints"):
@@ -2580,6 +2587,14 @@ func from_dict(d: Dictionary) -> void:
 	plants = FootPlant.from_file(d.get("plants", []))   # foot plants: absent = none
 	asserts = BodyAssert.from_file(d.get("asserts", []))   # N002 body assertions: absent = none
 	drivers = Drivers.from_file(d.get("drivers", []))   # user drivers: absent = none
+	soft = {}
+	if d.get("soft") is Dictionary and d["soft"].get("regions") is Array:
+		var rg := []
+		for n in d["soft"]["regions"]:
+			if SoftBody.REGIONS.has(String(n)) and not rg.has(String(n)):
+				rg.append(String(n))
+		if not rg.is_empty():
+			soft = {"regions": rg}   # soft-body flesh: absent = none
 	secondary = SecondaryMotion.from_file(d.get("secondary", {}))   # secondary motion: absent = none
 	hair = Hair.from_file(d.get("hair", {}))   # hair strands: absent = none
 	rigx = RigWords.from_file(d.get("rigx", []))   # the words-made rig: absent = none
