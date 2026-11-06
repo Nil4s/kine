@@ -8,7 +8,7 @@ extends PanelContainer
 const W := 290.0
 const MAX_ROWS_H := 250.0
 const GIZMO_W := 150.0   # the view cube and its buttons own the top-right corner: the panel stands left of them
-const TOP_Y := 80.0
+const TOP_Y := 82.0
 const BADGE_COL := {"look": Color(0.30, 0.62, 0.38), "print": Color(0.76, 0.52, 0.14), "engineering": Color(0.30, 0.46, 0.80)}
 
 var m: Node
@@ -130,7 +130,7 @@ func _place() -> void:
 		if spot.x >= 0.0:
 			break
 	if spot.x < 0.0:
-		spot = Vector2(maxf(vp.x - size.x - GIZMO_W, 8.0), TOP_Y)
+		spot = Vector2(maxf(vp.x - size.x - GIZMO_W, 8.0), _top_y())
 	position = spot
 	if narrow != was_nar or not position.is_equal_approx(was_pos):
 		places += 1   # counted when the strip actually moved or changed form: a side dialog whose width flaps by a scrollbar does not move it
@@ -173,6 +173,11 @@ func _obstacles() -> Array:
 
 
 ## the first top-row spot (left of the side dialog, right of the browser, left of the cube) that clears every obstacle, or (-1, -1)
+## L2: the top row is under the ribbon bar, whatever height the bar has now (a compact bar is taller)
+func _top_y() -> float:
+	return maxf(TOP_Y, m.ui_top_bar.get_global_rect().end.y + 1.0) if m.get("ui_top_bar") != null else TOP_Y
+
+
 func _free_spot(vp: Vector2, obs: Array) -> Vector2:
 	var want := get_combined_minimum_size()
 	var xs: Array = [vp.x - want.x - GIZMO_W]
@@ -181,19 +186,19 @@ func _free_spot(vp: Vector2, obs: Array) -> Vector2:
 		xs.append((r as Rect2).end.x + 4.0)
 	xs.sort()
 	xs.reverse()
-	if position.y == TOP_Y:   # a spot that is still clear stays (a dialog whose edge flaps by a scrollbar does not walk the strip)
+	if position.y == _top_y():   # a spot that is still clear stays (a dialog whose edge flaps by a scrollbar does not walk the strip)
 		xs.push_front(position.x)
 	for x in xs:
 		if x < 8.0 or x + want.x > vp.x - 8.0:
 			continue
-		var me := Rect2(Vector2(x, TOP_Y), want)
+		var me := Rect2(Vector2(x, _top_y()), want)
 		var clear := true
 		for r in obs:
 			if me.intersects(r):
 				clear = false
 				break
 		if clear:
-			return Vector2(x, TOP_Y)
+			return Vector2(x, _top_y())
 	return Vector2(-1, -1)
 
 
