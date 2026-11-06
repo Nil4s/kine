@@ -14,6 +14,7 @@ const SCHEMA := 1
 const FACTORY := "Factory"
 const PAGES := ["part", "assembly", "engineering", "animate"]
 const DOCKS := ["left", "right", "bottom", "float"]
+const DETACHABLE := ["timeline", "graph", "view2"]   # L37: panels that can live in their own OS window; "detached" holds id -> [x, y, w, h]
 const MIN_VIEW := 0.60
 const GAP := 8.0
 const TOP := 81.0          # the ribbon bar
@@ -78,7 +79,7 @@ static func factory() -> Dictionary:
 			var df: Dictionary = PANEL_DEFS[pg][id]
 			panels[id] = {"open": bool(df["open"]), "dock": String(df["dock"]), "order": int(df["order"]), "float": [320, 220, int(df["want"].x), int(df["want"].y)]}
 		pages[pg] = {"rail_w": RAIL_MIN, "splits": (SPLIT_OF[pg] as Dictionary).duplicate(), "panels": panels}
-	return {"pages": pages}
+	return {"pages": pages, "detached": {}}
 
 
 ## the right shape (every page, every panel a dictionary)? A wrong shape is a corrupt file, a wrong value is repaired by sanitize
@@ -117,6 +118,11 @@ static func sanitize(L: Dictionary) -> Dictionary:
 			var fl: Variant = Q.get("float", T["float"])
 			if fl is Array and (fl as Array).size() == 4:
 				T["float"] = [clampi(int(fl[0]), 0, 4000), clampi(int(fl[1]), 0, 4000), clampi(int(fl[2]), 0, 4000), clampi(int(fl[3]), 0, 4000)]
+	var dt: Dictionary = L.get("detached", {}) if L.get("detached", {}) is Dictionary else {}
+	for id in DETACHABLE:
+		var a: Variant = dt.get(id, null)
+		if a is Array and (a as Array).size() == 4 and (a as Array).all(func(v): return v is int or v is float):
+			out["detached"][id] = [clampi(int(a[0]), -16000, 16000), clampi(int(a[1]), -16000, 16000), clampi(int(a[2]), 160, 16000), clampi(int(a[3]), 100, 16000)]
 	return out
 
 
@@ -142,8 +148,10 @@ func names() -> Array:
 	return a
 
 
-func is_factory() -> bool:
-	return same(cur, factory())
+func is_factory() -> bool:   # detached windows do not count: they leave the docked panels where the app puts them
+	var c := cur.duplicate()
+	c["detached"] = {}
+	return same(c, factory())
 
 
 func serialize() -> String:
