@@ -11,6 +11,9 @@
 ##       FASTSAVE_GOLD=1 records them, a normal run compares)
 ##   U1  undo/redo exact: props+cards hash after undo == before the edit; the save after undo == the save before the edit
 ##   W1  a warm save makes 0 Scene.apply calls (Scene.apply_calls delta)
+##   G1  grounding equality: a dense set AROUND the body (every built-in kind, yaws, scales, tilted ones; 400 props) changes the pose, and the
+##       per-frame body state with the new grounding == with Body.legacy_ground (the pre-optimisation code), all frames; G2 control: the dense set
+##       really moves the body (state hash differs from the no-props run)
 ##   P1..P3 planted-fail controls: (P1) the comparison flags a one-byte change; (P2) a stale answer (the pre-edit save text) is flagged against the
 ##          post-edit reference; (P3) the bad_frames list is non-empty so E1 is not comparing two empties
 extends SceneTree
@@ -108,6 +111,49 @@ func gold_get() -> Dictionary:
 	return JSON.parse_string(FileAccess.get_file_as_string(GOLD))
 
 
+func frame_hashes() -> Array:
+	var out := []
+	var n := int(ceil(m.S.length() * m.S.fps))
+	for f in n + 1:
+		m.S.apply(m.B, float(f) / m.S.fps)
+		var st: Dictionary = m.B.state()
+		out.append(hash([st["ang"], st["offset"], m.B.P["foot_l"], m.B.P["foot_r"]]))
+	return out
+
+
+func ground_equality() -> void:
+	var keys: Array = Props.KINDS.keys()
+	var props := []
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 56
+	for i in 400:
+		var pos := Vector3(rng.randf_range(-2.0, 2.0), 0.0, rng.randf_range(-2.0, 2.0))
+		var pr := Props.make(keys[i % keys.size()], Props.xf_at(pos, rng.randf_range(0, 360)))
+		if i % 5 == 0:
+			pr["scale"] = rng.randf_range(0.5, 1.5)
+		if i % 9 == 0:
+			pr["xf"] = Transform3D(Basis(Vector3(1, 0, 0), rng.randf_range(-0.4, 0.4)) * (pr["xf"] as Transform3D).basis, (pr["xf"] as Transform3D).origin)
+		props.append(pr)
+	m.S.props = []
+	var h0 := frame_hashes()
+	m.S.props = props
+	Body.legacy_ground = true
+	var hl := frame_hashes()
+	Body.legacy_ground = false
+	var hn := frame_hashes()
+	var diff := 0
+	for i in hn.size():
+		if hn[i] != hl[i]:
+			diff += 1
+	var moved := 0
+	for i in hn.size():
+		if hn[i] != h0[i]:
+			moved += 1
+	ok(diff == 0, "G1 grounding: new == legacy on %d frames of a dense set (%d differ)" % [hn.size(), diff])
+	ok(moved > 0, "G2 control: the dense set moves the body on %d of %d frames" % [moved, hn.size()])
+	m.S.props = []
+
+
 func _init() -> void:
 	await boot()
 	var gold: Dictionary = gold_get()
@@ -193,6 +239,8 @@ func _init() -> void:
 		m._redo()
 		ok(save_text() == reference_text(), "U1 %d: the save after redo == reference" % n)
 		m._undo()
+	if not rec:
+		await ground_equality()
 	if rec:
 		DirAccess.make_dir_recursive_absolute("C:/Temp/claude/fastsave")
 		var f := FileAccess.open(GOLD, FileAccess.WRITE)
