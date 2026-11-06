@@ -1071,3 +1071,4 @@ EXTRA="$EXTRA render2:w"   # L51 RENDER2: native accumulate == GDScript, 1080p x
 EXTRA="$EXTRA tpaint:w"   # L53 TPAINT: texture paint across UV seams with screen projection, seam dilation, native == GDScript (tests/tpaint_test.gd)
 EXTRA="$EXTRA tpaint2:w"   # L55 TPAINT2: texture paint saved beside the scene (SHA-256 round trip, PNG missing = warning), the auto-unwrap is one undo step (tests/tpaint2_test.gd)
 EXTRA="$EXTRA perfscout:w"   # L54 PERF SCOUT: measures user-visible stalls (tools/perf_scout.gd), no speed bars
+EXTRA="$EXTRA kmeshnat:w"   # L60: KMesh from_array_mesh/rebuild/is_manifold, Catmull-Clark subdivide and boolean in C++ (KineKMeshNative), native == GDScript, speed bars (tests/kmeshnat_test.gd)
