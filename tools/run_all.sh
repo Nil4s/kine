@@ -1033,3 +1033,4 @@ EXTRA="$EXTRA ch16:w"   # ch16: Sony a7 / ILCE-7 class camera, separate Parts, m
 EXTRA="$EXTRA g30draw:w"   # G30DRAW: Assembly exact-solid plan/front/section drawing + rated power/signal schematic, SVG/PNG and UI export (gaps G30/G31)
 EXTRA="$EXTRA g21compare:w"   # g21compare: shared render-vs-reference stats and side-by-side (CompareShot)
 EXTRA="$EXTRA g3fits:w"   # G3FITS: ISO 286 fit classes on Part dimensions (iso_fits.gd, dim_fit.gd), mating-pair kind + clearance, stack-up panel (worst case, RSS, CSV), agent call fits, tests/g3fits_test.gd
+EXTRA="$EXTRA mcpfast:w"   # MCPFAST: the CAD tools of the local MCP (cad_part, cad_asm, check_fit, bom, eval_gd, batch), cache by record hash, terse replies, CH13 through MCP (tests/mcpfast_test.gd, docs/MCPFAST_FEEDBACK.md)
