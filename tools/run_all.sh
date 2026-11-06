@@ -1047,3 +1047,5 @@ EXTRA="$EXTRA face_geo2:w"   # L18 face polish
 EXTRA="$EXTRA soft:w"   # L17 soft-body
 EXTRA="$EXTRA install:w"   # L16 installer
 EXTRA="$EXTRA undotpl:w"   # L24 template undo
+EXTRA="$EXTRA softwire:w"   # L22 soft wiring
+EXTRA="$EXTRA layouts:w"   # L20 layouts

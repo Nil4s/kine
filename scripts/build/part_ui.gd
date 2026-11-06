@@ -2924,12 +2924,16 @@ func layout(cl: Rect2) -> void:
 	if side.size != ssz:
 		side.size = ssz
 	side.position = Vector2(cl.end.x - side.size.x - 8.0, cl.position.y + 6.0)
+	var docked: Dictionary = bu.shell.dock_apply("part", cl) if bu.shell != null else {}   # L20: a saved workspace layout places the browser / inspector / timeline
 	extras.reset_size()
 	extras.custom_minimum_size.x = PANEL_W
 	extras.size = Vector2(PANEL_W, minf(extras.get_combined_minimum_size().y, avail))
 	extras.position = Vector2(side.position.x - PANEL_W - 8.0, cl.position.y + 6.0)
 	note.reset_size()
 	note.position = Vector2(browser.position.x + BROWSER_W + 12.0, cl.position.y + 6.0)
+	if not docked.is_empty():   # L20: the note and the extras sit at the top of what the docks leave free
+		extras.position = Vector2(float(docked["free"].end.x) - PANEL_W - 4.0, cl.position.y + 6.0)
+		note.position = Vector2(float(docked["free"].position.x) + 4.0, cl.position.y + 6.0)
 	PartNoteFit.fit(note, note_l, m.get_viewport().get_visible_rect().size, [warn_ui, side])   # W02b: the whole status text, clear of the Look/Print panel
 	if bu.houses != null:
 		bu.houses.open_panel.visible = false

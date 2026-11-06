@@ -100,3 +100,11 @@ Anything that reads glTF 2.0 or BVH: three.js, Babylon.js, Cascadeur, MotionBuil
 - **Blender 4.5**: run (glTF import, FBX export and re-import, every scene).
 
 If you try one of these, the result (it worked, or what broke) is worth adding here.
+
+## Soft flesh is NOT in the exports (L22, known gap)
+
+The soft-body flesh (BODY page > Soft flesh, `scripts/soft_live.gd`) deforms the drawn skin in the viewport only. The FBX and glTF exports
+carry the skeleton animation and the skinned mesh, and the USD "point cache" (`<name>_points.usda`) is a Points prim of the JOINTS, not of
+skin vertices; none of them has a per-vertex channel, so the flesh offsets (`SoftBody.vertex_offsets`) have nowhere to go. An exported clip
+plays without the jiggle. Closing the gap needs a per-frame vertex cache (a USD PointBased mesh with time samples, or glTF morph targets
+weighted per frame) written from the same bake the viewport reads (`SoftLive.bake`); neither writer exists yet.
