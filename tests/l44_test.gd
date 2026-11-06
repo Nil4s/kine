@@ -28,6 +28,11 @@ extends SceneTree
 ##        CONTROL: the frictionless Ritter value 2.0 fails the band.
 ##   (L2) VOLUME: the smoothed volume (B-spline density at the cell centres, capped at rest density) relative to its own value at t = 0 stays within 1 %
 ##        over the M&M dam break to T = 5 (every 0.25 T) and over the Lobovsky run to tau = 2. CONTROL: 2 % of the particles deleted fails the bar.
+##   (W1) WALL LAW: a 3-cell-deep sheet sliding at 1 m/s over a no-slip smooth floor (gravity 0, h = 10 mm, nu = 1e-6) loses mean speed at the rate the
+##        smooth-wall log law predicts (u/u_tau = ln(E y u_tau/nu)/kappa, kappa 0.41, B 5.2, viscous u+ = y+ below y+ 11.06, y = h/2, wall stress on the first
+##        row du/dt = -u_tau^2/h; Prandtl/von Karman; Pope, Turbulent Flows 2000, sec. 7.1), integrated independently in the test: mean speed loss after
+##        0.25 s within 15 % of the prediction. CONTROL: law off must lose less than 10 % of the predicted loss.
+##   (W2) C++ == GDScript with the wall law on (16^3, 20 steps, every particle position and velocity within 1e-6).
 var fails := 0
 const G := 9.81
 const MMV_T := [0.41, 0.84, 1.19, 1.43, 1.63, 1.83, 1.98, 2.20, 2.32, 2.51, 2.65, 2.83, 2.97, 3.11]
@@ -50,6 +55,7 @@ func _init() -> void:
 	await _a_bars()
 	await _l1_lobovsky()
 	await _l2_volume()
+	await _w_law()
 	print("l44: %d fail  (%.0f s)" % [fails, (Time.get_ticks_msec() - t0) / 1000.0])
 	quit(1 if fails > 0 else 0)
 
@@ -225,3 +231,79 @@ func _l2_volume() -> void:
 	F.remove_every(50)
 	var d := absf(F.volume_smooth() * F.particle_count() / v0 - 1.0)
 	ok(d > 0.01, "(g) CONTROL (L2) 2 %% of the particles deleted reads %.2f %% drift and fails the same 1 %% bar (the bar can fail)" % [d * 100.0])
+
+
+## ----- (W1)/(W2) wall law
+const KAPPA := 0.41
+const BLOG := 5.2
+
+
+func _utau(u: float, y: float, nu: float) -> float:   # bisection on the log law, independent of the solver
+	if u <= 0.0:
+		return 0.0
+	var E := exp(KAPPA * BLOG)
+	var lo := 1e-9
+	var hi := u
+	for i in 100:
+		var m := 0.5 * (lo + hi)
+		var yp := y * m / nu
+		var up: float = yp if yp < 11.06 else log(E * yp) / KAPPA
+		if m * up > u:
+			hi = m
+		else:
+			lo = m
+	return 0.5 * (lo + hi)
+
+
+func _slide(law: bool, gd := false, steps := -1) -> float:
+	var F = Fluid.make(gd)
+	var h := 0.01
+	F.setup(62, 6, 8, h, Vector3.ZERO)
+	F.set_params(0.0, 0.2, 0.5, 0.005, 300, 1e-7)
+	F.set_threads(1)
+	if law:
+		F.set_wall_law(2, 1e-6)   # mask: bit 1 = walls normal to y (the floor)
+	F.add_fluid_box(Vector3(h, h, h), Vector3(0.31, 4.0 * h, 7.0 * h), Vector3(1.0, 0, 0), 1)
+	F.advance(0.25)
+	var d: PackedFloat64Array = F.particle_data()
+	var sum := 0.0
+	var n := d.size() / 6
+	for p in n:
+		sum += d[6 * p + 3]
+	return sum / n
+
+
+func _w_law() -> void:
+	var h := 0.01
+	var t := 0.0
+	var ub := 1.0
+	var dt := 1e-4
+	var loss := 0.0
+	while t < 0.25 - 1e-12:
+		var ut := _utau(ub, 0.5 * h, 1e-6)
+		ub = maxf(0.0, ub - dt * ut * ut / h)
+		loss += dt * ut * ut / 3.0 / h   # 3 rows: the mean speed of the sheet loses u_tau^2 dt / (3 h)
+		t += dt
+	var on := _slide(true)
+	var off := _slide(false)
+	print("      W1: predicted mean loss %.5f m/s, law on %.5f, law off %.5f" % [loss, 1.0 - on, 1.0 - off])
+	ok(absf((1.0 - on) - loss) <= 0.15 * loss, "(W1) wall law: mean speed loss %.5f m/s vs log-law prediction %.5f (bar within 15 %%)" % [1.0 - on, loss])
+	ok(absf(1.0 - off) < 0.10 * loss, "(g) CONTROL (W1) law off loses %.5f m/s, under 10 %% of the prediction (the bar can fail)" % [1.0 - off])
+	var out := []
+	for gd in [false, true]:
+		var F = Fluid.make(gd)
+		F.setup(16, 16, 16, 0.05, Vector3.ZERO)
+		F.set_params(9.81, 0.2, 0.5, 0.01, 300, 1e-6)
+		F.set_threads(1)
+		F.set_wall_law(7, 1e-6)
+		F.add_solid_box(Vector3(0.25, 0.05, 0.05), Vector3(0.55, 0.2, 0.5))
+		F.add_fluid_box(Vector3(0.1, 0.3, 0.1), Vector3(0.4, 0.5, 0.35), Vector3(0.2, 0, 0.1), 7)
+		for s in 20:
+			F.step(0.01)
+		out.append(F.particle_data())
+	var a: PackedFloat64Array = out[0]
+	var b: PackedFloat64Array = out[1]
+	var md := 0.0
+	for i in mini(a.size(), b.size()):
+		md = maxf(md, absf(a[i] - b[i]))
+	ok(a.size() == b.size() and a.size() > 0 and md <= 1e-6, "(W2) C++ == GDScript with the wall law on: %d values, max |diff| = %s (bar 1e-6)" % [a.size(), String.num_scientific(md)])
