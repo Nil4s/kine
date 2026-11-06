@@ -18,6 +18,7 @@ const CLUSTER := 2.5        # ... and hits closer than CLUSTER x spacing are one
 const SNAP := 3.0           # a stroke end within SNAP x spacing of a stroke is joined to it
 const FLAT_TURN := 0.5236   # rad (30 deg): a border turning less than this is straight
 const MAX_SIDES := 6
+const META := "retopo_record"   # G16: the mesh meta that keeps what the retopo did at the open edges
 
 var src: KMesh
 var tris := PackedInt32Array()
@@ -27,6 +28,12 @@ var hs := 0.01
 var edge_len := 0.1
 var iters := 20             # relaxation steps per patch (tests/sretopo_test.gd bar 4)
 var closed_src := true
+var open_policy := false    # G16: false = the old path (a region holding an open edge is skipped); true = boundary as side / close the hole
+var src0: KMesh             # the mesh as given (src is src0 with the closed holes filled)
+var holes: Array = []       # G16: [{key, n, len, diam, simple, mode, default}] one per boundary loop of src0
+var hole_override := {}     # key -> "side" / "close" chosen by the user
+var bstrokes := {}          # G16: negative id -> the boundary loop of a hole used as a side (closed polyline, the mesh's own vertices)
+var nt_src := 0             # triangles of src0 (the fill's triangles come after them)
 var strokes := {}           # id -> PackedVector3Array (resampled, on the surface)
 var next_id := 1
 var nodes: Array = []       # {"pos", "nrm", "hes": [half-edge ids sorted ccw]}
@@ -45,28 +52,89 @@ var _tri_adj := PackedInt32Array()
 var _mean_edge := 0.01
 
 
-func setup(mesh: KMesh, p_edge_len := -1.0) -> void:
-	src = mesh
-	tris = PackedInt32Array()
-	for f in mesh.faces:
-		for k in range(1, f.size() - 1):
-			tris.append(f[0])
-			tris.append(f[k])
-			tris.append(f[k + 1])
+func setup(mesh: KMesh, p_edge_len := -1.0, open := false) -> void:
+	open_policy = open
+	src0 = mesh
+	hole_override = {}
+	strokes = {}
+	_setup_core(p_edge_len)
+
+
+func _setup_core(p_edge_len: float) -> void:
+	var mesh := src0
 	var bb := AABB(mesh.verts[0], Vector3.ZERO)
 	for v in mesh.verts:
 		bb = bb.expand(v)
 	diag = bb.size.length()
 	hs = diag * HS_FRAC
 	edge_len = p_edge_len if p_edge_len > 0.0 else diag / 14.0
-	closed_src = mesh.boundary_edge_count() == 0
+	nt_src = 0
+	for f in mesh.faces:
+		nt_src += f.size() - 2
+	var work := mesh
+	holes = []
+	bstrokes = {}
+	if open_policy:
+		var to_close: Array = []
+		for lp in KMeshHoles.loops(mesh):
+			lp["default"] = lp["mode"]
+			if hole_override.has(lp["key"]) and lp["simple"]:
+				lp["mode"] = hole_override[lp["key"]]
+			holes.append(lp)
+			if lp["simple"] and lp["mode"] == KMeshHoles.MODE_CLOSE:
+				to_close.append(lp)
+			elif lp["simple"]:
+				var pl := PackedVector3Array()
+				for v in lp["verts"]:
+					pl.append(mesh.verts[v])
+				pl.append(mesh.verts[lp["verts"][0]])
+				bstrokes[-1 - holes.size() + 1] = pl
+		if not to_close.is_empty():
+			work = KMeshHoles.close(mesh, to_close)
+	src = work
+	tris = PackedInt32Array()
+	for f in work.faces:
+		for k in range(1, f.size() - 1):
+			tris.append(f[0])
+			tris.append(f[k])
+			tris.append(f[k + 1])
+	closed_src = work.boundary_edge_count() == 0
 	nat = null
+	_tri_adj = PackedInt32Array()
 	if NativeExt.ensure("kine_native", "KineRetopoNative"):
 		nat = ClassDB.instantiate("KineRetopoNative")
-		nat.set_source(mesh.verts, tris)
-	strokes = {}
+		nat.set_source(work.verts, tris)
 	_clear_derived()
 	solve_calls = 0
+
+
+## G16: change what one hole does ("side" / "close"); the strokes stay (put back on the new surface) and the network is rebuilt
+func set_hole_mode(key: int, mode: String) -> bool:
+	var found := false
+	for h in holes:
+		if h["key"] == key and h["simple"]:
+			found = true
+	if not found or (mode != KMeshHoles.MODE_SIDE and mode != KMeshHoles.MODE_CLOSE):
+		return false
+	hole_override[key] = mode
+	_setup_core(edge_len)
+	for id in strokes.keys():
+		strokes[id] = project(strokes[id])["pts"]
+	rebuild()
+	return true
+
+
+## G16: what the retopo did about the open edges, for the undo step and the file
+func record() -> Dictionary:
+	var hs_: Array = []
+	for h in holes:
+		hs_.append({"key": h["key"], "n": h["n"], "mode": h["mode"], "default": h["default"], "simple": h["simple"]})
+	var rs: Array = []
+	for i in patches.size():
+		var p: Dictionary = patches[i]
+		if p["valid"]:
+			rs.append({"patch": i, "mode": String(p.get("mode", "none")), "ok": bool(p["ok"])})
+	return {"policy": open_policy, "holes": hs_, "regions": rs, "skipped": skipped_regions().size()}
 
 
 func _clear_derived() -> void:
@@ -249,6 +317,9 @@ func rebuild() -> void:
 	var sk := {}   # the strokes as used here (the drawn ones are kept as drawn: a rebuild must not grow them)
 	for id in ids:
 		sk[id] = strokes[id]
+	for bid in bstrokes:   # G16: a boundary loop used as a side joins the network as a stroke made of the mesh's own vertices
+		ids.append(bid)
+		sk[bid] = bstrokes[bid]
 	# 1 ends: join a stroke end that is near another stroke by one more point on it
 	for id in ids:
 		var pl: PackedVector3Array = sk[id]
@@ -554,6 +625,16 @@ func _make_patch(ring: PackedInt32Array) -> void:
 	if corners.size() > MAX_SIDES:
 		p["valid"] = false
 		p["reason"] = "%d sides: more than %d" % [corners.size(), MAX_SIDES]
+	if open_policy:
+		var nb := 0
+		for h in ring:
+			if int(arcs[h >> 1]["stroke"]) < 0:
+				nb += 1
+		p["side"] = nb > 0
+		if nb == ring.size():   # the empty side of a boundary loop is not a region at all
+			p["valid"] = false
+			p["outside"] = true
+			p["reason"] = ""
 	var pi := patches.size()
 	patches.append(p)
 	if p["valid"]:
@@ -569,8 +650,19 @@ func _make_patch(ring: PackedInt32Array) -> void:
 ## the band's opening. So: the source triangles the strokes pass through are walls, the rest is flooded into regions, each cycle
 ## looks at the region on its left; a region that holds a boundary edge of the source, or is claimed by more than one cycle, is
 ## not a patch.
+func _assign_modes() -> void:
+	for p in patches:
+		var parts: Array = []
+		if p.get("side", false):
+			parts.append("boundary_side")
+		if p.get("fill", false):
+			parts.append("closed_hole")
+		p["mode"] = "none" if parts.is_empty() else "+".join(parts)
+
+
 func _flag_open_regions() -> void:
 	if nat == null:
+		_assign_modes()
 		return
 	var nt := tris.size() / 3
 	if _tri_adj.size() != nt * 3:
@@ -633,6 +725,10 @@ func _flag_open_regions() -> void:
 					stack.append(o)
 		open.append(is_open)
 		nc += 1
+	var fill_comp := {}
+	for t in range(nt_src, nt):
+		if comp[t] >= 0:
+			fill_comp[comp[t]] = true
 	var claims := {}   # region -> [patch indices]
 	for pi in patches.size():
 		var p: Dictionary = patches[pi]
@@ -641,6 +737,7 @@ func _flag_open_regions() -> void:
 		var c := _left_region(p, wall, comp)
 		if c < 0:
 			continue
+		p["fill"] = fill_comp.has(c)
 		if open[c]:
 			p["valid"] = false
 			p["reason"] = "this region holds the open edge of the mesh"
@@ -659,6 +756,7 @@ func _flag_open_regions() -> void:
 		if not patches[pi]["valid"]:
 			for h in patches[pi]["ring"]:
 				(arcs[h >> 1]["patches"] as Array).erase(pi)
+	_assign_modes()
 
 
 ## the flood region on the left of a patch's first half-edges (-1: none found next to them)
@@ -1091,6 +1189,8 @@ func stats() -> Dictionary:
 	var bad := 0
 	var skipped := 0
 	for p in patches:
+		if p.get("outside", false):
+			continue
 		if not p["valid"]:
 			skipped += 1
 		elif p["ok"]:

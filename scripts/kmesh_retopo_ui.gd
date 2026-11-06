@@ -21,6 +21,7 @@ var drawing := false
 var cur := PackedVector3Array()
 var hover_arc := -1
 var hover_stroke := -1
+var holes_box: VBoxContainer
 var mouse := Vector2.ZERO
 var panel: PanelContainer
 var status: Label
@@ -70,11 +71,12 @@ func start() -> void:
 		return
 	_mesh = ui.mesh
 	net = KMeshRetopoNet.new()
-	net.setup(ui.mesh)
+	net.setup(ui.mesh, -1.0, true)   # G16: open edges are offered (boundary as a side / close the hole), not skipped
 	on = true
 	_build_panel()
 	(panel.find_child("edge_len", true, false) as SpinBox).set_value_no_signal(net.edge_len * 100.0)
 	panel.visible = true
+	_rebuild_holes()
 	_refresh()
 	_say("Retopo: drag on the mesh to draw strokes; where they meet they make patches that fill with quads. Wheel over a side = its edge count, Delete over a stroke removes it, Enter bakes, Esc leaves%s" % ("" if net.nat != null else " (the native solver is not built: patches are not fitted to the surface)"))
 	ui._ov.queue_redraw()
@@ -122,6 +124,9 @@ func _build_panel() -> void:
 	sp.value_changed.connect(_on_edge_len)
 	row.add_child(sp)
 	vb.add_child(row)
+	holes_box = VBoxContainer.new()
+	holes_box.name = "holes"
+	vb.add_child(holes_box)
 	var bk := Button.new()
 	bk.name = "bake"
 	bk.text = "Bake to a new mesh (Enter)"
@@ -150,6 +155,53 @@ func _on_edge_len(cm: float) -> void:
 	_refresh()
 
 
+## G16: one row per open edge of the mesh: what the retopo does there
+func _rebuild_holes() -> void:
+	if holes_box == null or net == null:
+		return
+	for c in holes_box.get_children():
+		holes_box.remove_child(c)
+		c.free()
+	var i := 0
+	for h in net.holes:
+		i += 1
+		if not h["simple"]:
+			continue
+		var row := HBoxContainer.new()
+		row.add_child(ui.m._label("Open edge %d (%d verts)" % [i, int(h["n"])], 13, "text:0.8"))
+		var ob := OptionButton.new()
+		ob.name = "hole_%d" % int(h["key"])
+		ob.add_item("Use the boundary as a side", 0)
+		ob.add_item("Close the hole", 1)
+		ob.select(0 if h["mode"] == KMeshHoles.MODE_SIDE else 1)
+		ob.tooltip_text = "default for this open edge: %s" % ("use the boundary as a side (a neck or limb cut)" if h["default"] == KMeshHoles.MODE_SIDE else "close the hole (a small hole)")
+		ob.item_selected.connect(_on_hole_mode.bind(int(h["key"])))
+		row.add_child(ob)
+		holes_box.add_child(row)
+
+
+func _on_hole_mode(sel: int, key: int) -> void:
+	if net == null:
+		return
+	net.set_hole_mode(key, KMeshHoles.MODE_SIDE if sel == 0 else KMeshHoles.MODE_CLOSE)
+	_refresh()
+	_say("Retopo: %s" % status.tooltip_text.split("\n")[0])
+
+
+func mode_lines() -> PackedStringArray:
+	var lines: PackedStringArray = []
+	var i := 0
+	for h in net.holes:
+		i += 1
+		if h["simple"]:
+			lines.append("Open edge %d: %s%s" % [i, "boundary used as a side" if h["mode"] == KMeshHoles.MODE_SIDE else "hole closed", " (default)" if h["mode"] == h["default"] else " (chosen)"])
+	for pi in net.patches.size():
+		var p: Dictionary = net.patches[pi]
+		if p["valid"] and String(p.get("mode", "none")) != "none":
+			lines.append("Region %d: %s" % [pi + 1, String(p["mode"]).replace("boundary_side", "boundary as side").replace("closed_hole", "closed hole")])
+	return lines
+
+
 func _refresh() -> void:
 	if status == null or net == null:
 		return
@@ -163,9 +215,10 @@ func _refresh() -> void:
 		var lines: PackedStringArray = []
 		for r in skipped:
 			lines.append("Region %d: %s" % [int(r["patch"]) + 1, String(r["reason"])])
+		lines.append_array(mode_lines())
 		status.tooltip_text = "\n".join(lines)
 	else:
-		status.tooltip_text = ""
+		status.tooltip_text = "\n".join(mode_lines())
 	status.text = t
 	ui._ov.queue_redraw()
 
@@ -201,11 +254,17 @@ func bake() -> String:
 		_say("Retopo: nothing to bake yet: draw strokes that close at least one region of 2 to 6 sides")
 		return last_said
 	var nq := k.faces.size()
+	var rec := net.record()
+	var old_rec: Variant = ui.mesh.get_meta(KMeshRetopoNet.META, null)
 	ui.undo.begin(ui.mesh)
 	for an in ui.mesh.list_attrs():
 		ui.mesh.remove_attr(an)
 	ui.mesh.from_arrays(k.verts, k.faces)
-	ui.undo.commit("Retopo bake")
+	var st: Dictionary = ui.undo.commit("Retopo bake")
+	ui.mesh.set_meta(KMeshRetopoNet.META, rec)   # G16: which open edges were sides / closed travels with the mesh (undo, save)
+	if not st.is_empty():
+		st["rr_old"] = old_rec
+		st["rr_new"] = rec
 	ui.sel.clear()
 	ui.view.mark_dirty()
 	if not ui.view.show_heat:
@@ -409,7 +468,7 @@ func _draw() -> void:
 		var a: Dictionary = net.arcs[ai]
 		var pl2: PackedVector3Array = a["pts"]
 		var hov := ai == hover_arc
-		var col := Tok.c("pick_hover") if hov else Color(1.0, 0.85, 0.2, 0.95)
+		var col := Tok.c("pick_hover") if hov else (Color(0.3, 0.85, 1.0, 0.95) if int(a["stroke"]) < 0 else Color(1.0, 0.85, 0.2, 0.95))
 		var prev2: Variant = null
 		for pt in pl2:
 			var s2: Variant = _scr(pt)
