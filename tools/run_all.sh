@@ -1060,3 +1060,4 @@ EXTRA="$EXTRA splineik:w"   # L28: spline IK on bone chains + stretchy limbs (te
 EXTRA="$EXTRA detach:w"   # L37 detach timeline / graph / second view into OS windows (tests/detach_test.gd)
 EXTRA="$EXTRA simcache:w"   # L35: sim cache, Bake sim to a point-cache file the timeline scrubs (tests/simcache_test.gd)
 EXTRA="$EXTRA stretchskin:w"   # L33: the skin follows stretch + volume, spline chains drive the spine, exports carry the stretch (tests/stretchskin_test.gd)
+EXTRA="$EXTRA n041:w"   # N041 lock truth: partner joint limits judge an armbar / wristlock / kimura (tests/n041_test.gd, scripts/lock_truth.gd)
