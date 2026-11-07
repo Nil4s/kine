@@ -230,7 +230,6 @@ func _init() -> void:
 	var sf2 := lean_scene(b_soft)
 	var sc := lean_scene(4.0)
 	var clips := {"chain": [cf, cc], "landing": [lf, lc], "stance": [sf, sc]}
-	var kinds := {"chain": "chain", "landing": "landing", "stance": "stance"}
 	# ---- 1 / 6: the faults
 	var rc := run_one("chain", cf)
 	var rl := run_one("landing", lf)
@@ -282,14 +281,14 @@ func _init() -> void:
 		for other in clips:
 			if other == k:
 				continue
-			var r := Callable(Teach, k).call(clips[other][0], body())
+			var r: Dictionary = Callable(Teach, k).call(clips[other][0], body())
 			ok(int(r.get("n", -1)) == 0, "2 %s explainer on the %s fault clip: 0 findings" % [k, other])
 	# ---- 3 fix
 	for pair in [["chain", cf, fc], ["landing", lf, fl], ["stance", sf, fs]]:
 		var S0: Scene = pair[1]
 		var sig := var_to_str(S0.cards)
 		var Sx: Scene = Teach.fixed(S0, body(), pair[2])
-		var r := Callable(Teach, pair[0]).call(Sx, body())
+		var r: Dictionary = Callable(Teach, pair[0]).call(Sx, body())
 		ok(var_to_str(S0.cards) == sig and Sx != S0 and int(r.get("n", -1)) == 0, "3 %s: the fix gives a new scene, the original is unchanged, and the re-check is clean (%s)" % [pair[0], String(pair[2].get("fix", {}).get("say", "")).left(140)])
 		if pair[0] == "chain":
 			var lead := float(r.get("measure", {}).get("lead_ms", 0.0))

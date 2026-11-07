@@ -258,7 +258,7 @@ static func _stance_fix(S: Scene, B: Body, k: int, t: float) -> Dictionary:
 	var B2 := Body.new()
 	B2.load_files(PoseBake.SKEL, PoseBake.LIMS)
 	var ang0 := _ang_of(B2, base_pose)
-	var sign := 1.0
+	var sgn := 1.0
 	var best_m := -INF
 	for sg in [-1.0, 1.0]:
 		C.cards[k]["pose"] = _lean_pose(B2, ang0, base_pose, sg * 2.0)
@@ -266,13 +266,13 @@ static func _stance_fix(S: Scene, B: Body, k: int, t: float) -> Dictionary:
 		var mg := float(Balance.read(B)["margin"])
 		if mg > best_m:
 			best_m = mg
-			sign = sg
+			sgn = sg
 	var d := 2.0
 	while d <= 80.0:
-		C.cards[k]["pose"] = _lean_pose(B2, ang0, base_pose, sign * d)
+		C.cards[k]["pose"] = _lean_pose(B2, ang0, base_pose, sgn * d)
 		C.apply(B, t)
 		if float(Balance.read(B)["margin"]) >= FIX_MARGIN:
-			return {"found": true, "delta": sign * d}
+			return {"found": true, "delta": sgn * d}
 		d += 2.0
 	return {"found": false, "delta": 0.0}
 
@@ -289,7 +289,7 @@ static func _lean_pose(B2: Body, ang0: Dictionary, base_pose: Dictionary, delta:
 # ---------------------------------------------------------------- fixed
 
 ## a CLONE of S with the finding's fix applied (S itself is not changed)
-static func fixed(S: Scene, B: Body, f: Dictionary) -> Scene:
+static func fixed(S: Scene, _B: Body, f: Dictionary) -> Scene:
 	var C := S.clone()
 	var fix: Dictionary = f.get("fix", {})
 	var B2 := Body.new()
