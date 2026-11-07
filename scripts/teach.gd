@@ -52,7 +52,7 @@ static func _frame(t: float) -> int:
 
 
 static func _ang_of(B: Body, pose: Dictionary) -> Dictionary:
-	Scene.put(B, Moves._flat(pose))
+	Scene.put(B, Moves._flat(pose), true)   # as stored: a clip posed past the limits (free_limits, a video import) is read as it is
 	return B.ang.duplicate(true)
 
 
@@ -281,10 +281,10 @@ static func _stance_fix(S: Scene, B: Body, k: int, t: float) -> Dictionary:
 
 
 static func _lean_pose(B2: Body, ang0: Dictionary, base_pose: Dictionary, delta: float, axis := 0) -> Dictionary:
-	Scene.put(B2, Moves._flat(base_pose))
+	Scene.put(B2, Moves._flat(base_pose), true)
 	for j in SPINE:
 		var a: Vector3 = ang0[j]
-		B2.set_ang(j, Vector3(a.x + (delta if axis == 0 else 0.0), a.y + (delta if axis == 1 else 0.0), a.z))
+		B2.ang[j] = (Vector3(a.x + (delta if axis == 0 else 0.0), a.y + (delta if axis == 1 else 0.0), a.z))
 	B2.fk()
 	return B2.to_dict()
 
