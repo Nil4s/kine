@@ -331,10 +331,9 @@ func input(ev: InputEvent) -> bool:
 		var k := ke.keycode
 		if ke.ctrl_pressed and (k == KEY_Z or k == KEY_Y):
 			var re := k == KEY_Y or ke.shift_pressed
-			var lb: String = ed.undo.redo() if re else ed.undo.undo()
+			m._redo() if re else m._undo()   # L126: the one ordered log (P12), not this mesh's list alone
 			ed.view.mark_dirty()
 			_heat_dirty = true
-			m._say("Model: %s %s" % ["redone" if re else "undone", lb] if lb != "" else "Model: nothing to %s" % ("redo" if re else "undo"))
 			return true
 		if ke.echo:
 			return false

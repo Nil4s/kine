@@ -35,6 +35,47 @@ func take(back: bool, has: Callable) -> Dictionary:
 	return {}
 
 
+## a History-panel jump swapped the pose list: keep exactly `n_done` pose entries on the undo side and `n_redo` on the redo side.
+## The newest surplus pose entries go to the redo side (their mesh / assembly neighbours stay done: the jump did not touch them);
+## a shortfall is taken back from the redo side, then made up with fresh entries on `page`
+func sync_pose(n_done: int, n_redo: int, page: String) -> void:
+	var cnt := 0
+	for e in done:
+		if e["k"] == "pose":
+			cnt += 1
+	var i := done.size() - 1
+	while cnt > n_done and i >= 0:
+		if done[i]["k"] == "pose":
+			redone.append(done[i])
+			done.remove_at(i)
+			cnt -= 1
+		i -= 1
+	var j := redone.size() - 1
+	while cnt < n_done and j >= 0:
+		if redone[j]["k"] == "pose":
+			done.append(redone[j])
+			redone.remove_at(j)
+			cnt += 1
+		j -= 1
+	while cnt < n_done:
+		done.push_front({"k": "pose", "page": page, "u": null})
+		cnt += 1
+	var rc := 0
+	for e in redone:
+		if e["k"] == "pose":
+			rc += 1
+	var k := 0
+	while rc > n_redo and k < redone.size():
+		if redone[k]["k"] == "pose":
+			redone.remove_at(k)
+			rc -= 1
+		else:
+			k += 1
+	while rc < n_redo:
+		redone.push_front({"k": "pose", "page": page, "u": null})
+		rc += 1
+
+
 ## the entry moved to the other side after its step was taken
 func give(e: Dictionary, back: bool) -> void:
 	(redone if back else done).append(e)

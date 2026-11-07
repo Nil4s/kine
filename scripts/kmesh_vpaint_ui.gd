@@ -271,6 +271,13 @@ func _local(wp: Vector3) -> Vector3:
 	return view.global_transform.affine_inverse() * wp
 
 
+## the ordered log takes a texture stroke back (back) or forward
+func tex_undo_redo(back: bool) -> void:
+	var r: bool = tp.undo() if back else tp.redo()
+	_tex_refresh()
+	m._say("Paint: texture stroke %s" % (("undone" if back else "redone") if r else "- nothing to take"))
+
+
 ## F / the panel / "op:vpaint_fill": the model's selection takes the colour (blend mode, strength), one undo step
 func fill_selection() -> void:
 	ui = _model()
@@ -329,12 +336,7 @@ func input(ev: InputEvent) -> bool:
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var ke := ev as InputEventKey
 		if tex_mode and ke.ctrl_pressed and ke.keycode == KEY_Z and tp != null:
-			if ke.shift_pressed:
-				tp.redo()
-			elif not tp.undo():
-				return false
-			_tex_refresh()
-			m._say("Paint: texture stroke %s" % ("redone" if ke.shift_pressed else "undone"))
+			m._redo() if ke.shift_pressed else m._undo()   # L126: the one ordered log (P12); tex_undo_redo takes the texture step
 			return true
 		if ke.ctrl_pressed or ke.alt_pressed:
 			return false   # Ctrl+Z and the rest: the model preview's
@@ -394,6 +396,8 @@ func input(ev: InputEvent) -> bool:
 		_stroking = false
 		if tex_mode:
 			var tn := tp.end_stroke()
+			if tn > 0:
+				m._pu_note("tex", m.cur_page, tp)   # L126: the texture stroke joins the ordered log
 			m._say("Paint: one texture stroke (%d texels), one undo step (Ctrl+Z takes it back)" % tn)
 			return true
 		vp.end()

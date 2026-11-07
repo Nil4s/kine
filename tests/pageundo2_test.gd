@@ -101,10 +101,21 @@ func vbytes(v: PackedVector3Array) -> PackedByteArray:
 
 ## the whole mesh: verts, faces and every attribute channel (bones, weights, mask ...)
 func msig(mm) -> PackedByteArray:
-	var chans := {}
-	for k in mm.attrs.keys():
-		chans[k] = mm.attrs[k]
-	return vbytes(mm.verts) + var_to_bytes(mm.faces) + var_to_bytes(chans)
+	var ch := []
+	for nm in [KMeshWPaint.CH_BONES, KMeshWPaint.CH_WEIGHTS]:
+		ch.append(mm.attr_data(nm) if mm.has_attr(nm) else [])
+	return vbytes(mm.verts) + var_to_bytes(mm.faces) + var_to_bytes(ch)
+
+
+## a measurement line (no bar): the log and the lists as they are now
+func dbg(tag: String) -> void:
+	var ks := []
+	for e in m.pu.done:
+		ks.append(String(e["k"])[0] + ":" + String(e["page"]).left(2))
+	var kr := []
+	for e in m.pu.redone:
+		kr.append(String(e["k"])[0] + ":" + String(e["page"]).left(2))
+	print("dbg %s: page %s, pose undo/redo %d/%d, kmed steps/redos %d/%d, log done %s redone %s" % [tag, m.cur_page, m.undo.size(), m.redo.size(), m.kmed.undo.steps.size(), m.kmed.undo.redos.size(), str(ks), str(kr)])
 
 
 func pose_sig() -> PackedByteArray:
@@ -167,7 +178,7 @@ func seg_a() -> void:
 	ok(hp.x >= 0.0, "(0) a screen point %s hits the body mesh" % str(hp))
 	var S0 := msig(kd.mesh)
 	await drag(hp, hp + Vector2(40, 0))
-	var S1 := msig(kd.mesh)
+	var S1 := msig(kd.mesh)   # sculpt-time reading, only for the S0 != S1 control
 	# back to the body editor (the Esc of the sculpt) and weight paint
 	m._page_set("MODEL")
 	await idle(4)
@@ -189,6 +200,7 @@ func seg_a() -> void:
 	wp.radius = 0.04
 	var hw := hit_point(kd.view)
 	ok(wp.on and bid >= 0 and hw.x >= 0.0, "(0) weight paint is on, bone '%s', a hit point %s" % [wp.bone_name(bid), str(hw)])
+	S1 = msig(kd.mesh)   # moved after the first run: the reading just before the weight stroke (the verts are the sculpt's, the weight channels untouched)
 	await click_at(hw)
 	var S2 := msig(kd.mesh)
 	# the pose key (on the mesh page: the body stays open)
@@ -197,14 +209,18 @@ func seg_a() -> void:
 	var p1 := pose_sig()
 	ok(S0 != S1 and S1 != S2 and p0 != p1 and m.cur_page == "MODEL",
 		"(1) three edits: body sculpt stroke %s, weight stroke %s, pose key %s; page %s" % [S0 != S1, S1 != S2, p0 != p1, m.cur_page])
+	dbg("after 3 edits")
 	# 2..4 undo
 	await key(KEY_Z, true)
+	dbg("undo1")
 	ok(pose_sig() == p0 and msig(kd.mesh) == S2 and m.cur_page == "MODEL",
 		"(2) Ctrl+Z #1: the pose key is back (%s), the body mesh still S2 (%s), page %s" % [pose_sig() == p0, msig(kd.mesh) == S2, m.cur_page])
 	await key(KEY_Z, true)
+	dbg("undo2")
 	ok(msig(kd.mesh) == S1 and pose_sig() == p0 and m.cur_page == "MODEL",
 		"(3) Ctrl+Z #2: the weight stroke is back, mesh byte-identical to S1 (%s), pose p0 (%s), page %s" % [msig(kd.mesh) == S1, pose_sig() == p0, m.cur_page])
 	await key(KEY_Z, true)
+	dbg("undo3")
 	ok(msig(kd.mesh) == S0 and m.cur_page == "MODEL",
 		"(4) Ctrl+Z #3: the body sculpt stroke is back, mesh byte-identical to S0 (%s), page %s" % [msig(kd.mesh) == S0, m.cur_page])
 	# 5 redo in reverse
@@ -214,6 +230,7 @@ func seg_a() -> void:
 	var r2: bool = msig(kd.mesh) == S2 and pose_sig() == p0 and m.cur_page == "MODEL"
 	await key(KEY_Z, true, true)
 	var r3: bool = pose_sig() == p1 and msig(kd.mesh) == S2 and m.cur_page == "MODEL"
+	dbg("redo3")
 	ok(r1 and r2 and r3, "(5) Ctrl+Shift+Z x3: sculpt stroke %s, weight stroke %s, pose key %s" % [r1, r2, r3])
 	# 6 GRS (the Blender-style layer on: bl_keys used to take its own Ctrl+Z first)
 	KMeshWPaintUI.toggle(m)
@@ -233,7 +250,10 @@ func seg_a() -> void:
 	ok(gact and S3 != S2 and pg != p1 and m.blk.active == "", "(6) GRS: G started %s, kept as a step (mesh changed %s), then a pose key (%s)" % [gact, S3 != S2, pg != p1])
 	await key(KEY_Z, true)
 	var g1: bool = pose_sig() == p1 and msig(kd.mesh) == S3
+	dbg("grs undo1")
 	await key(KEY_Z, true)
+	dbg("grs undo2")
+	print("dbg g2 parts: mesh==S2 %s mesh==S3 %s pose==p1 %s pose==pg %s" % [msig(kd.mesh) == S2, msig(kd.mesh) == S3, pose_sig() == p1, pose_sig() == pg])
 	var g2: bool = msig(kd.mesh) == S2 and pose_sig() == p1
 	await key(KEY_Z, true, true)
 	var g3: bool = msig(kd.mesh) == S3
@@ -255,11 +275,13 @@ func seg_a() -> void:
 	m._page_set("MODEL")
 	await idle(3)
 	var U: int = m.undo.size()
+	dbg("before jump")
 	m._history_go(U - 2)
 	await idle(3)
 	var jumped: bool = pose_sig() == pg and msig(kd.mesh) == S4 and m.undo.size() == U - 2
 	ok(on_surface and S4 != S3 and jumped and m.cur_page == "MODEL",
 		"(7) jump in the History list to the state after the GRS key: pose is pg %s, mesh untouched S4 %s, %d -> %d steps; k3 was made on SURFACE (%s); page %s" % [pose_sig() == pg, msig(kd.mesh) == S4, U, m.undo.size(), on_surface, m.cur_page])
+	dbg("after jump")
 	await key(KEY_Z, true)
 	var j1: bool = msig(kd.mesh) == S3 and pose_sig() == pg and m.cur_page == "MODEL"
 	print("measure: after the jump Ctrl+Z #1 -> mesh back to S3 %s, pose untouched %s, page %s" % [msig(kd.mesh) == S3, pose_sig() == pg, m.cur_page])
