@@ -21,7 +21,7 @@ var fails := 0
 var m: Node
 var recording := false
 # hashes of a mouse stroke on the UNCHANGED code (filled by the record run before the implementation)
-var BASE := {}
+var BASE := {"sculpt": "1262233245", "vpaint": "3944612707", "vpaint_r": "3944612707", "tex": "330585316", "tex_r": "330585316", "wpaint": "1136876736", "wpaint_r": "1136876736"}
 
 
 func ok(c: bool, what: String) -> void:
@@ -340,7 +340,7 @@ func wpaint_part() -> void:
 
 
 func _init() -> void:
-	recording = OS.get_cmdline_user_args().has("record") or BASE.is_empty()
+	recording = OS.get_cmdline_user_args().has("record")
 	await sculpt_part()
 	await vpaint_part()
 	await wpaint_part()
