@@ -79,3 +79,49 @@ static func ang(deg: float) -> String:
 ## seconds and the frame rate -> "0.40 s (12 f)". The frame is rounded to the nearest whole frame.
 static func time(s: float, fps: float) -> String:
 	return "%.2f s (%d f)" % [s, roundi(s * fps)]
+
+
+## L118: a length that used to print as bare metres ("%.2f m"): cm mode keeps that text, m / in write the unit's own number
+static func metres(m: float, dp: int) -> String:
+	return ("%." + str(dp) + "f m") % m if unit == "cm" else fmt_as(m, unit)
+
+
+## a length that used to print as bare centimetres ("%.1f cm", "%.0f cm"): cm mode keeps that text
+static func fixed(m: float, dp: int) -> String:
+	return ("%." + str(dp) + "f cm") % (m * 100.0) if unit == "cm" else fmt_as(m, unit)
+
+
+## an area (m^2): "500.0 cm²", "0.05 m²", "77.5 in²" (m / in: 8 decimals trimmed, so small areas keep 1e-6 relative)
+static func area(m2: float) -> String:
+	if unit == "cm":
+		return "%.1f cm²" % (m2 * 10000.0)
+	var f := float(M_PER[unit])
+	return "%s %s²" % [String.num(m2 / (f * f), 8), unit]
+
+
+## a volume (m^3): "500 cm³ (0.500 L)", "0.0005 m³ (0.500 L)", "30.5 in³ (0.500 L)"
+static func vol(m3: float) -> String:
+	var lit := " (%.3f L)" % (m3 * 1000.0)
+	if unit == "cm":
+		return "%.0f cm³" % (m3 * 1000000.0) + lit
+	var f := float(M_PER[unit])
+	return "%s %s³" % [String.num(m3 / (f * f * f), 8), unit] + lit
+
+
+## the shot-camera banner: lens in mm, f-stop, and the focus distance as a length (NAN focus = none keyed)
+static func shot_readout(mm: float, fstop: float, focus_m: float) -> String:
+	var s := "SHOT CAMERA  %.0f mm  16:9" % mm
+	if not is_nan(focus_m):
+		s += "  f/%.1f  focus %s" % [fstop, metres(focus_m, 2)]
+	return s
+
+
+## the number typed after E / I: metres in cm mode (as always: "E 0.3 Enter"), else in the user's unit. NAN when it is no number.
+static func typed_m(text: String) -> float:
+	if not text.is_valid_float():
+		return NAN
+	return text.to_float() if unit == "cm" else from_unit(text.to_float())
+
+
+static func typed_text(text: String) -> String:
+	return "type %s" % text if unit == "cm" else "type %s %s" % [text, unit]

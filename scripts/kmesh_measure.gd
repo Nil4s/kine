@@ -150,17 +150,15 @@ static func mass(m3: float, kg_m3: float) -> float:
 # ---------------------------------------------------------------- text
 
 static func fmt_len(m: float) -> String:
-	if Units.unit != "cm":   # P14: m / in through units.gd
-		return Units.len(m)
-	return "%.2f cm" % (m * CM) if m < 0.1 else "%.1f cm" % (m * CM)
+	return Units.fixed(m, 2) if m < 0.1 else Units.fixed(m, 1)   # P14 / L118: cm keeps its decimals, m / in through units.gd
 
 
 static func fmt_area(m2: float) -> String:
-	return "%.1f cm²" % (m2 * CM2)
+	return Units.area(m2)
 
 
 static func fmt_vol(m3: float) -> String:
-	return "%.0f cm³ (%.3f L)" % [m3 * CM3, m3 * L_PER_M3]
+	return Units.vol(m3)
 
 
 static func fmt_mass(kg: float) -> String:

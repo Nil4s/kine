@@ -4989,7 +4989,7 @@ static func _fighters_measure(hs: Scene, others: Array) -> Dictionary:
 		var who: String = names[0] if h["by"] == "hero" else names[h["vs"]]
 		var whom: String = names[h["vs"]] if h["by"] == "hero" else names[0]
 		var what: String = "weapon" if Body.is_wep(h["part"]) else String(h["part"])
-		txt += "\n%.2fs  %s  %s: %s's %s on %s's %s  %.1f m/s  %.1f cm deep" % [h["t"], h["zone"], h["kind"], who, what, whom, h["on"], h["speed"], float(h["depth"]) * 100.0]
+		txt += "\n%.2fs  %s  %s: %s's %s on %s's %s  %.1f m/s  %s deep" % [h["t"], h["zone"], h["kind"], who, what, whom, h["on"], h["speed"], Units.fixed(float(h["depth"]), 1)]
 		if float(h["u"]) >= 0.0:
 			txt += "  (%s up)" % Units.len(float(h["u"]))
 	return {"txt": txt, "hits": all}
@@ -5015,7 +5015,7 @@ func _fighters_mark() -> void:
 	var at: Vector3 = _stage_xf() * Dummy.cross_at(hb, actors_rt[bk]["B"], actors_rt[bk]["xf"], best)   # hero space -> the view's
 	hit_dot.position = at
 	hit_tag.position = at + Vector3(0, 0.12, 0)
-	hit_tag.text = "%s  (%s, %.1f cm)" % [Dummy.cross_name(best).get_slice("|", 1), best[3], float(best[2]) * 100.0]
+	hit_tag.text = "%s  (%s, %s)" % [Dummy.cross_name(best).get_slice("|", 1), best[3], Units.fixed(float(best[2]), 1)]
 
 
 ## the playhead to contact i of the fighters' report (its row in the browser)
@@ -9269,7 +9269,7 @@ func _ikh_move(mp: Vector2) -> void:
 	_refresh()
 	var tip: String = _ikh_drag["tip"]
 	_say("MOVING the IK %s of the %s%s" % [_ikh_drag["kind"], _ik_words(tip),
-		("     out of reach by %.1f cm" % (float(r["miss"]) * 100.0)) if float(r["miss"]) > 0.002 else ""])
+		("     out of reach by %s" % Units.fixed(float(r["miss"]), 1)) if float(r["miss"]) > 0.002 else ""])
 
 
 ## the dragged limb solved onto the live target / pole (and mixed by the weight). IK3: the pin wins over the grip; the
@@ -9643,7 +9643,7 @@ func _sph_move(mp: Vector2) -> void:
 	_refresh()
 	var cl: Array = r["clamped"]
 	_say("MOVING the spine spline %s%s%s" % [d["kind"], ("     a limit holds the %s" % ", ".join(cl.map(func(j): return nice(j)))) if not cl.is_empty() else "",
-		("     the chest is %.1f cm from its handle" % (float(r["miss"]) * 100.0)) if float(r["miss"]) > 0.002 else ""])
+		("     the chest is %s from its handle" % Units.fixed(float(r["miss"]), 1)) if float(r["miss"]) > 0.002 else ""])
 
 
 func _sph_release() -> void:
@@ -16805,9 +16805,9 @@ func next_step() -> Dictionary:
 	if not sk.is_empty() and dummy_on and float(sk["gap"]) > STRIKE_LANDS:
 		if float(sk["aim_gap"]) > STRIKE_LANDS * 0.2:
 			if T.dist > 0.61:
-				return {"text": "Dummy closer: the arm cannot reach its head from %s (the fist stops %.0f cm short)" % [Units.len(T.dist), float(sk["gap"]) * 100.0], "cmd": "Dummy closer", "kind": "dummy"}
+				return {"text": "Dummy closer: the arm cannot reach its head from %s (the fist stops %s short)" % [Units.len(T.dist), Units.fixed(float(sk["gap"]), 0)], "cmd": "Dummy closer", "kind": "dummy"}
 		else:
-			return {"text": "Land the punch: its fist ends %.0f cm from the dummy's head (Strike: aim the fist at the dummy's head)" % (float(sk["gap"]) * 100.0), "cmd": "Strike: aim the fist at the dummy's head", "kind": "aim"}
+			return {"text": "Land the punch: its fist ends %s from the dummy's head (Strike: aim the fist at the dummy's head)" % Units.fixed(float(sk["gap"]), 0), "cmd": "Strike: aim the fist at the dummy's head", "kind": "aim"}
 	return {"text": "Export this clip (Export...)", "cmd": "Export...", "kind": "export"}
 
 
@@ -16897,9 +16897,9 @@ func _strike_aim() -> void:
 		playhead = S.times()[i][1]
 		_rebuild_cards())
 	if gap > 0.01:
-		_say("card %d '%s': the %s fist stops %.0f cm from the dummy's head: it is out of arm's reach, so press Dummy closer, then this again" % [i + 1, S.cards[i]["name"], "left" if hand == "hand_l" else "right", gap * 100.0])
+		_say("card %d '%s': the %s fist stops %s from the dummy's head: it is out of arm's reach, so press Dummy closer, then this again" % [i + 1, S.cards[i]["name"], "left" if hand == "hand_l" else "right", Units.fixed(gap, 0)])
 	else:
-		_say("card %d '%s': the %s fist now lands on the dummy's head (gap %.1f cm).  Run Check, then Ctrl+Z takes it back" % [i + 1, S.cards[i]["name"], "left" if hand == "hand_l" else "right", gap * 100.0])
+		_say("card %d '%s': the %s fist now lands on the dummy's head (gap %s).  Run Check, then Ctrl+Z takes it back" % [i + 1, S.cards[i]["name"], "left" if hand == "hand_l" else "right", Units.fixed(gap, 1)])
 
 
 func _next_sync() -> void:
@@ -19338,7 +19338,7 @@ func _stay_in_place() -> void:
 		wt.mark_dirty()
 		_rebuild_cards()
 		S.apply(B, playhead))
-	_say("stay in place: the hips' travel removed from %d cards (they had moved up to %.2f m on the floor).  Ctrl+Z takes it back in one step; nothing is saved until you save" % [m.get("cards", 0), m.get("metres", 0.0)])
+	_say("stay in place: the hips' travel removed from %d cards (they had moved up to %s on the floor).  Ctrl+Z takes it back in one step; nothing is saved until you save" % [m.get("cards", 0), Units.metres(float(m.get("metres", 0.0)), 2)])
 
 
 ## STYLE TRANSFER (ROADMAP 25): "Style: make it <older | tired | heavy | angry>" asks for the intensity (0-100 %), then saves
@@ -26760,7 +26760,7 @@ func _shot_apply() -> bool:
 		ui_root.move_child(ui_shot, 0)   # under every panel
 	if ui_shot != null:
 		ui_shot.visible = not clean
-		ui_shot.show_rect(r, "SHOT CAMERA  %.0f mm  16:9%s" % [float(k["f"]), "" if is_nan(float(k["focus"])) else "  f/%.1f  focus %.2f m" % [float(k["fstop"]), float(k["focus"])]])
+		ui_shot.show_rect(r, Units.shot_readout(float(k["f"]), float(k["fstop"]), float(k["focus"])))
 	return true
 
 
@@ -26980,8 +26980,8 @@ func _shot_fstop(n: float) -> void:
 	_do(func(): _shot_fx_make()["fstop"] = n)
 	var f := float(ShotCam.sample(_shot_keys(), clampf(playhead, 0.0, S.length()))["f"])
 	var d := ShotFx.dof(f, n, 3.0)
-	_say("shot camera f/%s at %.0f mm: with the focus 300 cm away the sharp zone runs %s to %s (Ctrl+Z takes it back; 'look through' shows the blur)" % [
-		String.num(n, 1), f, Units.len(float(d["near"])), "infinity" if float(d["far"]) >= 999.0 else Units.len(float(d["far"]))])
+	_say("shot camera f/%s at %.0f mm: with the focus %s away the sharp zone runs %s to %s (Ctrl+Z takes it back; 'look through' shows the blur)" % [
+		String.num(n, 1), f, Units.fixed(3.0, 0), Units.len(float(d["near"])), "infinity" if float(d["far"]) >= 999.0 else Units.len(float(d["far"]))])
 
 
 func _shot_focus_remove() -> void:
