@@ -302,6 +302,7 @@ func _refresh_now() -> void:
 
 ## light the selected part's row (unfold what holds it, scroll to it)
 func follow() -> void:
+	_paint_pick()
 	# follow() runs on every refresh (a hover, an edit, each playing frame): only a CHANGE of the picked part scrolls the
 	# tree to its row. Scrolling to it on every refresh pushed a tree the user had scrolled down back up, again and again
 	var picked_now: bool = m.sel != _followed
@@ -353,6 +354,35 @@ func follow() -> void:
 
 
 var _followed_obj := ""
+var _lit_multi := {}   # L125: Outliner id -> true for the prop rows lit as part of a multi-pick (the tree itself shows one selected row)
+
+
+## L125: light the rows of every picked prop (2 or more picked in the view or here); the view and the tree stay one selection
+func _paint_pick() -> void:
+	for id in _lit_multi:
+		var r := _outl_find(id)
+		if r != null:
+			r.clear_custom_bg_color(0)
+	_lit_multi = {}
+	var ids: Array = m._msel()
+	if ids.size() < 2:
+		return
+	for i in ids:
+		var r := _outl_find("prop:%d" % int(i))
+		if r != null:
+			r.set_custom_bg_color(0, Tok.c("btn_hover"))
+			_lit_multi["prop:%d" % int(i)] = true
+
+
+## the Outliner ids of the rows that are lit as picked (the selected row and the multi-pick rows)
+func outl_lit_ids() -> Array:
+	var o: Array = _lit_multi.keys()
+	var sel := get_selected()
+	if sel != null and sel.get_metadata(0) is Dictionary and (sel.get_metadata(0) as Dictionary).has("onode"):
+		var id: String = sel.get_metadata(0)["onode"]
+		if not o.has(id):
+			o.append(id)
+	return o
 
 
 func _outl_selected_id() -> String:
@@ -599,6 +629,14 @@ func _motion(ev: InputEvent) -> void:
 		var at := (ev as InputEventMouseButton).position
 		var id := get_button_id_at_position(at)
 		var row := get_item_at_position(at)
+		# L125: Ctrl / Shift-click on a prop row adds it to / takes it out of the picked props (the same as in the view)
+		var mbe := ev as InputEventMouseButton
+		if mbe.pressed and (mbe.ctrl_pressed or mbe.shift_pressed) and id < 0 and row != null and row.get_metadata(0) is Dictionary and (row.get_metadata(0) as Dictionary).has("onode"):
+			var pi := Outliner.prop_index(row.get_metadata(0)["onode"])
+			if pi >= 0:
+				accept_event()
+				m._prop_toggle(pi)
+				return
 		# R8: a pose row takes the body on the RELEASE (a press that turns into a drag to the card strip must not pose the body)
 		_down = (ev as InputEventMouseButton).pressed
 		if not _down and _pose_pending >= 0:
