@@ -159,7 +159,11 @@ func _init() -> void:
 	var len0: float = m.S.length()
 	var u0: int = m.undo.size()
 	var t0 := Time.get_ticks_msec()
+	var said := []
+	var real_say: Callable = m.plugins.host["say"]
+	m.plugins.host["say"] = func(txt): said.append(String(txt)); real_say.call(txt)
 	run_row("Probe: All")
+	m.plugins.host["say"] = real_say
 	var L: Dictionary = rec_of("probe")["obj"].last
 	ok(not L.is_empty(), "the probe's 'all' command ran to its end (%d ms)" % (Time.get_ticks_msec() - t0))
 	ok(m.undo.size() == u0 + 1, "the combined command is exactly ONE undo step (%d -> %d)" % [u0, m.undo.size()])
@@ -195,7 +199,7 @@ func _init() -> void:
 	ok(L["set"]["ok"] and L["get"] == 7 and L["get_def"] == "dflt", "set_setting / get_setting round-trip (7) and default")
 	ok(L["wd"]["ok"] and L["rd"]["text"] == "hi", "write_data / read_data")
 	ok(L["wf"]["ok"] and L["rf"]["text"] == "proj" and FileAccess.file_exists(PROJ + "/exports/p.txt"), "write_file / read_file inside <project>/exports")
-	ok(String(m.ui_status.text).contains("Probe"), "log() reached the status line")
+	ok(said.has("Probe: probe done"), "log() reached the status line (%s)" % str(said.slice(0, 2)))
 	m._undo()
 	ok(scene_json() == before, "one Ctrl+Z restores the scene byte for byte after the combined command")
 

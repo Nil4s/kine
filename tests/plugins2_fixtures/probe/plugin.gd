@@ -16,7 +16,9 @@ func command(api, id: String) -> bool:
 		"m_remove_object": api.remove_object(0)
 		"m_set_key": api.set_key("head", 0.25, Vector3(20, 0, 0))
 		"m_remove_key": api.remove_key("head", 0.5)
-		"m_tool": api.run_tool("set=head:15,0,0")
+		"m_tool":
+			api.run_tool("card=1")
+			api.run_tool("name=Tooled")
 	return true
 
 
