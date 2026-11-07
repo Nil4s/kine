@@ -3258,6 +3258,7 @@ func _ready() -> void:
 	BootProfile.mark("load skeleton+limits")
 	var testing: bool = Engine.get_main_loop().get_script() != null
 	sticky.set_on(StickyKeys.saved() if (not testing or OS.get_environment("KINE_STICKY_FILE") != "") else false)   # C11
+	AccessPrefs.apply(self, testing)   # L115: the remembered font scale / colour-blind colours / unit / brush pie
 	KineLang.apply_saved(testing)   # FRIDAY 99: the remembered language (English unless Portugues was picked in the start screen's Settings)
 	if testing:
 		settings = "user://poser_test_%d.cfg" % OS.get_process_id()
