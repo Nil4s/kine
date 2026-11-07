@@ -96,6 +96,8 @@ static func op(name: String, m) -> String:
 				said = KMeshRigRetopo.op(m)   # F10
 			elif name.begins_with("refplane"):   # B21 (scripts/kmesh_refplanes_ui.gd): it says what it did
 				return ui.refp.open_dialog() if name == "refplane_add" else ui.refp.arm_two_points()
+			elif name.begins_with("wpart_"):
+				said = WeaponPartsUI.op(name, m)   # B28
 			elif name.begins_with("fset_"):
 				said = KMeshFaceSetsUI.op(name, m)   # C09
 			elif name.begins_with("sculpt_pose"):
