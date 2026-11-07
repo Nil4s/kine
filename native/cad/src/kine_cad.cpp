@@ -198,6 +198,7 @@ void KineCAD::_bind_methods() {
 	ClassDB::bind_static_method("KineCAD", D_METHOD("pattern_linear", "id", "step", "count"), &KineCAD::pattern_linear);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("pattern_circular", "id", "axis_origin", "axis_dir", "count", "total_radians"), &KineCAD::pattern_circular);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("mass_properties", "id"), &KineCAD::mass_properties);
+	ClassDB::bind_static_method("KineCAD", D_METHOD("volume_inertia", "id"), &KineCAD::volume_inertia);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("release", "id"), &KineCAD::release);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("release_all"), &KineCAD::release_all);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("live_count"), &KineCAD::live_count);
@@ -1432,6 +1433,22 @@ int KineCAD::pattern_circular(int id, const Vector3 &ao, const Vector3 &ad, int 
 	}
 	return kc_put(acc);
 	KCAD_CATCH("pattern_circular", 0)
+}
+
+Dictionary KineCAD::volume_inertia(int id) {
+	Dictionary d;
+	TopoDS_Shape s;
+	if (!kc_get(id, s)) {
+		return d;
+	}
+	KCAD_TRY
+	GProp_GProps vp;
+	BRepGProp::VolumePropertiesGK(s, vp, 1e-9, false, true, true, true); // the same call as mass_properties
+	gp_Mat m = vp.MatrixOfInertia();
+	d["volume"] = vp.Mass();
+	d["inertia"] = Basis(Vector3(m(1, 1), m(2, 1), m(3, 1)), Vector3(m(1, 2), m(2, 2), m(3, 2)), Vector3(m(1, 3), m(2, 3), m(3, 3)));
+	return d;
+	KCAD_CATCH("volume_inertia", Dictionary())
 }
 
 Dictionary KineCAD::mass_properties(int id) {

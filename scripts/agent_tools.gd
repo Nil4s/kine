@@ -15,7 +15,7 @@ const POINTS := ["head", "pelvis", "spine_03", "upperarm_l", "upperarm_r", "lowe
 const METHODS := ["commands", "open", "new", "run", "pose", "state", "measure", "describe", "ask", "check", "diff", "validate", "save", "quit", "assert", "events", "where", "place", "facts", "brief", "dry", "text_view", "lint", "frame_data"]
 ## C06: the methods the MCP server advertises on top of METHODS. They are NOT in METHODS: its list is the "ready" line and the -32601 text of the
 ## byte-for-byte transcript (refs/agent/serve_transcript.jsonl), which tests/agent_tools_test.gd replays. tools/mcp/poser_mcp.py names each of these (advertised with --math / POSER_MCP_MATH=1)
-const MCP_EXTRA := ["reactable", "throw_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "fits"]
+const MCP_EXTRA := ["cancel_windows", "reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo"]
 ## MCPFAST: the CAD tools (scripts/build/mcp_cad.gd); advertised with --cad
 const MCP_CAD := ["cad_part", "cad_asm", "check_fit", "bom", "eval_gd", "cad_reset"]
 
@@ -469,12 +469,27 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# its -32601 message is in the byte-for-byte transcript (refs/agent/serve_transcript.jsonl)
 			var fa := FrameAdvantage.serve(m, p)
 			return _ok(id, fa["result"]) if fa["ok"] else _err(id, -32602, String(fa["error"]))
+		"dyntopo":   # L52: one dynamic-topology step (split long / collapse short edges under the brush) on a test sphere, with the band numbers {radius?, detail?, levels?} (scripts/dyntopo_serve.gd). Not in METHODS
+			var dtr := DyntopoServe.serve(m, p)
+			return _ok(id, dtr["result"]) if dtr["ok"] else _err(id, -32602, String(dtr["error"]))
+		"texture_paint":   # L53 TPAINT: a screen-space brush stamp onto a UV-mapped shape {shape?, x?, y?, radius?, size?, color?, strength?, hardness?, pad?, w?, h?} (scripts/tpaint_serve.gd). Not in METHODS
+			var tpr := TPaintServe.serve(m, p)
+			return _ok(id, tpr) if tpr["ok"] else _err(id, -32602, String(tpr["error"]))
+		"blend_matrix":   # N084: every clip-to-clip crossfade of a moveset checked for limit breaks, self-clash and foot skate {clips?, blend_s?, a?, b?, full?, top?} (scripts/blend_matrix_serve.gd). Not in METHODS
+			var bmr := BlendMatrixServe.serve(m, p)
+			return _ok(id, bmr["result"]) if bmr["ok"] else _err(id, -32602, String(bmr["error"]))
 		"reactable":   # N082 wired (L11): can a viewer SEE each strike coming in time to react? {clip?, frame?, latency_ms?, fps?} (scripts/reactable_serve.gd). Not in METHODS
 			var rxr := ReactableServe.serve(m, p)
 			return _ok(id, rxr["result"]) if rxr["ok"] else _err(id, -32602, String(rxr["error"]))
+		"cancel_windows":   # N081: the frames where the body is balanced and slow enough to start another move {clip?, frame?, fps?, v_max?, h_max?} (scripts/cancel_windows.gd). Not in METHODS
+			var cwr := CancelWindows.serve(m, p)
+			return _ok(id, cwr["result"]) if cwr["ok"] else _err(id, -32602, String(cwr["error"]))
 		"throw_check":   # N040 wired (L34): does the throw work? {clip?, fps?, thrower?} (scripts/throw_serve.gd). Not in METHODS
 			var tcr := ThrowServe.serve(m, p)
 			return _ok(id, tcr["result"]) if tcr["ok"] else _err(id, -32602, String(tcr["error"]))
+		"lock_check":   # N041 wired: does the lock reach his limit, or go past it? {clip?, fps?, locker?} (scripts/lock_serve.gd). Not in METHODS
+			var lcr := LockServe.serve(m, p)
+			return _ok(id, lcr["result"]) if lcr["ok"] else _err(id, -32602, String(lcr["error"]))
 		"lint":   # N018: a clip made anywhere, judged on Kine's body (scripts/clip_lint.gd); the live scene is put back
 			var lr := ClipLint.lint(m, String(p.get("path", "")))
 			return _ok(id, lr) if lr["ok"] else _err(id, -32602, String(lr["error"]), lr)
@@ -507,6 +522,23 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"look_facts":   # item 242: numbers for how the final picture LOOKS per piece / kind / nature item (scripts/build/look_facts.gd). Not in METHODS
 			var lf: Dictionary = await LookFacts.serve(m, p)
 			return _ok(id, lf) if bool(lf["ok"]) else _err(id, -32602, String(lf["error"]))
+		"lightrig":   # L48: light-rig look, sky map (rotation, intensity), character-only lights; {} = the facts (scripts/light_rig.gd serve). Not in METHODS
+			var lr := LightRig.serve(m, p)
+			return _ok(id, lr["result"]) if bool(lr["ok"]) else _err(id, -32602, String(lr["error"]))
+		"final_render":   # L49 RENDER1: the render preset draft | final | final_hq (GI, DOF, sub-frame motion blur, accumulation) from the shot camera: {preset, w, h, first, count, out, subframes, accum, shutter}. Not in METHODS
+			var frp := String(p.get("preset", "final_hq"))
+			if not FinalRender.PRESETS.has(frp):
+				return _err(id, -32602, "final_render preset must be one of %s (got '%s')" % [FinalRender.PRESETS.keys(), frp])
+			var fro := {"preset": frp, "w": int(p.get("w", 1920)), "h": int(p.get("h", 1080)), "first": int(p.get("first", 0))}
+			for k in ["count", "subframes", "accum"]:
+				if p.has(k):
+					fro[k] = int(p[k])
+			if p.has("shutter"):
+				fro["shutter"] = float(p["shutter"])
+			var frr: Dictionary = await m._render_shots(String(p.get("out", ShotRender.ROOT)), "", fro)
+			if frr.is_empty():
+				return _err(id, -32000, "final_render refused: the scene needs shots and at least 2 cards")
+			return _ok(id, {"dir": frr["dir"], "frames": frr["frames"], "mp4": frr["mp4"], "preset": frp, "w": fro["w"], "h": fro["h"]})
 		"nature":   # FRIDAY 225: trees, hedges, shrubs, grass, flowers, paths, scatter (scripts/build/nature_agent.gd); not in METHODS (the transcript's ready line)
 			var na := NatureAgent.serve(m, p)
 			return _ok(id, na) if bool(na["ok"]) else _err(id, -32602, String(na["error"]))

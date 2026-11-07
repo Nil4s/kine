@@ -182,3 +182,37 @@ static func apply_hdri(env: Environment, id: String, rot_deg: float, intensity: 
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	env.ambient_light_energy = intensity
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+
+
+## ---- AGENT TOOL "lightrig" (L48). One call, the same functions the panel uses: {look: id} = a preset on the shot at the playhead,
+## {sky: id, rot: deg, int: x} = the sky map ("" = none), {link: {key|fill|rim: bool}} = character-only lights; {} = the facts.
+## Unknown ids are REFUSED (ok false) and change nothing. m is the main scene (lr_preset, lr_hdri, lr_set_link, lr_link, lr_hdri_id).
+static func serve(m: Node, p: Dictionary) -> Dictionary:
+	if p.has("look"):
+		var lid := String(p["look"])
+		if not PRESETS.has(lid):
+			return {"ok": false, "error": "unknown look %s: one of %s" % [lid, ", ".join(ALL_IDS)]}
+		if not bool(m.lr_preset(lid)):
+			return {"ok": false, "error": "look %s was not applied (the scene has no pose card yet)" % lid}
+	if p.has("sky"):
+		var sid := String(p["sky"])
+		if sid != "" and not SKIES.has(sid):
+			return {"ok": false, "error": "unknown sky %s: one of \"\" (none), %s" % [sid, ", ".join(SKY_IDS)]}
+		m.lr_hdri(sid)
+		if p.has("rot"):
+			m.lr_hdri_rot(float(p["rot"]))
+		if p.has("int"):
+			m.lr_hdri_int(float(p["int"]))
+	if p.has("link"):
+		var links: Dictionary = p["link"]
+		for role in links.keys():
+			if not ["key", "fill", "rim"].has(String(role)):
+				return {"ok": false, "error": "link role %s: one of key, fill, rim" % String(role)}
+		for role in links.keys():
+			m.lr_set_link(String(role), bool(links[role]))
+	var lights := {}
+	for pair in [["key", m.light_key], ["fill", m.light_fill], ["rim", m.light_rim]]:
+		var L: Light3D = pair[1]
+		lights[pair[0]] = {"energy": snappedf(L.light_energy, 0.001), "character_only": L.light_cull_mask == link_mask(true)}
+	return {"ok": true, "result": {"sky": String(m.lr_hdri_id), "rot": snappedf(float(m.lr_rot), 0.1), "int": snappedf(float(m.lr_int), 0.01),
+		"links": m.lr_link.duplicate(), "lights": lights, "looks": ALL_IDS, "skies": SKY_IDS}}

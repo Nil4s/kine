@@ -128,6 +128,8 @@ func _init() -> void:
 		m._refresh()
 		for i in 3:
 			await process_frame
+		while m._throw_busy():   # L42: the judge runs on a worker now: wait for the result to land
+			await process_frame
 		var P: ThrowPanel = m.throw_panel
 		panels[k] = P
 		var diff := "no panel" if P == null or not P.visible else panel_vs_direct(P, D[k])
@@ -180,6 +182,8 @@ func _init() -> void:
 	m._refresh()
 	for i in 3:
 		await process_frame
+	while m._throw_busy():   # L42: the judge runs on a worker now: wait for the result to land
+		await process_frame
 	var P1: ThrowPanel = m.throw_panel
 	var txt := P1.readout() if P1 != null else ""
 	print("     one-body panel: ", txt)
@@ -197,6 +201,8 @@ func _init() -> void:
 	m.throw_on = true
 	m._refresh()
 	for i in 3:
+		await process_frame
+	while m._throw_busy():   # L42: the judge runs on a worker now: wait for the result to land
 		await process_frame
 	var P2: ThrowPanel = m.throw_panel
 	var kf: int = D["osoto"]["frame"]
@@ -244,6 +250,8 @@ func _init() -> void:
 	m.throw_on = true
 	m._refresh()
 	for i in 20:
+		await process_frame
+	while m._throw_busy():
 		await process_frame
 	await RenderingServer.frame_post_draw
 	var img := root.get_viewport().get_texture().get_image()

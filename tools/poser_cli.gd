@@ -98,6 +98,7 @@
 ##                                 recovery at 60 fps; opt-in "exchange": hitstun, blockstun, on_hit / on_block (+ = attacker
 ##                                 first), punishable, vs the other fighter on the stage or reaction clips (first card = impact)
 ##   throw_check {clip?, fps?, thrower?}  N040 (scripts/throw_serve.gd): does the throw work? verdict, key frame, per frame partner out and thrower margin
+##   lock_check {clip?, fps?, locker?}  N041 (scripts/lock_serve.gd): does the lock reach the partner's limit or go past it? verdict, key frame, joint, degrees past
 ##   reactable {clip?, frame?, latency_ms?, fps?}  N082 (scripts/reactable_serve.gd): per strike, the frames a viewer has between SEEING it
 ##                                 coming and its first active frame vs the frames a human needs: reactable / not reactable + margin
 ##   lint {path}                   N018: a .bvh/.glb/.gltf/.fbx made anywhere, on Kine's body (scripts/clip_lint.gd); live scene kept
@@ -421,6 +422,46 @@ func _init() -> void:
 			var xr := ExplainMotion.serve(m, xp)
 			say(String(xr.get("text", xr.get("error", ""))))
 			done(xr)
+		"texture_paint":   # L53: texture_paint [shape=sphere] [x=N y=N radius=N size=N color=#hex strength=N hardness=N pad=N] (scripts/tpaint_serve.gd)
+			var tpp := {}
+			for x in a.slice(1):
+				var kvt := String(x).split("=", true, 1)
+				if kvt.size() == 2:
+					tpp[kvt[0]] = float(kvt[1]) if kvt[1].is_valid_float() else kvt[1]
+			var tpo := TPaintServe.serve(m, tpp)
+			say(JSON.stringify(tpo))
+			done(tpo)
+		"blend_matrix":   # N084: blend_matrix [scene.json ...] [blend=S] [a=NAME b=NAME] (scripts/blend_matrix_serve.gd)
+			var bp := {}
+			var bfiles := []
+			for x in a.slice(1):
+				var kvb := String(x).split("=", true, 1)
+				if kvb.size() == 2 and kvb[0] == "blend" and kvb[1].is_valid_float():
+					bp["blend_s"] = float(kvb[1])
+				elif kvb.size() == 2 and kvb[0] in ["a", "b"]:
+					bp[kvb[0]] = kvb[1]
+				else:
+					bfiles.append(String(x))
+			if not bfiles.is_empty():
+				bp["clips"] = bfiles
+			var bmo := BlendMatrixServe.serve(m, bp)
+			if bmo["ok"]:
+				say(String(bmo["result"]["words"]))
+			done(bmo["result"] if bmo["ok"] else bmo)
+		"cancel_windows":   # N081: cancel_windows <scene> [frame=N] [fps=N] [v_max=X] [h_max=X] (scripts/cancel_windows.gd)
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "cancel_windows <scene.json> [frame=N] [fps=N] [v_max=X] [h_max=X]  (N081; scripts/cancel_windows.gd)"})
+				return
+			var cwp := {}
+			for x in a.slice(2):
+				var kvc := String(x).split("=", true, 1)
+				if kvc.size() == 2 and kvc[1].is_valid_float():
+					cwp[kvc[0]] = int(kvc[1]) if kvc[0] == "frame" or kvc[0] == "fps" else float(kvc[1])
+			var cwo := CancelWindows.serve(m, cwp)
+			if cwo["ok"]:
+				say(String(cwo["result"]["text"]))
+			done(cwo["result"] if cwo["ok"] else cwo)
 		"reactable":   # N082 wired (L11): reactable <scene> [frame=N] [latency=MS] [fps=N] (scripts/reactable_serve.gd)
 			if a.size() < 2 or not open_scene(a[1]):
 				if a.size() < 2:
@@ -452,6 +493,20 @@ func _init() -> void:
 			if tco["ok"]:
 				say(String(tco["result"]["text"]))
 			done(tco["result"] if tco["ok"] else tco)
+		"lock_check":   # N041 wired: lock_check <scene> [fps=N] [locker=0|1] (scripts/lock_serve.gd)
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "lock_check <scene.json> [fps=N] [locker=0|1]  (N041; scripts/lock_serve.gd)"})
+				return
+			var lp := {}
+			for x in a.slice(2):
+				var kv4 := String(x).split("=", true, 1)
+				if kv4.size() == 2 and kv4[1].is_valid_int() and kv4[0] in ["fps", "locker"]:
+					lp[kv4[0]] = int(kv4[1])
+			var lco := LockServe.serve(m, lp)
+			if lco["ok"]:
+				say(String(lco["result"]["text"]))
+			done(lco["result"] if lco["ok"] else lco)
 		"brief":   # N011 (scripts/scene_brief.gd)
 			var ti := a.find("--tokens")
 			var tk := int(a[ti + 1]) if ti >= 0 and ti + 1 < a.size() else SceneBrief.DEFAULT_TOKENS

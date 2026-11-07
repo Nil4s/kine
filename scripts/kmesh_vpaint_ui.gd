@@ -35,6 +35,13 @@ var sticker_name := "star"
 var sticker_img: Image  # a loaded PNG (sticker_name "file") or the built-in
 var sticker_size := 0.2 # metres across
 var sticker_rot := 0.0  # degrees
+var tex_mode := false   # L53 Texture mode: strokes write the TEXELS of a texture through the UVs (scripts/kmesh_tpaint.gd), not vertex colours
+var tp: KMeshTPaint
+var _tp_mesh: KMesh
+var tex_size := 1024
+var tex_pending := {}   # L55: a texture loaded with the scene ({data, size, uv, sha}), applied when Texture mode meets a mesh with the same UVs
+var _blank := ""        # L55: the SHA-256 of the texture as Texture mode made it (unpainted)
+var _last_px := Vector2.ZERO
 var dropper := false    # the panel's eyedropper: the next click on the mesh picks its colour
 var _stroking := false
 var _hover := {}        # {"point" (world), "face"} under the mouse, or {}
@@ -61,6 +68,20 @@ static func toggle(main: Node) -> String:
 	if n.on:
 		n.stop()
 	else:
+		n.tex_mode = false
+		n.start()
+	return String(main.ui_status.text) if main.get("ui_status") != null else ""
+
+
+## mesh_tools "op:tpaint": Texture mode on / off (paint mode itself is opened first when it is off); returns what it said
+static func toggle_tex(main: Node) -> String:
+	var n := of(main)
+	if n.on and n.tex_mode:
+		n.stop()
+	elif n.on:
+		n.set_tex_mode(true)
+	else:
+		n.tex_mode = true
 		n.start()
 	return String(main.ui_status.text) if main.get("ui_status") != null else ""
 
@@ -102,11 +123,95 @@ func start() -> void:
 	_stroking = false
 	dropper = false
 	view.show_color = true
+	if tex_mode:
+		_enter_tex()
 	view.mark_dirty()
 	_ov.visible = true
 	panel.visible = true
 	_sync_panel()
 	m._say("Paint: vertex paint on. Drag on the mesh to paint (%s). [ ] radius, Shift+[ ] strength, O falloff, N blend, X symmetry, F fill the selection, Ctrl+click eyedropper, Shift blurs, Esc leaves" % mode)
+
+
+## L55: the auto-unwrap Texture mode runs on a mesh without UVs (seams at 60 degrees, LSCM) as ONE undo step on u (the model's undo).
+## A mesh that has UVs is left as it is.
+static func unwrap_undoable(u: KMeshUndo, mesh: KMesh) -> void:
+	if mesh.has_attr("uv"):
+		return
+	u.begin(mesh)
+	KMeshUV.seams_by_angle(mesh, 60.0)
+	KMeshUV.unwrap_lscm(mesh)
+	u.commit("texture unwrap")
+
+
+## L55: what the scene saves: {data, size, uv} of the texture as it stands (painted, or still the loaded one); {} = nothing painted
+func texture_source() -> Dictionary:
+	if tp != null and _tp_mesh != null:
+		if tp.hash() == _blank:
+			return {}
+		return {"data": tp.data(), "size": tp.size, "uv": KMeshTPaintFile.uv_hash(_tp_mesh)}
+	if tex_pending.is_empty():
+		return {}
+	return {"data": tex_pending["data"], "size": tex_pending["size"], "uv": tex_pending["uv"]}
+
+
+func set_tex_mode(v: bool) -> void:
+	tex_mode = v
+	if v:
+		_enter_tex()
+	elif is_instance_valid(view):
+		view.paint_tex = null
+		view.mark_dirty()
+	_status()
+
+
+## Texture mode: the mesh gets UVs when it has none (seams at 60 degrees, LSCM, packed), a texture of its own, and the view shows it
+func _enter_tex() -> void:
+	if not mesh.has_attr("uv"):
+		unwrap_undoable(ui.undo, mesh)
+	if tp == null or _tp_mesh != mesh:
+		tp = KMeshTPaint.new(mesh, tex_size)
+		_tp_mesh = mesh
+		_blank = tp.hash()
+		if not tex_pending.is_empty():
+			if KMeshTPaintFile.apply(tp, tex_pending, KMeshTPaintFile.uv_hash(mesh)):
+				m._say("Paint: the scene's painted texture is back (%d px)" % tp.size)
+			else:
+				m._say("Paint: the scene's painted texture does not fit this mesh's UVs (or size), so it is not used")
+		tex_pending = {}
+	view.paint_tex = ImageTexture.create_from_image(tp.image())
+	view.mark_dirty()
+	m._say("Paint: TEXTURE mode (%s, %d px texture). A stamp across a UV seam colours both islands; the back and hidden side stay clean. Ctrl+Z undoes a stroke" % [tp.engine, tex_size])
+
+
+func _tex_refresh() -> void:
+	if view.paint_tex is ImageTexture:
+		(view.paint_tex as ImageTexture).update(tp.image())
+
+
+## one stamp at screen point p (radius in px from the metre radius at the surface point under it)
+func _tex_stamp(p: Vector2) -> int:
+	var s := surface_at(m.cam, p)
+	if s.is_empty():
+		return 0
+	var cam: Camera3D = m.cam
+	var model: Transform3D = view.global_transform
+	var mvp := cam.get_camera_projection() * Projection(cam.global_transform.affine_inverse() * model)
+	var wp: Vector3 = s["point"]
+	var rpx := cam.unproject_position(wp).distance_to(cam.unproject_position(wp + cam.global_transform.basis.x * radius * model.basis.get_scale().x))
+	return tp.stamp(mvp, model.affine_inverse() * cam.global_position, Vector2i(m.get_viewport().get_visible_rect().size), p, rpx, color, strength, 1.0 - softness, 2)
+
+
+func _tex_to(p: Vector2, first: bool) -> void:
+	if first:
+		_tex_stamp(p)
+	else:
+		var n := int(_last_px.distance_to(p) / 3.0)
+		if n == 0:
+			return
+		for i in range(1, n + 1):
+			_tex_stamp(_last_px.lerp(p, float(i) / n))
+	_last_px = p
+	_tex_refresh()
 
 
 func stop() -> void:
@@ -202,6 +307,14 @@ func input(ev: InputEvent) -> bool:
 		return false
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var ke := ev as InputEventKey
+		if tex_mode and ke.ctrl_pressed and ke.keycode == KEY_Z and tp != null:
+			if ke.shift_pressed:
+				tp.redo()
+			elif not tp.undo():
+				return false
+			_tex_refresh()
+			m._say("Paint: texture stroke %s" % ("redone" if ke.shift_pressed else "undone"))
+			return true
 		if ke.ctrl_pressed or ke.alt_pressed:
 			return false   # Ctrl+Z and the rest: the model preview's
 		match ke.keycode:
@@ -244,6 +357,11 @@ func input(ev: InputEvent) -> bool:
 			if sticker_on:
 				place_sticker(int(s["face"]), _local(s["point"]))
 				return true
+			if tex_mode:
+				tp.begin_stroke()
+				_tex_to(mb.position, true)
+				_stroking = true
+				return true
 			ui.undo.begin(mesh)
 			vp.begin(mesh, params(mb))
 			vp.to(_local(s["point"]), 1.0, int(s["face"]))
@@ -253,6 +371,10 @@ func input(ev: InputEvent) -> bool:
 		if not _stroking:
 			return sticker_on   # a sticker click is used on press; its release is too
 		_stroking = false
+		if tex_mode:
+			var tn := tp.end_stroke()
+			m._say("Paint: one texture stroke (%d texels), one undo step (Ctrl+Z takes it back)" % tn)
+			return true
 		vp.end()
 		var st: Dictionary = ui.undo.commit("vertex paint " + ("blur" if vp.p["blur"] else String(vp.p["mode"])))
 		if not st.is_empty():
@@ -264,7 +386,9 @@ func input(ev: InputEvent) -> bool:
 		_ov.queue_redraw()
 		if not _stroking:
 			return false
-		if not _hover.is_empty():
+		if not _hover.is_empty() and tex_mode:
+			_tex_to(mm.position, false)
+		elif not _hover.is_empty():
 			vp.to(_local(_hover["point"]), KMeshSculpt.pressure_of(mm))
 			view.mark_dirty()
 		return true
@@ -332,6 +456,11 @@ func _build_panel() -> void:
 	sy.toggled.connect(_panel_set.bind("sym_x"))
 	box.add_child(sy)
 	_w["sym_x"] = sy
+	var tx := CheckBox.new()
+	tx.text = "Texture mode"
+	tx.toggled.connect(_panel_set.bind("tex_mode"))
+	box.add_child(tx)
+	_w["tex_mode"] = tx
 	var bl := CheckBox.new()
 	bl.text = "blur brush"
 	bl.toggled.connect(_panel_set.bind("blur"))
@@ -385,6 +514,8 @@ func _panel_set(v, what: String) -> void:
 			strength = float(v) / 100.0
 		"softness":
 			softness = float(v) / 100.0
+		"tex_mode":
+			set_tex_mode(bool(v))
 		"sticker_name":
 			sticker_name = String(sticker_options()[v])
 			sticker_img = null if sticker_name == "file" else KMeshSticker.builtin(sticker_name)
@@ -412,6 +543,7 @@ func _sync_panel() -> void:
 	_w["sticker_on"].button_pressed = sticker_on
 	_w["sym_x"].button_pressed = sym_x
 	_w["blur"].button_pressed = blur
+	_w["tex_mode"].button_pressed = tex_mode
 	_sync = false
 
 

@@ -54,6 +54,8 @@ const DEFAULTS := {"brush": DRAW, "radius": 0.1, "strength": 0.005, "falloff": F
 var mesh: KMesh
 var p := {}
 var dabs := 0              # dabs laid in this stroke
+var dyn_splits := 0        # L52: edges split / collapsed by dynamic topology in this stroke
+var dyn_collapses := 0
 var _cell := 0.1
 var _head := {}            # Vector3i -> first vert
 var _chain := PackedInt32Array()
@@ -117,6 +119,8 @@ func begin(m: KMesh, params := {}) -> void:
 	p = DEFAULTS.duplicate()
 	p.merge(params, true)
 	dabs = 0
+	dyn_splits = 0
+	dyn_collapses = 0
 	_has_last = false
 	_grab_w = {}
 	_grab_v = {}
@@ -136,6 +140,28 @@ func begin(m: KMesh, params := {}) -> void:
 		p["fset_id"] = KMeshFaceSets.next_id(m)
 	_symx = KMeshSculptSym.make(self)
 	_alpha = SculptAlphaStroke.make(self)
+
+
+## L52 dynamic topology: split / collapse edges under this dab (scripts/kmesh_dyntopo.gd), then the stroke's hash, mirror map and
+## normals are rebuilt. Vert and face channels (mask, face sets) follow the split verts / faces; a mesh with corner / edge channels or shape keys is left alone.
+func _dyntopo(hit: Vector3) -> void:
+	if p["brush"] == GRAB or p["brush"] == MASK or p["brush"] == FSET:
+		return
+	var st := KMeshDyntopo.step_mesh(mesh, hit, float(p["radius"]), float(p.get("detail", 0.25)))
+	if not st.get("changed", false):
+		return
+	dyn_splits += int(st["splits"])
+	dyn_collapses += int(st["collapses"])
+	if _nb != null:
+		_nctx = _nb.make_ctx(mesh.verts, mesh.faces, _cell)
+	else:
+		_build_hash()
+	# every per-vert array of the stroke was sized for the old mesh: take them again from the new one
+	if p["sym_x"]:
+		_sym = mesh.symmetry_map(0, 1e-4)
+		_sax = 0
+	_mask = KMeshMask.values(mesh)
+	_lock = KMeshFaceSets.frozen(mesh, int(p.get("only_set", 0)))
 
 
 func _build_hash() -> void:
@@ -213,6 +239,8 @@ func end() -> void:
 
 ## one dab at `hit` (on the surface, mesh-local space) with the stroke normal `normal`; returns the verts moved
 func dab(hit: Vector3, normal: Vector3, pressure := 1.0) -> int:
+	if p.get("dyntopo", false) and _pend == null:
+		_dyntopo(hit)
 	if _alpha != null and not _alpha.inside:
 		return _alpha.dab(self, hit, normal, pressure)
 	if _symx != null and _pend == null:

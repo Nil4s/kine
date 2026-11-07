@@ -40,6 +40,9 @@ var strength := 0.001        # metres per dab at full pressure: 1 mm (was 4 mm: 
 var readout: Label           # the brush readout on the SCULPT page: brush, strength, radius (always shown while the sphere is)
 var falloff := KMeshSculpt.F_SMOOTH
 var sym_x := true
+var dyntopo := false        # L52 (scripts/kmesh_dyntopo.gd): edges under the brush are split / collapsed so the detail follows the stroke
+var dyn_detail := 0.25      # L_max = dyn_detail * brush radius
+var dyn_cb: CheckBox
 var sym_y := false          # C07 (scripts/kmesh_sculpt_sym.gd)
 var sym_z := false
 var radial := 1
@@ -179,7 +182,7 @@ func _params(ev: InputEvent) -> Dictionary:
 		if (ev as InputEventWithModifiers).shift_pressed:
 			b = KMeshSculpt.SMOOTH
 	_seed += 1
-	return KMeshTopoMirror.get_shared().sculpt_params(mesh, view.global_transform if view != null else Transform3D.IDENTITY, {"brush": b, "radius": radius, "strength": strength, "falloff": falloff, "spacing": spacing, "invert": inv, "sym_x": sym_x,
+	return KMeshTopoMirror.get_shared().sculpt_params(mesh, view.global_transform if view != null else Transform3D.IDENTITY, {"brush": b, "radius": radius, "strength": strength, "falloff": falloff, "spacing": spacing, "invert": inv, "sym_x": sym_x, "dyntopo": dyntopo, "detail": dyn_detail,
 		"sym_y": sym_y, "sym_z": sym_z, "radial": radial, "radial_axis": radial_axis,
 		"alpha": alpha, "stroke_method": stroke_method, "alpha_rot": alpha_rot, "alpha_angle": deg_to_rad(alpha_angle), "seed": _seed,   # C08
 		"alpha_ref": _local_n((m.get("cam") as Camera3D).global_transform.basis.x) if view != null and m.get("cam") is Camera3D else Vector3.RIGHT})   # B22: the edit mirror on = its partner map
@@ -422,6 +425,13 @@ func make_sliders() -> void:
 	strength_sl = _slider("sculpt_strength", 0.2, 50.0, 0.1, _on_strength)
 	box.add_child(strength_sl)
 	_make_remesh_slider(box)   # plan 154
+	dyn_cb = CheckBox.new()   # L52
+	dyn_cb.name = "sculpt_dyntopo"
+	dyn_cb.text = "Dynamic detail"
+	dyn_cb.tooltip_text = "Dynamic detail: under the brush, long edges are split and tiny ones merged, so the mesh gets finer where you sculpt. One undo step per stroke."
+	dyn_cb.focus_mode = Control.FOCUS_NONE
+	dyn_cb.toggled.connect(_on_dyntopo)
+	box.add_child(dyn_cb)
 	_sync_sliders()
 
 
@@ -435,6 +445,11 @@ func _slider(nm: String, lo: float, hi: float, step: float, cb: Callable) -> HSl
 	s.focus_mode = Control.FOCUS_NONE   # the keys stay the brush's keys (a focused slider would take the arrows)
 	s.value_changed.connect(cb)
 	return s
+
+
+func _on_dyntopo(on_: bool) -> void:
+	dyntopo = on_
+	m._say("Sculpt: dynamic detail %s (edges longer than %d %% of the brush radius are split under the brush)" % ["on" if on_ else "off", roundi(dyn_detail * 100.0)])
 
 
 func _on_size(v: float) -> void:

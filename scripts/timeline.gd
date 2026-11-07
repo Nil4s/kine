@@ -1495,6 +1495,23 @@ func _draw_bx_lane(y: float) -> void:
 				hx += 6.0
 
 
+var _fd_y := 0.0   # the strip's top as last drawn (cancel_rects)
+const CANCEL_H := 6.0   # px: the cancel band along the top of the frame strip (POL1106b: was 4)
+
+
+## N081: one Rect2 per cancel window of the frame data (timeline coordinates; where _draw_fd_strip draws the bands)
+func cancel_rects() -> Array:
+	var out := []
+	if fd.is_empty() or not fd.has("cancel"):
+		return out
+	var fps := float(fd["fps"])
+	for w in fd["cancel"]["windows"]:
+		var x0 := x_of(float(w["f0"]) / fps)
+		var x1 := x_of(float(w["f1"]) / fps)
+		out.append(Rect2(x0, _fd_y, maxf(x1 - x0 - 1.0, 1.0), CANCEL_H))
+	return out
+
+
 func _rx_sync() -> void:
 	if fd.is_empty() or (fd.get("frames", []) as Array).is_empty():
 		_rx_src = {}
@@ -1534,7 +1551,7 @@ func _draw_fd_strip(font: Font, y: float) -> void:
 		var n := int(sp["f1"]) - int(sp["f0"])
 		if sp["kind"] == "active":
 			# a multi-hit span: the frames with a hitbox out are full red, the gaps between them dim
-			draw_rect(Rect2(x0, y, maxf(x1 - x0 - 1.0, 1.0), FD_H), Color(Tok.c("fd_active"), 0.22))
+			draw_rect(Rect2(x0, y, maxf(x1 - x0 - 1.0, 1.0), FD_H), Tok.c("fd_tint"))   # POL1106b: an opaque token (was fd_active at 0.22 over the bg: 0.02 luminance in the dark theme)
 			for f in range(int(sp["f0"]), int(sp["f1"])):
 				if fd["frames"][f]["active"]:
 					var fx := x_of(float(f) / fps)
@@ -1545,6 +1562,9 @@ func _draw_fd_strip(font: Font, y: float) -> void:
 			draw_string(font, Vector2(x0 + 3, y + FD_H - 2.0), "%s %d" % [sp["kind"], n], HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 4, 10, Tok.c("fd_ink"))
 		elif x1 - x0 > 14.0:
 			draw_string(font, Vector2(x0 + 2, y + FD_H - 2.0), str(n), HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 3, 10, Tok.c("fd_ink"))
+	_fd_y = y
+	for rc in cancel_rects():   # N081: the cancel windows, a band along the top of the strip (cancel_windows.gd)
+		draw_rect(rc, CancelWindows.COL_BAND)
 	if fd.has("exchange"):   # N080: on hit / on block after the strip's end (frame_advantage.gd)
 		var xe := x_of(float(fd["n"]) / fps) + 4.0
 		draw_string(font, Vector2(xe, y + FD_H - 2.0), FrameAdvantage.words(fd["exchange"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Tok.c("ink"))

@@ -224,6 +224,7 @@ var rs_ui: RealismUI   # REALISM SCORE (ROADMAP I16): one 0-100 number from the 
 var pr_ui: WeaponReboundUI   # PARRY REBOUND (ROADMAP I40): the exchange of momentum when two weapons meet and the deflection keyed on both hands (scripts/weapon_rebound_ui.gd)
 var wt_ui: WeaponTorqueUI   # WEAPON WEIGHT (ROADMAP I30): torque of a weapon swing vs human strength (scripts/weapon_torque_ui.gd)
 var tc_ui: TimingCoachUI   # TIMING COACH (ROADMAP I4): the suggestions panel and its preview (scripts/timing_coach_ui.gd)
+var bm_ui: BlendMatrixUI   # BLEND MATRIX (N084): the command, the heat grid and the blend preview (scripts/blend_matrix_ui.gd)
 var mm_ui: MotionMatchUI   # MOTION MATCHING PREVIEW (ROADMAP 33): the commands and the preview (scripts/motion_match_ui.gd)
 var ui_help: PanelContainer
 var ui_why: PanelContainer   # WHAT WENT WRONG? (ROADMAP 43): the last refusal explained (scripts/whywrong.gd)
@@ -674,6 +675,8 @@ const LIBRARY := "user://library"
 var library := LIBRARY        # a test's own: user://zz_lib_<pid>, removed on exit
 var ui_props_root: Node3D
 var sel_prop := -1
+var sel_obj_part := ""   # m.sel when sel_obj was picked: a part picked since lets go of the object
+var sel_obj := ""   # L36 OUTLINER: the picked object that is not a prop ("light:key", "cam:0", "body:hero"...); a prop is sel_prop
 var _prop_drag := {}
 var ui_prop_btns := {}
 var ui_use_btns := {}         # TT3: Sit here / Step up (greyed by the picked prop's kind)
@@ -2075,6 +2078,7 @@ func _axis_node() -> Node3D:
 
 var ui_fr_dlg: ConfirmationDialog
 var ui_fr_res: OptionButton
+var ui_fr_preset: OptionButton
 
 
 ## "Final render...": pick the resolution, OK renders (the shot camera over every frame; exports/shots/<scene>_<stamp>_final/)
@@ -2090,6 +2094,13 @@ func _final_render_dialog() -> void:
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.custom_minimum_size = Vector2(360, 0)
 		v.add_child(l)
+		ui_fr_preset = OptionButton.new()
+		ui_fr_preset.name = "opt_preset"
+		for pn in ["Draft", "Final", "Final HQ"]:
+			ui_fr_preset.add_item(pn)
+		ui_fr_preset.select(1)
+		ui_fr_preset.tooltip_text = "Final HQ adds global light bounce (SDFGI), depth of field at the shot's focus, motion blur from 8 sub-frames across the shutter and a 2-pass jittered accumulation; several times slower than Final"
+		v.add_child(ui_fr_preset)
 		ui_fr_res = OptionButton.new()
 		ui_fr_res.name = "opt_resolution"
 		for r in FinalRender.RES:
@@ -2099,7 +2110,7 @@ func _final_render_dialog() -> void:
 		ui_fr_dlg.add_child(v)
 		ui_fr_dlg.confirmed.connect(func():
 			var r: Vector2i = FinalRender.RES[ui_fr_res.selected]
-			_render_shots(ShotRender.ROOT, "", {"preset": "final", "w": r.x, "h": r.y}))
+			_render_shots(ShotRender.ROOT, "", {"preset": ["draft", "final", "final_hq"][ui_fr_preset.selected], "w": r.x, "h": r.y}))
 		add_child(ui_fr_dlg)
 	ui_fr_dlg.popup_centered()
 
@@ -2194,7 +2205,11 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "", opts := {}) -
 			ui_root.visible = false
 			_sr_layer.visible = false
 			var sub_imgs := []
-			for tt in BlastBlur.times(blast_blur, float(f) / fps, fps, blast_blur_n, blast_shutter, 0.0, float(maxi(n - 1, 0)) / fps):
+			var hq := preset == "final_hq"
+			var hq_sub := int(opts.get("subframes", FinalHQ.PRESET["subframes"]))
+			var hq_acc := maxi(1, int(opts.get("accum", FinalHQ.PRESET["accum"])))
+			var tt_list: Array = FinalHQ.motion_times(float(f) / fps, fps, hq_sub, float(opts.get("shutter", FinalHQ.PRESET["shutter"])), 0.0, float(maxi(ShotRender.frame_count(length, fps) - 1, 0)) / fps) if hq else BlastBlur.times(blast_blur, float(f) / fps, fps, blast_blur_n, blast_shutter, 0.0, float(maxi(n - 1, 0)) / fps)
+			for tt in tt_list:
 				playhead = tt
 				_ps().apply(B, playhead)
 				BlastBlur.on_time(playhead)
@@ -2206,15 +2221,36 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "", opts := {}) -
 					svp_cam.global_transform = sv["xf"]
 					svp_cam.fov = ShotCam.fov_v(float(sv["f"]))
 					svp_cam.attributes = cam.attributes
-					if preset == "final":
-						await get_tree().process_frame   # SSAO / SDFGI settle on the new pose
+					if hq:
+						var kk := shot_at(playhead)
+						var fd: float = float(sv["focus"]) if not is_nan(float(sv["focus"])) else maxf(0.5, (kk["pos"] as Vector3).distance_to(kk["aim"] as Vector3))
+						if svp_cam.attributes == null:
+							FinalHQ.dof(svp_cam, fd)
+						await get_tree().process_frame   # SDFGI / SSAO settle on the new pose
 						await get_tree().process_frame
-					sub_imgs.append(await FinalRender.grab(get_tree(), svp))
+						await get_tree().process_frame
+						var base_xf: Transform3D = svp_cam.global_transform
+						for ak in hq_acc:
+							svp_cam.global_transform = FinalHQ.jitter_xf(base_xf, FinalHQ.jitter(ak, hq_acc), svp_cam.fov, fd, svp.size.y)
+							sub_imgs.append(await FinalRender.grab(get_tree(), svp))
+						svp_cam.global_transform = base_xf
+					else:
+						if preset == "final":
+							await get_tree().process_frame   # SSAO / SDFGI settle on the new pose
+							await get_tree().process_frame
+						sub_imgs.append(await FinalRender.grab(get_tree(), svp))
 				else:
 					await get_tree().process_frame
 					await RenderingServer.frame_post_draw
 					sub_imgs.append(_shot_blast_image(shot, get_viewport().get_texture().get_image()))
-			(sub_imgs[0] if sub_imgs.size() == 1 else PlayblastExport.average(sub_imgs)).save_png("%s/frame_%04d.png" % [gdir, f - first_f])
+			if hq:
+				var hq_acc_r: Dictionary = FinalHQ.accumulate_var(sub_imgs)
+				var hq_img: Image = hq_acc_r["img"]
+				if bool(opts.get("denoise", FinalHQ.PRESET["denoise"])):
+					hq_img = FinalHQ.denoise(hq_img, hq_img, -1, -1.0, -1.0, hq_acc_r["var"])   # self-guided, edge-stop scaled by the sub-samples' own variance (SVGF-style)
+				FinalHQ.to_rgb8(hq_img).save_png("%s/frame_%04d.png" % [gdir, f - first_f])
+			else:
+				(sub_imgs[0] if sub_imgs.size() == 1 else PlayblastExport.average(sub_imgs)).save_png("%s/frame_%04d.png" % [gdir, f - first_f])
 			wt.render_active = false
 			ui_root.visible = true
 			_sr_layer.visible = true
@@ -3624,6 +3660,10 @@ func _exit_tree() -> void:
 			(sc as Scene).baker.stop()   # ROADMAP 99: the bake tasks end before the scenes they read go
 	PoseBake.stop_all()   # ... and those of scenes already swapped out (a baker outlives its scene's turn on stage)
 	_imp_stop()   # R13: a video import's worker ends (and is waited for) before the scene it was given goes
+	if _simc_clean.is_valid():
+		_simc_clean.call()   # L42: a half-written Bake sim leaves no file behind
+	for jb in _throw_jobs:
+		WorkerThreadPool.wait_for_task_completion(jb["task"])   # L42: the throw judge's worker ends before the scenes go
 	Children.kill_all()   # the separate programs (video tracker, AI video maker, Save video's ffmpeg, webcam and multicam readers...) end with the app
 	if not _pv_job.is_empty():   # a fix preview still being worked out on a worker thread
 		WorkerThreadPool.wait_for_task_completion(_pv_job["task"])
@@ -3715,6 +3755,8 @@ func _process_body(dt: float) -> void:
 	_p0 = PerfDoc.t()
 	if mm_ui != null:
 		mm_ui.tick(dt)   # MOTION MATCHING PREVIEW: steers and plays the matched frames while it is on (nothing otherwise)
+	if bm_ui != null:
+		bm_ui.tick(dt)   # BLEND MATRIX preview (N084): plays the clicked blend
 	if mp_ui != null:
 		mp_ui.tick(dt)
 	if ds_ui != null:
@@ -3784,6 +3826,7 @@ func _process_body(dt: float) -> void:
 	PerfDoc.add("p_sj", _p0)
 	_p1 = PerfDoc.t()
 	_dm_poll()
+	_throw_poll()
 	PerfDoc.add("p_dm", _p1)
 	_p1 = PerfDoc.t()
 	_hit_ui_tick()
@@ -4223,11 +4266,21 @@ var throw_on := false                  # the Throw check panel is showing
 var throw_panel: ThrowPanel = null
 var throw_key := 0                     # what the panel's result was judged for (cards + the partner's cards and place + fps)
 var throw_done := false
-var throw_judge_runs := 0              # how many times the judge ran (a hidden panel must not run it)
+var throw_band := false                # L45: the panel's band is in bottom_h (set with throw_on, by _throw_refresh)
+var throw_judge_runs := 0              # how many times the judge was started (a hidden panel must not run it)
+## L42: the judge runs on a WorkerThreadPool task on a clone of the scene, after THROW_DEBOUNCE_MS without a further edit. Every job carries the
+## generation (throw_gen, bumped by each edit that changes throw_key); a result of an older generation is dropped (_throw_land).
+const THROW_DEBOUNCE_MS := 150
+var throw_gen := 0
+var _throw_due := 0                    # msec tick at which the next judge starts (0 = none waiting)
+var _throw_jobs: Array = []            # {gen, task, out} in flight
 
 
 ## called at every refresh: nothing at all while the panel is off; while on, the judge runs only when the scene (cards, partner, place) changed
 func _throw_refresh() -> void:
+	if throw_on != throw_band:   # L45: the panel is a row of the bottom stack: the stack grows by its height while it shows
+		throw_band = throw_on
+		_layout_bottom()
 	if not throw_on:
 		if throw_panel != null and throw_panel.visible:
 			throw_panel.visible = false
@@ -4240,13 +4293,57 @@ func _throw_refresh() -> void:
 		throw_done = false
 	throw_panel.visible = true
 	_throw_place()
+	throw_panel.set_playhead(roundi(playhead * float(ThrowFixtures.FPS)))
 	var key: int = -1 if S.actors.is_empty() else hash([S.cards, S.actors.map(func(a): return [a["xf"], (a["scene"] as Scene).cards])])
 	if throw_done and key == throw_key:
 		return
 	throw_done = true
 	throw_key = key
-	throw_judge_runs += 1
-	throw_panel.show_result({"ok": false} if key == -1 else ThrowTruth.judge(S, ThrowFixtures.FPS))
+	throw_gen += 1
+	if key == -1:
+		_throw_due = 0
+		throw_panel.show_result({"ok": false})
+		return
+	throw_panel.show_pending()
+	_throw_due = Time.get_ticks_msec() + THROW_DEBOUNCE_MS
+
+
+func _throw_busy() -> bool:
+	return _throw_due > 0 or not _throw_jobs.is_empty()
+
+
+## forget what the panel was judged for: the next refresh judges again
+func _throw_key_reset() -> void:
+	throw_done = false
+
+
+## every frame: starts the debounced judge, lands the finished ones
+func _throw_poll() -> void:
+	if _throw_due == 0 and _throw_jobs.is_empty():
+		return
+	if _throw_due > 0 and Time.get_ticks_msec() >= _throw_due:
+		_throw_due = 0
+		if throw_on:
+			throw_judge_runs += 1
+			var sc := S.clone()   # the worker reads its own copy; the scene goes on being edited
+			var job := {"gen": throw_gen, "out": {}}
+			job["task"] = WorkerThreadPool.add_task(func(): job["out"] = ThrowTruth.judge(sc, ThrowFixtures.FPS))
+			_throw_jobs.append(job)
+		else:
+			throw_done = false   # the panel was switched off while waiting: judge when it is back
+	for job in _throw_jobs.duplicate():
+		if WorkerThreadPool.is_task_completed(job["task"]):
+			WorkerThreadPool.wait_for_task_completion(job["task"])
+			_throw_jobs.erase(job)
+			_throw_land(int(job["gen"]), job["out"])
+
+
+## a result lands only if it is for the newest generation; false = dropped
+func _throw_land(gen: int, r: Dictionary) -> bool:
+	if gen != throw_gen or throw_panel == null:
+		return false
+	throw_panel.show_result(r)
+	return true
 
 
 func _throw_place() -> void:
@@ -4256,8 +4353,8 @@ func _throw_place() -> void:
 	throw_panel.anchor_bottom = 1.0
 	throw_panel.offset_left = LEFT_W + 12
 	throw_panel.offset_right = LEFT_W + 12 + ThrowPanel.W
-	throw_panel.offset_bottom = -bottom_h - 8
-	throw_panel.offset_top = -bottom_h - 8 - ThrowPanel.H
+	throw_panel.offset_top = -bottom_h   # L45: the band at the top of the bottom stack (_layout_bottom adds it), its bottom 8 px above the bar's panels
+	throw_panel.offset_bottom = -bottom_h + ThrowPanel.H
 
 
 ## a click on a cell of the panel: the playhead goes to that frame (what a scrub does: no undo step)
@@ -4271,6 +4368,63 @@ func _throw_pick(f: int) -> void:
 
 func _throw_toggle() -> void:
 	throw_on = not throw_on
+	_refresh()
+
+
+# ---------------------------------------------------------------- LOCK CHECK (INNOVATIONS N041 wired; scripts/lock_panel.gd, lock_serve.gd)
+var lock_on := false                  # the Lock check panel is showing
+var lock_panel: LockPanel = null
+var lock_key := 0                     # what the panel's result was judged for (cards + the partner's cards and place + fps)
+var lock_done := false
+var lock_judge_runs := 0              # how many times the judge ran (a hidden panel must not run it)
+
+
+## called at every refresh: nothing at all while the panel is off; while on, the judge runs only when the scene (cards, partner, place) changed
+func _lock_refresh() -> void:
+	if not lock_on:
+		if lock_panel != null and lock_panel.visible:
+			lock_panel.visible = false
+		return
+	if lock_panel == null:
+		lock_panel = LockPanel.new()
+		lock_panel.z_index = 40
+		lock_panel.frame_picked.connect(_lock_pick)
+		ui_root.add_child(lock_panel)
+		lock_done = false
+	lock_panel.visible = true
+	_lock_place()
+	var key: int = -1 if S.actors.is_empty() else hash([S.cards, S.actors.map(func(a): return [a["xf"], (a["scene"] as Scene).cards])])
+	if lock_done and key == lock_key:
+		return
+	lock_done = true
+	lock_key = key
+	lock_judge_runs += 1
+	lock_panel.show_result({"ok": false} if key == -1 else LockTruth.judge(S, LockFixtures.FPS))
+
+
+func _lock_place() -> void:
+	if lock_panel == null:
+		return
+	lock_panel.anchor_top = 1.0
+	lock_panel.anchor_bottom = 1.0
+	lock_panel.offset_left = LEFT_W + 12
+	lock_panel.offset_right = LEFT_W + 12 + LockPanel.W
+	var up := (ThrowPanel.H + 6.0) if throw_on else 0.0   # above the Throw check panel when both show
+	lock_panel.offset_bottom = -bottom_h - 8 - up
+	lock_panel.offset_top = -bottom_h - 8 - up - LockPanel.H
+
+
+## a click on a cell of the panel: the playhead goes to that frame (what a scrub does: no undo step)
+func _lock_pick(f: int) -> void:
+	playing = false
+	playhead = float(f) / float(LockFixtures.FPS)
+	_ps().apply(B, playhead)
+	_audio_scrub()
+	_refresh()
+
+
+func _lock_toggle() -> void:
+	lock_on = not lock_on
 	_refresh()
 
 
@@ -4334,7 +4488,9 @@ func _fd_start(key: String) -> void:
 			Dm.place(dm["dist"], dm["yaw"])
 			Dm.xf = dm["xf"]
 			Dm.D.set_state(dm["st"])
-		box.append(FrameData.analyze(C, Bc, fps, Dm)))
+		var fdw := FrameData.analyze(C, Bc, fps, Dm)
+		CancelWindows.attach(fdw, C, Bc)   # N081: the cancel windows ride with the frame data
+		box.append(fdw))
 	_bg_live.append(thr)   # waited for if the app quits first
 	while thr.is_alive():
 		await get_tree().process_frame
@@ -4360,6 +4516,7 @@ func _fd_data() -> Dictionary:
 		Bc.ground()
 		var fdx := {} if dummy_on else FrameAdvantage.app_fd(self, Bc, fd_fps)   # N080: two fighters: hitstun / advantage as well
 		fd_cache = {"key": key, "fd": fdx if not fdx.is_empty() else FrameData.analyze(S, Bc, fd_fps, T if dummy_on else null)}
+		CancelWindows.attach(fd_cache["fd"], S, Bc)   # N081
 	return fd_cache["fd"]
 
 
@@ -5453,6 +5610,7 @@ func _refresh() -> void:
 	_actors_view()
 	PerfDoc.add("r_actors", _rf)
 	_curve_sync()
+	_simc_badge_sync()   # POL1106b: the sim cache badge follows every edit, undo and bake
 	if ui_akey != null and auto_key:
 		ui_akey.queue_redraw()   # the frame reads Tok on each draw: a palette switch shows at once
 	if not sel_more.is_empty() and sel != _group_sel:
@@ -5480,6 +5638,7 @@ func _refresh() -> void:
 	_insp_fit.call_deferred()   # RR2: rows shown / hidden change the box's height
 	_sync_weapon()
 	_throw_refresh()   # THROW CHECK (N040, L34)
+	_lock_refresh()   # LOCK CHECK (N041)
 	_fd_refresh()   # FRAME DATA (ROADMAP 12): the strip and the boxes on active frames
 	if ui_browser != null and ui_browser.visible:
 		ui_browser.follow()
@@ -6702,6 +6861,7 @@ func _after_edit() -> void:
 	if symmetry:
 		_mirror_changed()
 	B.apply_grip()
+	simc.edited()
 	_refresh()
 
 
@@ -6818,7 +6978,7 @@ func _snapshot() -> Dictionary:
 	# remove is undone by putting the list back), so _restore never puts one actor's body onto another
 	return {"actor": actor_on, "hero": H, "spath": scene_path, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
 		"body": B.state(), "playhead": playhead, "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps, "bcol": body_colour, "bsm": Overlays.smooth,
-		"props": S.props.map(func(p): return Props.to_dict(p)), "building": _bld_file(), "part": _part_file(), "vehicle": _vehicle_file(), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
+		"props": S.props.map(func(p): return Props.to_dict(p)), "pxf": S.props.map(func(p): return p["xf"]), "outl": S.outl.duplicate(true), "building": _bld_file(), "part": _part_file(), "vehicle": _vehicle_file(), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
@@ -6900,6 +7060,8 @@ func _restore(u: Dictionary) -> void:
 	_bake_drop(u["scene"] if u.get("scene") is Scene else null)
 	if mm_ui != null:
 		mm_ui.halt()   # a motion matching preview ends with the step taken back: it would play over the restored pose
+	if bm_ui != null:
+		bm_ui.halt()
 	if sd_ui != null:
 		sd_ui.halt()
 	if wt_ui != null:
@@ -6997,11 +7159,30 @@ func _restore(u: Dictionary) -> void:
 		_hero_scene().beats = u["beats"].duplicate(true)   # ROADMAP 13: the beats, undone like a card
 		if ui_choreo != null and is_instance_valid(ui_choreo.win):
 			ui_choreo.refresh()
-	if u["scene"] == S and u.has("props") and JSON.stringify(u["props"]) != JSON.stringify(S.props.map(func(p): return Props.to_dict(p))):
-		S.props = u["props"].map(func(q): return Props.from_dict(q))   # the set, undone like a card (SS5)
+	if u["scene"] == S and u.has("outl") and var_to_str(u["outl"]) != var_to_str(S.outl):
+		S.outl = u["outl"].duplicate(true)   # L36: parents, hide and lock, undone like a card
+		_props_show()
+		if ui_browser != null:
+			ui_browser.refresh()
+	var _cur_props: Array = S.props.map(func(p): return Props.to_dict(p)) if u["scene"] == S and u.has("props") else []
+	if u["scene"] == S and u.has("props") and u["props"] != _cur_props:   # L58: a native deep compare (was two JSON.stringify of the whole set)
+		var old_props: Array = S.props
+		var ups: Array = u["props"]
+		var np: Array = []
+		for k in ups.size():   # the set, undone like a card (SS5); a prop that did not change keeps its record (and so its drawn node)
+			if k < old_props.size() and k < _cur_props.size() and ups[k] == _cur_props[k]:
+				np.append(old_props[k])
+			else:
+				np.append(Props.from_dict(ups[k]))
+		S.props = np
+		var exact := false
+		if u.has("pxf") and (u["pxf"] as Array).size() == S.props.size():
+			for k in S.props.size():
+				S.props[k]["xf"] = u["pxf"][k]   # L36: the exact places (the file form keeps 1e-4), so a parent's children undo exactly
+			exact = true
 		if sel_prop >= S.props.size():
 			sel_prop = -1
-		_props_show()
+		_props_show(not exact)   # L58: the saved places are already at rest: nothing is settled again
 	if u["scene"] == S and u.has("building") and JSON.stringify(u["building"]) != JSON.stringify(_bld_file()):
 		S.building = Building.from_file(u["building"])   # BUILD: the house, undone like a card
 		if bld != null:
@@ -7102,7 +7283,7 @@ func _restore(u: Dictionary) -> void:
 		S.layer = u["layer"].duplicate()   # did not fingerprint them, so a lost breath / layer passed it)
 		S.layer_w = u["layer_w"]
 		_dummy_hits()
-	if u["scene"] == S and JSON.stringify(u["cards"]) != JSON.stringify(S.cards):
+	if u["scene"] == S and u["cards"] != S.cards and JSON.stringify(u["cards"]) != JSON.stringify(S.cards):   # L58: the native compare first
 		S.cards = u["cards"].duplicate(true)
 		sel_card = mini(u["sel"], S.cards.size() - 1)
 		_rebuild_cards()
@@ -7139,6 +7320,7 @@ func _restore(u: Dictionary) -> void:
 ## next undo step). Every edit goes through _push_undo (and every undo/redo through _restore), so both drop the bakers
 ## first; _bake_poll starts fresh ones from the new content.
 func _bake_drop(extra: Scene = null) -> void:
+	simc.edited()   # L42: an edit / undo / redo: the sim cache's memoized scene keys are dropped
 	var seen := _bake_scenes()
 	if extra != null:
 		seen.append(extra)
@@ -7161,6 +7343,8 @@ func _push_undo() -> void:
 	_bake_drop()
 	if mm_ui != null:
 		mm_ui.halt()   # an edit ends the motion matching preview: it would write its next frame over the edit (the toggle pushes its step first, then starts)
+	if bm_ui != null:
+		bm_ui.halt()
 	if _undo_merge:   # Easy's + Add pose after a drag: no new step; easy_mode.add_pose renames the drag's step and keeps its undo state
 		_step_hint = ""
 		_step_easy = ""
@@ -7224,6 +7408,8 @@ func _undo() -> void:
 	var u: Dictionary = undo.pop_back()
 	_actor_set(int(u.get("actor", 0)))   # TC3: the redo step is taken on the actor this step changes
 	var now := _snapshot()
+	now["_sz"] = UndoBudget.raw_size_of(u)   # L58: an estimate until the next push measures it (UndoBudget.settle)
+	now["_szest"] = true
 	now["name"] = _step_label(u)   # the step keeps its name on the way back and forth
 	if u.has("lib"):   # ROADMAP 96: a pack imported into the library: its files go to the trash, redo brings them back
 		now["lib"] = u["lib"]
@@ -7236,7 +7422,7 @@ func _undo() -> void:
 	redo.append(now)
 	_tree.step_back(now)
 	_restore(u)
-	UndoBudget.settle(self)
+	UndoBudget.settle(self, true)
 	_easy_forget_msg()
 	_rehearse_again()   # I14: the comparison is read again from the clip as it now is
 	if u.has("lib"):
@@ -7278,6 +7464,8 @@ func _redo() -> void:
 	var r: Dictionary = redo.pop_back()
 	_actor_set(int(r.get("actor", 0)))   # TC3: as _undo
 	var now := _snapshot()
+	now["_sz"] = UndoBudget.raw_size_of(r)   # L58: as _undo
+	now["_szest"] = true
 	now["name"] = _step_label(r)
 	if r.has("lib"):   # ROADMAP 96: as _undo, the other way: the import's files come back out of the trash
 		now["lib"] = r["lib"]
@@ -7290,7 +7478,7 @@ func _redo() -> void:
 	undo.append(now)
 	_tree.step_forward(now)
 	_restore(r)
-	UndoBudget.settle(self)
+	UndoBudget.settle(self, true)
 	_easy_forget_msg()
 	_rehearse_again()   # I14
 	if r.has("lib"):
@@ -10343,7 +10531,84 @@ func _simc_bake() -> Dictionary:
 	for n in done:
 		fr = maxi(fr, int(simc.meta[n]["frames"]))
 	_say("baked %s to a point cache: %d frames each, the timeline scrubs the file (Ctrl+Z takes it back; an edit makes it stale; 'Bake sim: free' removes it)" % [", ".join(done), fr])
+	_simc_badge_sync()
 	return {"objects": done, "frames": fr}
+
+
+## POL1106b: the timeline's "cache: fresh / stale / none" badge (SimCacheLive.badge)
+func _simc_badge_sync() -> void:
+	if ui_timeline == null:
+		return
+	if ui_simc_badge == null:
+		ui_simc_badge = Label.new()
+		ui_simc_badge.name = "sim_cache_badge"
+		ui_simc_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ui_simc_badge.add_theme_font_size_override("font_size", 10)
+		ui_timeline.add_child(ui_simc_badge)
+	ui_simc_badge.text = simc.badge(S)
+	ui_simc_badge.reset_size()
+	ui_simc_badge.position = Vector2(maxf(2.0, ui_timeline.size.x - ui_simc_badge.size.x - 6.0), 2.0)
+var ui_simc_badge: Label
+
+
+var _simc_clean := Callable()   # removes the pending files of the bake in flight
+
+
+## L42: Bake sim in the BACKGROUND (the menu action): the sims and the file writes run on a worker (progress bar and Cancel of the import panel);
+## the files are written as <file>.pending and renamed into place on the main thread when the bake completed AND the scene is still the one it read
+## (the keys are hashed again at landing), inside ONE undo step. Cancel, a scene edited meanwhile or a failed write leave no file and no undo step.
+func _simc_bake_bg() -> Dictionary:
+	if _imp_busy():
+		_say("still working on %s: one background job at a time; press Cancel on the bar, or wait for it" % _imp["label"])
+		return {"objects": []}
+	var names: Array = []
+	if not S.cape.is_empty():
+		names.append("cape")
+	for n in SoftBody.regions_of(S):
+		names.append("soft:" + String(n))
+	if names.is_empty():
+		_say("nothing to bake: 'Cape: add to the back' or a soft-body region on the BODY page first")
+		return {"objects": []}
+	var keys := {}
+	for n in names:
+		keys[n] = SimCacheLive.key_for(S, n)
+	var src := S
+	var sc := S.clone()   # on this thread; the worker never reads the open scene
+	var d: String = simc.dir
+	var sname: String = S.name
+	_simc_clean = func(): SimCacheLive.clear_pending(d, sname, names)
+	var work := func() -> Dictionary:
+		var r := SimCacheLive.compute(sc, true)
+		if r.is_empty():
+			return {}
+		var pend := SimCacheLive.write_pending(d, sname, r["objs"], keys)
+		if pend.is_empty():
+			return {}
+		return {"pend": pend, "cape": r["cape"]}
+	var land := func(out: Dictionary) -> void:
+		_simc_clean = Callable()
+		var same := S == src
+		if same:
+			for n in names:
+				same = same and SimCacheLive.key_for(S, n) == String(keys[n])
+		if not same:
+			SimCacheLive.clear_pending(d, sname, names)
+			_say("the scene changed while the sim baked: that result was dropped (no file written); run Bake sim again")
+			return
+		var done := []
+		_do(func():
+			done.append_array(simc.commit_pending(S, out["pend"]))
+			if not (out["cape"] as Dictionary).is_empty():
+				S.cape = out["cape"])
+		var fr := 0
+		for n in done:
+			fr = maxi(fr, int(simc.meta[n]["frames"]))
+		_say("baked %s to a point cache: %d frames each, the timeline scrubs the file (Ctrl+Z takes it back; an edit makes it stale; 'Bake sim: free' removes it)" % [", ".join(done), fr])
+	var fail := func() -> void:
+		_simc_clean = Callable()
+		SimCacheLive.clear_pending(d, sname, names)
+	_imp_begin("Bake sim", work, land, fail)
+	return {"objects": names, "background": true}
 
 
 func _simc_free() -> void:
@@ -10352,6 +10617,7 @@ func _simc_free() -> void:
 		return
 	_do(func(): simc.free_all())
 	_say("freed the baked sim: the cape and the flesh simulate live again (Ctrl+Z brings the bake back)")
+	_simc_badge_sync()
 
 
 func _cape_draw() -> void:
@@ -11568,6 +11834,12 @@ func _hands_dock_tick() -> void:
 		_hands_refresh()
 
 
+var _hd_last_key := 0   # L58: the hands card's last placement inputs and where it went
+var _hd_last_pos := Vector2(INF, INF)
+var _hd_last_size := Vector2.ZERO
+var _props_gen := 0   # L58: counts the prop redraws (the hands card avoids props)
+
+
 func _hands_refresh() -> void:
 	if B == null:
 		return
@@ -11613,16 +11885,25 @@ func _hands_refresh() -> void:
 				if not d0["easy"] and d0.has("both"):
 					hb_flow = (d0["both"] as Control).get_parent()
 					(d0["state"] as Label).text = st   # its wrapped height is part of the card's size
-			_hk = PerfDoc.t()
-			var docked: bool = hb_flow != null and HandsDock.place(ui_hands_panel, hb_flow, vrect, HandsDock.blockers(self, ui_hands_panel, vrect, [ui_status, ui_mouse, ui_bar, ui_cube]), body, HandsDock.points(self))
-			PerfDoc.add("h_dock", _hk)
-			if not docked:
-				var pick := Vector2(x1, y1)
-				for c in [Vector2(x1, y1), Vector2(x0, y0), Vector2(x0, y1), Vector2(x1, y0)]:
-					if not Rect2(c, ps).intersects(body):
-						pick = c
-						break
-				ui_hands_panel.position = PickDodge.fit(ui_hands_panel, pick, Rect2(float(LEFT_W) + 8.0, float(TOP_H) + 8.0, vs.x - float(LEFT_W) - float(RIGHT_W) - 16.0, vs.y - float(TOP_H) - 16.0 - float(BOTTOM_H) - 56.0), PickDodge.points(self))   # C29: never over a body pick point
+			var _hd_blk: Array = HandsDock.blockers(self, ui_hands_panel, vrect, [ui_status, ui_mouse, ui_bar, ui_cube]) if hb_flow != null else []   # L58b: a Button planted on the view changes the key (the cached skip ignored it)
+			var _hd_key := hash([_hd_blk, body, vrect, ps, x0, x1, y0, y1, _props_gen, sel, cur_page, held, B.wep_hand, B.wep_kind, on_h])   # L58: the same inputs place the card in the same spot
+			if _hd_key == _hd_last_key and _hd_last_pos.is_finite():
+				ui_hands_panel.size = _hd_last_size   # L58b: place() had set the size too (reset_size above shrinks it back)
+				ui_hands_panel.position = _hd_last_pos
+			else:
+				_hk = PerfDoc.t()
+				var docked: bool = hb_flow != null and HandsDock.place(ui_hands_panel, hb_flow, vrect, _hd_blk, body, HandsDock.points(self))
+				PerfDoc.add("h_dock", _hk)
+				if not docked:
+					var pick := Vector2(x1, y1)
+					for c in [Vector2(x1, y1), Vector2(x0, y0), Vector2(x0, y1), Vector2(x1, y0)]:
+						if not Rect2(c, ps).intersects(body):
+							pick = c
+							break
+					ui_hands_panel.position = PickDodge.fit(ui_hands_panel, pick, Rect2(float(LEFT_W) + 8.0, float(TOP_H) + 8.0, vs.x - float(LEFT_W) - float(RIGHT_W) - 16.0, vs.y - float(TOP_H) - 16.0 - float(BOTTOM_H) - 56.0), PickDodge.points(self))   # C29: never over a body pick point
+				_hd_last_key = _hd_key
+				_hd_last_pos = ui_hands_panel.position
+				_hd_last_size = ui_hands_panel.size
 		ui_hands_panel.position = ui_hands_panel.position.clamp(Vector2.ZERO, (vs - ui_hands_panel.size).max(Vector2.ZERO))   # no candidate fits a short window: it still stays on the view
 	var _hk2 := PerfDoc.t()
 	for d in ui_hands:
@@ -11895,8 +12176,7 @@ func _toast(t: String) -> void:
 	elif easy != null and easy.on:
 		_easy_toast_place(ui_toast)
 		_easy_toast_place.call_deferred(ui_toast)   # again once the strip has its new size (an undo can grow or shrink it this frame)
-	_toast_off_buttons(ui_toast)   # S252: whatever the mode placed, the toast never sits on a button
-	_toast_off_buttons.call_deferred(ui_toast)
+	_toast_off_buttons.call_deferred(ui_toast)   # S252: whatever the mode placed, the toast never sits on a button (L58: at the end of the frame, not inside an Undo)
 	_toast_gen += 1
 	var g := _toast_gen
 	get_tree().create_timer(hold).timeout.connect(func():
@@ -13606,6 +13886,7 @@ func _ui() -> void:
 	tog.call("CHECK", "Dummy (H)", _dummy_toggle, func(): return dummy_on, "a second mannequin out front: red where the weapon is in it")
 	tog.call("CHECK", "Frame data", _fd_toggle, func(): return fd_on, "frame data: startup (green) / active (red) / recovery (blue) on the timeline, with the counts (ROADMAP 12)")
 	tog.call("CHECK", "Throw check", _throw_toggle, func(): return throw_on, "throw check (N040): for a scene with two bodies, whether the throw works frame by frame (throw works / no kuzushi / thrower falls / no contact), the key frame, how far the partner's balance is outside his feet and the thrower's own margin; click a frame to jump to it")
+	tog.call("CHECK", "Lock check", _lock_toggle, func(): return lock_on, "lock check (N041): for a scene with two bodies, whether an armbar, wristlock or kimura reaches the partner's joint limit (at limit) or goes past it (past limit: injury), frame by frame, with the joint and the degrees; click a frame to jump to it")
 	tog.call("CHECK", "Frame boxes", _fd_boxes_toggle, func(): return fd_boxes, "hitboxes (red) on active frames and hurtboxes (grey) on every frame, in the view")
 	fd_btn = _button("Frame rate", _fd_cycle_fps, "the frame rate the frame data counts in (24, 30, 60, 120 fps): now %d fps" % fd_fps)
 	ui_ribbon["CHECK"].add_child(fd_btn)
@@ -16851,6 +17132,8 @@ func _layout_bottom() -> void:
 	if eempty:
 		bottom_h += EASY_ROW_H - 26
 	_easy_bottom_style(eo)
+	if throw_band:   # L45: the Throw check band (ThrowPanel.H + 8 px) stands on the bottom stack, like the clip rows
+		bottom_h += ThrowPanel.H + 8
 	ui_card_row.visible = not folded
 	if ui_fold_btn.has("bottom_open"):
 		ui_fold_btn["bottom_open"].visible = folded
@@ -17114,7 +17397,7 @@ func _commands() -> Array:
 	add.call("Cape: add to the back (bakes the cloth)", "", _cape_add, "cape cloth back cloak robe sim bake drape", true, "a cape hangs from the shoulders on the back and swings in a turn: a cloth grid that collides with the body, baked over the scene; Ctrl+Z takes it back")
 	add.call("Cape: cancel the bake", "", _cape_cancel, "cape cloth bake cancel stop abort background", false, "stops a cape bake that is running in the background; the scene keeps its last cape")
 	add.call("Cape: folds onto itself (slower)", "", _cape_fold_toggle, "cape cloth fold self collision layers pass through itself slower", false, "makes the next cape bake keep its folds from passing through each other: about 0.5 s of baking a frame instead of 0.03 s, so it is off until you switch it on (the toggle says which way it is)")
-	add.call("Bake sim (cache cloth and soft body)", "", _simc_bake, "bake sim simulation cache point cache cloth cape soft body flesh scrub timeline", true, "writes the cape's and the soft-body regions' vertex positions for every frame to a file each; the timeline then shows the saved frame and never re-simulates; an edit makes it stale; Ctrl+Z takes it back")
+	add.call("Bake sim (cache cloth and soft body)", "", _simc_bake_bg, "bake sim simulation cache point cache cloth cape soft body flesh scrub timeline", true, "writes the cape's and the soft-body regions' vertex positions for every frame to a file each; the timeline then shows the saved frame and never re-simulates; an edit makes it stale; Ctrl+Z takes it back")
 	add.call("Bake sim: free", "", _simc_free, "bake sim free remove delete cache point cache simulation", true, "removes the baked sim files; the cape and the flesh simulate live again; Ctrl+Z brings them back")
 	add.call("Cape: take off", "", _cape_clear, "cape cloth remove clear off delete", true, "takes the cape off the scene (Ctrl+Z puts it back)")
 	add.call("Cape: export its vertices (JSON)", "", _cape_export, "cape cloth export mesh json vertices", false, "writes the cape's vertex positions for every frame to a JSON file in the user folder")
@@ -17268,6 +17551,9 @@ func _commands() -> Array:
 		tm_ui = TimingMatchUI.new(self)
 	tm_ui.commands(add)   # MATCH THE REFERENCE TIMING (ROADMAP I29)
 	mm_ui.commands(add)   # MOTION MATCHING PREVIEW + coverage report (ROADMAP 33; scripts/motion_match_ui.gd)
+	if bm_ui == null:
+		bm_ui = BlendMatrixUI.new(self)
+	bm_ui.commands(add)   # BLEND MATRIX (N084; scripts/blend_matrix_ui.gd)
 	add.call("Bake to cards", "", _bake, "bake flatten curves part keys modifiers export agent frames", true, "flatten the scene into one card per frame as it really plays (part keys, modifiers, floor, pins, layer, breathing baked in; those switches go off), one undo step (DD4)")
 	add.call("Reduce part keys (tolerance slider)", "", _keyreduce_popup, "reduce keys key reduction thin decimate simplify dense bake video import tolerance error curve slider", true, "drop the part keys the curve can lose within a tolerance in degrees (every angle channel); the readout shows keys kept and the worst error; one undo step (ROADMAP 68)")
 	add.call("Curve editor", "", _curve_toggle, "graph curves keys channel animation", false, "open or close the curve editor: the picked part's part keys drawn as curves; drag a key to change its angle and time (XX2)")
@@ -20976,9 +21262,14 @@ func _save_scene_now(nm: String) -> void:
 	BodyFile.before_save(self, safe_file(H.name).get_file())   # G07: an applied body with no file yet: a NEW .kbody first
 	var d := _scene_dict()   # TC3: the hero's file with its actors (lossless: the body kept, round 8)
 	var fname := safe_file(H.name) if safe_file(H.name) != "" else "scene_" + _stamp()
+	var tpv: Node = get_node_or_null(KMeshVPaintUI.NODE)   # L55: the painted texture goes beside the scene (PNG) and is recorded in its JSON
+	var tps: Dictionary = tpv.texture_source() if tpv != null else {}
+	KMeshTPaintFile.record(d, tps, "%s_tpaint.png" % fname)
 	if not _write("res://scenes/%s.json" % fname, d):   # S271: say it was skipped; the old file and scene_path stay as they were
 		_say("not saved: a test run may not overwrite the shipped scene %s (save under another name, or a zz_ name)" % fname)
 		return
+	if not tps.is_empty():
+		KMeshTPaintFile.write_png(tps, ProjectSettings.globalize_path(UserPaths.w("res://scenes/%s_tpaint.png" % fname)))
 	if np.loaded:
 		np.update_file(UserPaths.w("res://scenes/%s.json" % fname))   # R27: the index of your habits learns the saved scene
 	_clean = _doc_key()
@@ -22063,14 +22354,25 @@ func _restore_work(a: Dictionary) -> void:
 var _gone_said := {}   # prop kinds whose missing model file was already said
 
 
-func _props_show() -> void:
-	Props.settle(S.props, C36Grip.air_held(S))   # UU1: whatever changed, every prop rests on what is under it
+var _pn := {}   # L58: the drawn prop nodes, kept between edits: key ("prop_i" / "grp_i") -> [signature, [nodes]]
+
+
+## forget the kept prop nodes and free them: the next _props_show draws every prop from scratch
+func props_nodes_reset() -> void:
+	_pn.clear()
+	if ui_props_root != null:
+		for c in ui_props_root.get_children():
+			ui_props_root.remove_child(c)
+			c.queue_free()
+
+
+## resettle: false = the props are already at rest (an undo step restores the places it saved), so nothing is settled again
+func _props_show(resettle := true) -> void:
+	if resettle:
+		Props.settle(S.props, C36Grip.air_held(S))   # UU1: whatever changed, every prop rests on what is under it
 	B.props = S.solid_props()   # TT2: the live body stands on the set too (never on what it carries)
 	if ui_props_root == null:
 		return
-	for c in ui_props_root.get_children():
-		ui_props_root.remove_child(c)
-		c.queue_free()
 	var tint := StandardMaterial3D.new()
 	tint.albedo_color = Color(Tok.c("accent"), 0.35)
 	tint.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -22083,23 +22385,67 @@ func _props_show() -> void:
 	for g in shared:
 		for i in g:
 			in_shared[i] = true
+	var hide_any: bool = not S.outl.get("hide", {}).is_empty()
+	var hid := {}
+	if hide_any:
+		for i in S.props.size():
+			hid[i] = Outliner.hidden(S, "prop:%d" % i)
+	var live := {}   # keys drawn this time
+	# L58: a prop keeps its node while its record (and the pick tint) is unchanged; a keyed or carried prop is always redrawn (it is posed)
 	for i in S.props.size():
-		if in_shared.has(i):
+		if in_shared.has(i) or hid.get(i, false):
+			continue   # L36: a hidden prop is not drawn (a shared copy is dropped below)
+		var p: Dictionary = S.props[i]
+		var key := "prop_%d" % i
+		live[key] = true
+		var vol := Props.animated(p) or Props.hinged(p) or carried_props.has(i)
+		var sig := hash(p) + (1 if i == sel_prop else 0)
+		var old = _pn.get(key)
+		if old != null and not vol and int(old[0]) == sig and is_instance_valid(old[1][0]) and (old[1][0] as Node3D).get_parent() == ui_props_root 				and ((old[1][0] as Node3D).transform).is_equal_approx(PropInstances.root_xf(p)):
 			continue
-		var n := Props.mesh(S.props[i])
-		if Props.model_missing(S.props[i]) and not _gone_said.has(S.props[i]["kind"]):
-			_gone_said[S.props[i]["kind"]] = true
-			_say_plain("the model file of the %s is missing: it is drawn as a box. Open the importer and add the model again, or delete the prop" % S.props[i]["kind"])
-		n.name = "prop_%d" % i
+		_pn_drop(key)
+		var n := Props.mesh(p)
+		if Props.model_missing(p) and not _gone_said.has(p["kind"]):
+			_gone_said[p["kind"]] = true
+			_say_plain("the model file of the %s is missing: it is drawn as a box. Open the importer and add the model again, or delete the prop" % p["kind"])
+		n.name = key
 		if i == sel_prop:
 			for mi in n.find_children("*", "MeshInstance3D", true, false):
 				(mi as MeshInstance3D).material_overlay = tint
 		ui_props_root.add_child(n)
-	for g in shared:   # M3: one MultiMeshInstance3D per mesh of the kind, one instance per copy (scripts/prop_instances.gd)
+		_pn[key] = [sig, [n]]
+		_props_gen += 1
+	for g0 in shared:   # M3: one MultiMeshInstance3D per mesh of the kind, one instance per copy (scripts/prop_instances.gd)
+		var g: Array = g0.filter(func(i): return not hid.get(i, false))   # L36: hidden copies are left out
+		if g.is_empty():
+			continue
+		var key := "grp_%d" % g[0]
+		live[key] = true
+		var sigs := []
+		for i in g:
+			sigs.append(S.props[i])
+		var sig := hash(sigs)
+		var old = _pn.get(key)
+		if old != null and int(old[0]) == sig and not (old[1] as Array).is_empty() and is_instance_valid(old[1][0]) and (old[1][0] as Node).get_parent() == ui_props_root:
+			continue
+		_pn_drop(key)
 		var parts_mm := PropInstances.build(S.props, g)
 		for j in parts_mm.size():
 			parts_mm[j].name = "shared_%d_%d" % [g[0], j]
 			ui_props_root.add_child(parts_mm[j])
+		_pn[key] = [sig, parts_mm]
+		_props_gen += 1
+	for key in _pn.keys():
+		if not live.has(key):
+			_pn_drop(key)
+	var known := {}
+	for key in _pn:
+		for n in _pn[key][1]:
+			known[n] = true
+	for c in ui_props_root.get_children():   # nothing else belongs here
+		if not known.has(c):
+			ui_props_root.remove_child(c)
+			c.queue_free()
 	for k in ui_prop_btns:
 		_grey(ui_prop_btns[k], "" if sel_prop >= 0 else "pick a prop first: click it in the view, or add one with Add prop")
 	var kind := String(S.props[sel_prop]["kind"]) if sel_prop >= 0 and sel_prop < S.props.size() else ""
@@ -22117,6 +22463,19 @@ func _props_show() -> void:
 		ui_browser.refresh()
 
 
+func _pn_drop(key: String) -> void:
+	_props_gen += 1
+	var old = _pn.get(key)
+	_pn.erase(key)
+	if old == null:
+		return
+	for n in old[1]:
+		if is_instance_valid(n):
+			if (n as Node).get_parent() != null:
+				(n as Node).get_parent().remove_child(n)
+			n.queue_free()
+
+
 ## the prop under the mouse: [index, distance along the ray] ([-1, INF] none); a ray against each solid box
 func _pick_prop(mp: Vector2) -> Array:
 	var o := cam.project_ray_origin(mp)
@@ -22124,6 +22483,8 @@ func _pick_prop(mp: Vector2) -> Array:
 	var best := -1
 	var bt := INF
 	for i in S.props.size():
+		if Outliner.hidden(S, "prop:%d" % i):
+			continue   # L36: a hidden object is clicked through
 		for sw in Props.solids(S.props[i]):
 			var inv: Transform3D = (sw["xf"] as Transform3D).affine_inverse()
 			var lo := inv * o
@@ -22148,6 +22509,65 @@ func _pick_prop(mp: Vector2) -> Array:
 	return [best, bt]
 
 
+## ---- OUTLINER (L36, scripts/outliner.gd): each change is ONE undo step; a refusal is said and changes nothing
+func _outl_locked_say(i: int) -> bool:
+	if i >= 0 and Outliner.locked(S, "prop:%d" % i):
+		_say_plain("the %s is locked: unlock it in the Outliner first" % _prop_name(i))
+		return true
+	return false
+
+
+## `child` dropped on `parent` ("" = the top level), its world transform kept. Returns "" or the reason it was refused
+func _outl_reparent(child: String, parent: String) -> String:
+	var why := Outliner.can_reparent(S, child, parent)
+	if why != "":
+		_say(why)
+		return why
+	_step_hint = "Reparent"
+	_push_undo()
+	Outliner.reparent(S, child, parent)
+	_outl_changed()
+	_say_plain("%s is now %s; it stayed where it was in the view. Ctrl+Z takes it back" % [Outliner._name(S, child), ("under " + Outliner._name(S, parent)) if parent != "" else "at the top level"])
+	return ""
+
+
+func _outl_hide(id: String, on: bool) -> void:
+	if not Outliner.has(S, id) or S.outl.get("hide", {}).has(id) == on:
+		return
+	_step_hint = "Hide" if on else "Show"
+	_push_undo()
+	Outliner.set_hidden(S, id, on)
+	_outl_changed()
+
+
+func _outl_lock(id: String, on: bool) -> void:
+	if not Outliner.has(S, id) or Outliner.locked(S, id) == on:
+		return
+	_step_hint = "Lock" if on else "Unlock"
+	_push_undo()
+	Outliner.set_locked(S, id, on)
+	_outl_changed()
+
+
+func _outl_changed() -> void:
+	_props_show()
+	if ui_browser != null:
+		ui_browser.refresh()
+
+
+## a row picked in the Outliner: a prop is picked as in the view, anything else is the picked object
+func _outl_select(id: String) -> void:
+	var i := Outliner.prop_index(id)
+	if i >= 0:
+		_prop_select(i)
+		return
+	sel_prop = -1
+	sel_obj = id
+	sel_obj_part = sel
+	_props_show()
+	_say_plain("%s selected (from the Outliner)" % Outliner._name(S, id))
+
+
 func _prop_name(i: int) -> String:
 	if i >= 0 and i < S.props.size() and String(S.props[i]["kind"]).begins_with("part:"):
 		return PartScene.name_of(String(S.props[i]["kind"]))   # F146: a built part shows by its own name
@@ -22156,9 +22576,16 @@ func _prop_name(i: int) -> String:
 
 ## a press on a prop: picked, and a drag moves it over the floor (snapped onto what it stands over); one undo step
 func _prop_press(i: int, mp: Vector2, t: float) -> void:
+	if Outliner.locked(S, "prop:%d" % i):   # L36: a locked object is picked, never grabbed: no drag, no undo step
+		sel_prop = i
+		sel_obj = "prop:%d" % i
+		_props_show()
+		_say_plain("the %s is locked: unlock it in the Outliner (the lock on its row) to move it" % _prop_name(i))
+		return
 	_step_hint = "Move prop"
 	_push_undo()
 	sel_prop = i
+	sel_obj = "prop:%d" % i
 	playing = false
 	_prop_live(i)
 	var hp := cam.project_ray_origin(mp) + cam.project_ray_normal(mp) * t
@@ -22208,6 +22635,7 @@ func _prop_release() -> void:
 		_history_rows()
 	else:
 		_prop_autokey(_prop_drag["i"])   # row 22: a keyed prop moved = a key at the playhead
+		Outliner.moved(S, "prop:%d" % int(_prop_drag["i"]))   # L36: what is under it in the Outliner goes with it
 		_props_show()   # UU1: what stood on it settles
 		var y: float = (S.props[_prop_drag["i"]]["xf"] as Transform3D).origin.y
 		_say("moved the %s%s" % [_prop_name(_prop_drag["i"]), "" if y < 0.001 else ": it stands on what is under it, %.0f cm up" % (y * 100.0)])
@@ -22299,11 +22727,14 @@ func _prop_add(kind: String, at: Variant = null) -> void:   # at: a floor point 
 func _prop_turn(deg: float) -> void:
 	if sel_prop < 0 or sel_prop >= S.props.size():
 		return
+	if _outl_locked_say(sel_prop):
+		return
 	_push_undo()
 	_prop_live(sel_prop)
 	var d := Props.to_dict(S.props[sel_prop])
 	d["yaw"] = wrapf(float(d["yaw"]) + deg, -180.0, 180.0)
 	S.props[sel_prop] = Props.from_dict(d)
+	Outliner.moved(S, "prop:%d" % sel_prop)   # L36: its children turn / grow with it
 	_prop_autokey(sel_prop)
 	_props_show()
 	_doc_line()
@@ -22320,11 +22751,14 @@ func _prop_resize(f: float) -> void:
 	if absf(new_s - old) < 0.0005:
 		_say("the %s is as %s as it goes" % [_prop_name(sel_prop), "big" if f > 1.0 else "small"])
 		return
+	if _outl_locked_say(sel_prop):
+		return
 	_push_undo()
 	_prop_live(sel_prop)
 	var d := Props.to_dict(S.props[sel_prop])
 	d["scale"] = snappedf(new_s, 0.0001)
 	S.props[sel_prop] = Props.from_dict(d)
+	Outliner.moved(S, "prop:%d" % sel_prop)   # L36: its children turn / grow with it
 	_prop_autokey(sel_prop)
 	_props_show()
 	_doc_line()
@@ -22346,6 +22780,7 @@ func _prop_colour() -> void:
 	else:
 		d["colour"] = nxt
 	S.props[sel_prop] = Props.from_dict(d)
+	Outliner.moved(S, "prop:%d" % sel_prop)   # L36: its children turn / grow with it
 	_prop_autokey(sel_prop)
 	_props_show()
 	_doc_line()
@@ -22488,9 +22923,12 @@ func _prop_copies_row() -> void:
 func _prop_del() -> void:
 	if sel_prop < 0 or sel_prop >= S.props.size():
 		return
+	if _outl_locked_say(sel_prop):
+		return
 	_push_undo()
 	var nm := _prop_name(sel_prop)
 	S.props.remove_at(sel_prop)
+	Outliner.prop_removed(S, sel_prop)   # L36: the parents / hide / lock follow the new numbers
 	for c in S.cards:   # UU2: the cards' take / drop marks follow the props' new numbers
 		if c.has("take"):
 			if int(c["take"]["prop"]) == sel_prop:
@@ -22926,6 +23364,7 @@ func _prop_select(i: int) -> void:
 	if i < 0 or i >= S.props.size():
 		return
 	sel_prop = i
+	sel_obj = "prop:%d" % i
 	_props_show()
 	_say_plain(("the %s: drag it in the view to move it" % _prop_name(i)) if easy.on else ("the %s: drag it in the view to move it; Turn and Delete are in SET" % _prop_name(i)))
 
@@ -25264,6 +25703,7 @@ func _open_scene_dict(path: String, d: Dictionary, work: bool, built := false) -
 		BodyFile.from_scene(self, d)   # G07: the body the scene was saved with back on the fighter
 		ArmourFromBody.from_scene(self, d)   # B23: the armour plates the scene was saved with (none when the file has none)
 		CharImportApp.from_scene(self, d)   # L9: the imported character the scene was saved with (none: the Kine body)
+		KMeshTPaintFile.from_scene(self, d, path)   # L55: the painted texture the scene was saved with (its PNG beside the file), held for Texture mode
 		camx.from_scene(d)   # C01: the cube's Top the scene was saved with
 	else:   # an old move file: its keys become cards
 		var prev := 0.0

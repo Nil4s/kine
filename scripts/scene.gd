@@ -90,6 +90,7 @@ var _plant_out := {}      # FootPlant.out_frames cache: {plant index: {"sig", "n
 var free_memo = null   # R2 (VideoCleanup.reachable): the plants-off reads of one reachable() call (PoseCache.plant_ref), null outside it, where the cards are fixed
 var drivers := []      # USER DRIVERS (GAP_ANALYSIS row 15): [{"driven", "axis", "source", "src_axis", "factor", "offset", "from"?}]; scripts/drivers.gd
 var cape := {}        # CAPE (ROADMAP 86; scripts/cloth.gd): the baked cloth frames; in the file as "cape" only when baked
+var outl := {}   # OUTLINER (L36; scripts/outliner.gd): parents, hide and lock of the scene's objects; in the file as "outliner" only when it holds something
 var soft := {}   # SOFT-BODY FLESH (L17; scripts/soft_body.gd): {"regions": ["belly", "thigh_l", ...]}; in the file as "soft" only when a region is on
 var secondary := {}   # SECONDARY MOTION (ROADMAP 26): {"items": [chains / rods], "keys": {"<name>_<i>": [[t, deg]]}, "fps"}; scripts/secondary_motion.gd; in the file as "secondary" only when there is an item
 var hair := {}         # HAIR STRANDS (ROADMAP 87): the ponytail's parameters (hair.gd); in the file as "hair" only when set; the frames are baked again on bake
@@ -1756,6 +1757,7 @@ func clone() -> Scene:
 	c.drivers = drivers.duplicate(true)   # user drivers (drivers.gd)
 	c.secondary = secondary.duplicate(true)   # secondary motion (secondary_motion.gd)
 	c.soft = soft.duplicate(true)   # soft-body flesh regions (soft_body.gd)
+	c.outl = outl.duplicate(true)   # outliner record (outliner.gd)
 	c.hair = hair.duplicate(true)   # hair strands (hair.gd)
 	c.rigx = rigx.duplicate(true)   # the words-made rig (rig_words.gd)
 	c.bones = bones.duplicate(true)   # the user's extra bones (bone_editor.gd)
@@ -2185,6 +2187,49 @@ func check(B: Body) -> Array:
 	return bad
 
 
+## FASTSAVE (L56): the bad_frames scan of to_dict, kept while nothing it reads has changed. check() replays every frame (seconds with a
+## big set); a save with the same scene on the same body asks the same question. The answer is a function of the scene's own variables
+## (all of them, compared deep and exactly, minus the runtime outputs below), the body's state, and the prop library; a hit also puts the
+## body where check() left it, because the rest of to_dict reads it (held_recs: wep_on / wep_kind). check() itself is unchanged.
+static var check_hits := 0
+static var check_misses := 0
+const _SIG_SKIP := ["baker", "cons_hero", "cons_me", "ik_last", "plant_last", "cons_last", "free_memo", "memo_slopes", "props_skipped", "apply_calls", "sample_memo_linear", "stepped", "script", "Built-in script"]
+var _bad_memo: Array = []   # [{"sig", "lib", "bs", "post", "bad"}], newest first, at most 2
+
+
+func _check_sig() -> Dictionary:
+	var sig := {}
+	for pr in (get_script() as Script).get_script_property_list():
+		var nm: String = pr["name"]
+		if nm.begins_with("_") or nm in _SIG_SKIP or (int(pr["usage"]) & PROPERTY_USAGE_SCRIPT_VARIABLE) == 0:
+			continue
+		sig[nm] = get(nm)
+	sig["actors"] = actors.map(func(a): return [a.get("name"), a.get("xf"), (a["scene"] as Scene)._check_sig() if a.get("scene") is Scene else null])
+	return sig
+
+
+func _bad_frames(B: Body) -> Array:
+	var was := stepped
+	stepped = false
+	var sig := _check_sig()
+	var lib: int = Props.EXTRA.hash()
+	var bs := B.state()
+	for e in _bad_memo:
+		if e["lib"] == lib and e["bs"] == bs and e["sig"] == sig:
+			check_hits += 1
+			if B.state() != e["post"]:
+				B.set_state(e["post"])
+			stepped = was
+			return (e["bad"] as Array).duplicate(true)
+	check_misses += 1
+	var bad := check(B)
+	stepped = was
+	_bad_memo.push_front({"sig": sig.duplicate(true), "lib": lib, "bs": bs, "post": B.state(), "bad": bad.duplicate(true)})
+	if _bad_memo.size() > 2:
+		_bad_memo.resize(2)
+	return bad
+
+
 ## add pass-by poses where a move goes through the body. Returns how many it added.
 func clear(B: Body) -> int:
 	var added := 0
@@ -2268,10 +2313,7 @@ func clear(B: Body) -> int:
 func to_dict(B: Body, frames := true) -> Dictionary:
 	# the file records the REAL motion: the stepped preview is a view setting (round 8: saving during it wrote the
 	# stepped playback's bad_frames into the file)
-	var was := stepped
-	stepped = false
-	var bad := check(B) if frames else []
-	stepped = was
+	var bad := _bad_frames(B) if frames else []
 	var ts := times()
 	var cs := []
 	for i in cards.size():
@@ -2391,6 +2433,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["drivers"] = Drivers.to_file(drivers)   # user drivers: the same, only when there is one
 	if not cape.is_empty():
 		out["cape"] = Cloth.to_file(cape)   # the cape: the baked frames, only when there is one
+	if not outl.is_empty():
+		out["outliner"] = Outliner.to_file(self)   # L36: parents, hide, lock; only when any
 	if not (soft.get("regions", []) as Array).is_empty():
 		out["soft"] = {"regions": (soft["regions"] as Array).duplicate()}   # soft-body flesh: only when a region is on
 		if absf(float(soft.get("strength", 1.0)) - 1.0) > 1e-9:
@@ -2605,6 +2649,7 @@ func from_dict(d: Dictionary) -> void:
 	plants = FootPlant.from_file(d.get("plants", []))   # foot plants: absent = none
 	asserts = BodyAssert.from_file(d.get("asserts", []))   # N002 body assertions: absent = none
 	drivers = Drivers.from_file(d.get("drivers", []))   # user drivers: absent = none
+	outl = Outliner.from_file(d.get("outliner", {}))   # L36: absent = none
 	soft = {}
 	if d.get("soft") is Dictionary and d["soft"].get("regions") is Array:
 		var rg := []

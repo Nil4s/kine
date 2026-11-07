@@ -131,13 +131,24 @@ const KINDS := {
 ## node shows the model itself. Registered at start and on an import; a scene naming one not registered loads it
 ## as a box of the same name's last known size, or skips it (main.gd says so)
 static var EXTRA := {}
+static var _extra_mu := Mutex.new()
+
+
+## L61: the one way a kind enters EXTRA, and the only way kind_of / has_kind read it. A bake / save worker thread (PoseBake) calls
+## kind_of while the main thread registers a part: an unguarded insert rehashes the table under the reader (the key reads as missing:
+## "Invalid access to property or key 'part:...'" in kind_of, then a crash). Both sides take this mutex. An entry is never edited
+## after it is put, so a reader may keep the Dictionary it was handed
+static func _put(kind: String, entry: Dictionary) -> void:
+	_extra_mu.lock()
+	EXTRA[kind] = entry
+	_extra_mu.unlock()
 
 
 static func register(kind: String, aabb: AABB, glb: String, factor := 1.0) -> void:
 	var sz := aabb.size * factor
-	EXTRA[kind] = {"label": "%s (%.0f x %.0f x %.0f cm, yours)" % [kind.trim_prefix("my "), sz.x * 100, sz.y * 100, sz.z * 100],
+	_put(kind, {"label": "%s (%.0f x %.0f x %.0f cm, yours)" % [kind.trim_prefix("my "), sz.x * 100, sz.y * 100, sz.z * 100],
 		"solids": [[Vector3(0, sz.y * 0.5, 0), sz]], "supports": [[sz.y, Vector2.ZERO, Vector2(sz.x, sz.z)]],
-		"glb": glb, "factor": factor, "aabb": aabb}
+		"glb": glb, "factor": factor, "aabb": aabb})
 
 
 ## A BUILD house as a kind (docs/BUILD_PLAN.md 1d): its solids are Building.collision_boxes (the walls in runs, the door gap open),
@@ -150,9 +161,10 @@ static func register_building(kind: String, boxes: Array, supports: Array, ramps
 	var sol := []
 	for bx in boxes:
 		sol.append([(bx["xf"] as Transform3D).origin, (bx["half"] as Vector3) * 2.0])
-	EXTRA[kind] = {"label": "%s (from BUILD)" % kind.trim_prefix("building:"), "solids": sol, "supports": supports, "hidden": true, "building": true}
+	var e := {"label": "%s (from BUILD)" % kind.trim_prefix("building:"), "solids": sol, "supports": supports, "hidden": true, "building": true}
 	if not ramps.is_empty():
-		EXTRA[kind]["ramps"] = ramps
+		e["ramps"] = ramps
+	_put(kind, e)
 
 
 ## A Part in the set (BuildStage.use): its solid is its bounding box, standing on the floor and centred (as an imported model's); its node is
@@ -161,23 +173,41 @@ static func register_building(kind: String, boxes: Array, supports: Array, ramps
 static func register_part(kind: String, mesh: ArrayMesh, painted := false) -> void:
 	var bx := mesh.get_aabb()
 	var sz := bx.size
-	EXTRA[kind] = {"label": "%s (from Part, %.0f x %.0f x %.0f cm)" % [kind.trim_prefix("part:").get_slice("#", 0), sz.x * 100.0, sz.y * 100.0, sz.z * 100.0],
+	_put(kind, {"label": "%s (from Part, %.0f x %.0f x %.0f cm)" % [kind.trim_prefix("part:").get_slice("#", 0), sz.x * 100.0, sz.y * 100.0, sz.z * 100.0],
 		"solids": [[Vector3(0, sz.y * 0.5, 0), sz]], "supports": [[sz.y, Vector2.ZERO, Vector2(sz.x, sz.z)]],
-		"mesh": mesh, "mesh_at": -Vector3(bx.get_center().x, bx.position.y, bx.get_center().z), "painted": painted}
+		"mesh": mesh, "mesh_at": -Vector3(bx.get_center().x, bx.position.y, bx.get_center().z), "painted": painted})
 
 
 ## A VEHICLE as a kind (B3, scripts/vehicle.gd prop_solids): boxes for the body and the wheels, drawn as boxes like the rest.
 ## The car is one prop: the set holds it, and STAGE walks and collides with its solids.
 static func register_solids(kind: String, sol: Dictionary) -> void:
-	EXTRA[kind] = {"label": "%s (from Vehicle)" % kind.trim_prefix("car:"), "solids": sol["solids"], "supports": sol["supports"]}
+	_put(kind, {"label": "%s (from Vehicle)" % kind.trim_prefix("car:"), "solids": sol["solids"], "supports": sol["supports"]})
+
+
+## the EXTRA entry of a kind, or null (read under the mutex)
+static func _extra_get(kind: String) -> Variant:
+	_extra_mu.lock()
+	var e: Variant = EXTRA.get(kind)
+	_extra_mu.unlock()
+	return e
 
 
 static func has_kind(kind: String) -> bool:
-	return KINDS.has(kind) or EXTRA.has(kind)
+	if KINDS.has(kind):
+		return true
+	_extra_mu.lock()
+	var h := EXTRA.has(kind)
+	_extra_mu.unlock()
+	return h
 
 
 static func kind_of(kind: String) -> Dictionary:
-	return KINDS[kind] if KINDS.has(kind) else EXTRA[kind]
+	if KINDS.has(kind):
+		return KINDS[kind]
+	_extra_mu.lock()
+	var e: Dictionary = EXTRA[kind]
+	_extra_mu.unlock()
+	return e
 
 
 ## every kind's name and label, the built-in set first
@@ -662,7 +692,66 @@ static func rests(p: Dictionary, a: Vector3, b: Vector3, r: float) -> bool:
 
 ## SETTLING (round 39, GATES UU1): every prop stands on the highest top under it that is not above it, or on the
 ## floor; lowest first, so a box on a table follows the table. Moves the props in place; returns how many moved
+static var _force_gd := false
+
+
+## L58: the native settle (KinePropsNative, a uniform grid) when the DLL is there, else the GDScript twin below
+static func has_native_settle() -> bool:
+	return (ClassDB.class_exists("KinePropsNative") or NativeExt.ensure("kine_native", "KinePropsNative")) and not _force_gd
+
+
+## test switch: true = never use the DLL
+static func force_gd(on: bool) -> void:
+	_force_gd = on
+
+
 static func settle(props: Array, skip := {}) -> int:   # skip: prop index -> true, a prop held in the air by a grip (C36) stays where it was put
+	if props.size() < 2 or not has_native_settle():
+		return settle_gd(props, skip)
+	var n := props.size()
+	var xf := PackedFloat64Array()
+	xf.resize(12 * n)
+	var start := PackedInt32Array()
+	start.resize(n + 1)
+	var sup := PackedFloat64Array()
+	var skp := PackedByteArray()
+	skp.resize(n)
+	var cnt := 0
+	for i in n:
+		var p: Dictionary = props[i]
+		var t: Transform3D = p["xf"]
+		var o := 12 * i
+		xf[o] = t.basis.x.x; xf[o + 1] = t.basis.x.y; xf[o + 2] = t.basis.x.z
+		xf[o + 3] = t.basis.y.x; xf[o + 4] = t.basis.y.y; xf[o + 5] = t.basis.y.z
+		xf[o + 6] = t.basis.z.x; xf[o + 7] = t.basis.z.y; xf[o + 8] = t.basis.z.z
+		xf[o + 9] = t.origin.x; xf[o + 10] = t.origin.y; xf[o + 11] = t.origin.z
+		start[i] = cnt
+		skp[i] = 1 if skip.has(i) else 0
+		var k := scale_of(p)
+		for s in kind_of(p["kind"])["supports"]:
+			var c: Vector2 = (s[1] as Vector2) * k
+			var h: Vector2 = (s[2] as Vector2) * (0.5 * k)
+			sup.append(float(s[0]) * k)
+			sup.append(c.x)
+			sup.append(c.y)
+			sup.append(h.x)
+			sup.append(h.y)
+			cnt += 1
+	start[n] = cnt
+	var door = load("res://scripts/props_native_door.gd")
+	var ys: PackedFloat64Array = door.settle(xf, start, sup, skp)
+	var moved := int(ys[n])
+	for i in n:
+		if skip.has(i):
+			continue
+		var t: Transform3D = props[i]["xf"]
+		if t.origin.y != ys[i]:
+			t.origin.y = ys[i]
+			props[i]["xf"] = t
+	return moved
+
+
+static func settle_gd(props: Array, skip := {}) -> int:   # skip: prop index -> true, a prop held in the air by a grip (C36) stays where it was put
 	var order := range(props.size())
 	order.sort_custom(func(a, b): return (props[a]["xf"] as Transform3D).origin.y < (props[b]["xf"] as Transform3D).origin.y)
 	var done := []
@@ -784,7 +873,95 @@ static func _wedge_faces_under(sw: Dictionary, x: float, z: float) -> Array:
 ## are unchanged and Body.legacy_ground runs them). The same arithmetic on the same numbers: each solid's inverse transform and
 ## box axes are computed once per cache, not per point. A box or sphere the point is beyond the bounding radius of is not
 ## inside it (its sd is >= 0 there), so the column test skips it without changing any answer.
+static var _sc_props: Array = []      # FASTSAVE: the last set solid_cache was built for (a deep copy), its cache, and the kind records it read
+static var _sc_out: Array = []
+static var _sc_kinds := {}
+static var _cache_mu := Mutex.new()
+static var sc_builds := 0             # counts real builds (tests/fastsave_test.gd)
+
+
+## solid_cache, kept while the set is unchanged: every grounding call of every frame asked for it again (1000 props = 20+ ms each)
+## and the set is the same for the whole save / export / playback. Equal = the same props, deep, and the same kind records.
 static func solid_cache(props: Array) -> Array:
+	_cache_mu.lock()   # L61: a bake worker and the main thread share the statics below
+	var r := _solid_cache_locked(props)
+	_cache_mu.unlock()
+	return r
+
+
+static func _solid_cache_locked(props: Array) -> Array:
+	if props.size() >= 8:
+		if not _sc_out.is_empty() and props == _sc_props:
+			var same := true
+			for k in _sc_kinds:
+				if not is_same(_extra_get(k), _sc_kinds[k]):
+					same = false
+					break
+			if same:
+				return _sc_out
+		var built := _solid_cache_build(props)
+		_sc_props = props.duplicate(true)
+		_sc_out = built
+		_sc_kinds = {}
+		for p in props:
+			var k: String = p["kind"]
+			if _extra_get(k) != null:
+				_sc_kinds[k] = _extra_get(k)
+		return built
+	return _solid_cache_build(props)
+
+
+## FASTSAVE: the supports of the set with each one's inverse transform (what Body.seat_lift builds), kept while the set is unchanged, and
+## for a support whose frame only turns about Y (no tilt: local x, z depend on world x, z alone) a world circle (sx, sz, sr) that holds
+## every point _over_c can say yes to: a capsule farther than that from the circle is over nothing (an exact reject, no answer changes)
+static var _sp_props: Array = []
+static var _sp_out: Array = []
+static var _sp_kinds := {}
+
+
+static func support_cache(props: Array) -> Array:
+	_cache_mu.lock()   # L61: as solid_cache
+	var r := _support_cache_locked(props)
+	_cache_mu.unlock()
+	return r
+
+
+static func _support_cache_locked(props: Array) -> Array:
+	if props.size() >= 8 and not _sp_out.is_empty() and props == _sp_props:
+		var same := true
+		for k in _sp_kinds:
+			if not is_same(_extra_get(k), _sp_kinds[k]):
+				same = false
+				break
+		if same:
+			return _sp_out
+	var out := []
+	for p in props:
+		for sp in supports(p):
+			var X: Transform3D = sp["xf"]
+			sp["inv"] = X.affine_inverse()
+			var bs := X.basis
+			if bs.x.y == 0.0 and bs.z.y == 0.0 and bs.y.x == 0.0 and bs.y.z == 0.0:
+				var c: Vector2 = sp["c"]
+				var h: Vector2 = sp["half"]
+				var ctr := X * Vector3(c.x, 0.0, c.y)
+				sp["sx"] = ctr.x
+				sp["sz"] = ctr.z
+				sp["sr"] = maxf(bs.x.length(), bs.z.length()) * h.length() * (1.0 + 1e-6) + 1e-6
+			out.append(sp)
+	if props.size() >= 8:
+		_sp_props = props.duplicate(true)
+		_sp_out = out
+		_sp_kinds = {}
+		for p in props:
+			var k: String = p["kind"]
+			if _extra_get(k) != null:
+				_sp_kinds[k] = _extra_get(k)
+	return out
+
+
+static func _solid_cache_build(props: Array) -> Array:
+	sc_builds += 1
 	var out := []
 	for p in props:
 		for sw in solids(p):
@@ -798,6 +975,11 @@ static func solid_cache(props: Array) -> Array:
 				var h: Vector3 = sw["half"]
 				sw["rad"] = h.length()
 				sw["ax"] = [X.basis.x.normalized(), X.basis.y.normalized(), X.basis.z.normalized()]
+			if not sw.has("poly"):   # FASTSAVE: a world radius round the origin (x, z) no point of the solid and no "inside" answer lies beyond
+				var bs := X.basis
+				sw["ox"] = X.origin.x
+				sw["oz"] = X.origin.z
+				sw["wr2"] = pow(float(sw["rad"]) * sqrt(bs.x.length_squared() + bs.y.length_squared() + bs.z.length_squared()) * (1.0 + 1e-6) + 1e-6, 2.0)
 			out.append(sw)
 	return out
 
@@ -822,6 +1004,11 @@ static func _sd_c(sw: Dictionary, pt: Vector3) -> float:
 ## is a point inside any cached solid (by more than REST_SINK)? A solid whose bounding radius the point is beyond is skipped
 static func _inside_c(cache: Array, q: Vector3) -> bool:
 	for sw in cache:
+		if sw.has("wr2"):
+			var ddx: float = q.x - float(sw["ox"])
+			var ddz: float = q.z - float(sw["oz"])
+			if ddx * ddx + ddz * ddz > float(sw["wr2"]):
+				continue   # FASTSAVE: beyond the bounding circle, so |l| > rad below
 		var l: Vector3 = (sw["inv"] as Transform3D) * q
 		if l.length() > float(sw["rad"]):
 			continue
@@ -835,23 +1022,86 @@ static func _column_blocked_c(cache: Array, x: float, z: float, y0: float, y1: f
 	if y1 < y0:
 		return false
 	var n := maxi(1, ceili((y1 - y0) / 0.01))
+	var near := []   # FASTSAVE: the column is one (x, z): the solids whose bounding circle it is outside of can never say "inside"
+	for sw in _near(cache, x, z):
+		if sw.has("wr2"):
+			var ddx: float = x - float(sw["ox"])
+			var ddz: float = z - float(sw["oz"])
+			if ddx * ddx + ddz * ddz > float(sw["wr2"]):
+				continue
+		near.append(sw)
 	for k in n + 1:
 		var q := Vector3(x, minf(y0 + k * 0.01, y1), z)
-		if _inside_c(cache, q):
+		if _inside_c(near, q):
 			return true
 	return false
+
+
+## FASTSAVE: a uniform grid (2 m cells) over the cache's bounding circles. _near(cache, x, z) = the solids whose circle could reach (x, z),
+## in the cache's own order (a solid with no circle, a wedge, or one spanning many cells is in every answer). Built once per cache object.
+const GRID_CELL := 2.0
+static var _grid_mu := Mutex.new()
+static var _gr_for: Array = []
+static var _gr_cells := {}
+static var _gr_always: Array = []
+
+
+static func _near(cache: Array, x: float, z: float) -> Array:
+	if cache.size() < 64:
+		return cache
+	_grid_mu.lock()   # L61: the grid statics are rebuilt by whichever thread meets a new cache first (bake worker vs main)
+	var r := _near_locked(cache, x, z)
+	_grid_mu.unlock()
+	return r
+
+
+static func _near_locked(cache: Array, x: float, z: float) -> Array:
+	if not is_same(cache, _gr_for):
+		_gr_for = cache
+		_gr_cells = {}
+		_gr_always = []
+		for i in cache.size():
+			var sw: Dictionary = cache[i]
+			if not sw.has("wr2"):
+				_gr_always.append(i)
+				continue
+			var wr := sqrt(float(sw["wr2"])) + 1e-6
+			var x0 := floori((float(sw["ox"]) - wr) / GRID_CELL)
+			var x1 := floori((float(sw["ox"]) + wr) / GRID_CELL)
+			var z0 := floori((float(sw["oz"]) - wr) / GRID_CELL)
+			var z1 := floori((float(sw["oz"]) + wr) / GRID_CELL)
+			if (x1 - x0 + 1) * (z1 - z0 + 1) > 64:
+				_gr_always.append(i)
+				continue
+			for cx in range(x0, x1 + 1):
+				for cz in range(z0, z1 + 1):
+					var key := Vector2i(cx, cz)
+					if not _gr_cells.has(key):
+						_gr_cells[key] = []
+					(_gr_cells[key] as Array).append(i)
+	var ids: Array = (_gr_cells.get(Vector2i(floori(x / GRID_CELL), floori(z / GRID_CELL)), []) as Array).duplicate()
+	ids.append_array(_gr_always)
+	ids.sort()
+	var out := []
+	for i in ids:
+		out.append(cache[i])
+	return out
 
 
 ## _faces_under over the cache (same candidates, same order)
 static func _faces_under_c(cache: Array, x: float, z: float) -> Array:
 	var cands := [{"y": 0.0, "n": Vector3.UP}]
-	for sw in cache:
+	for sw in _near(cache, x, z):
 		if sw.has("r"):
 			continue
 		if sw.has("poly"):
 			cands.append_array(_wedge_faces_c(sw, x, z))
 			continue
 		var X: Transform3D = sw["xf"]
+		var ddx: float = x - float(sw["ox"])
+		var ddz: float = z - float(sw["oz"])
+		if ddx * ddx + ddz * ddz > float(sw["wr2"]):
+			continue   # FASTSAVE: the column is beyond the solid's bounding circle: none of its faces is under it
 		var h: Vector3 = sw["half"]
 		var ax: Array = sw["ax"]
 		for i in 3:
