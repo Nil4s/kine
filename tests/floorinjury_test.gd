@@ -145,7 +145,7 @@ func _init() -> void:
 	var a0: Dictionary = rows_of(S, B)
 	var s0 := var_to_str(a0)
 	var f0 := var_to_str(HumanLimits.findings(S, B))
-	ok(not a0.has("mu") and not S.to_dict().has("floor_mat") and not S.to_dict().has("injury"), "F3 default: analyze has no mu key, the file has no floor_mat / injury key")
+	ok(not a0.has("mu") and not S.to_dict(B).has("floor_mat") and not S.to_dict(B).has("injury"), "F3 default: analyze has no mu key, the file has no floor_mat / injury key")
 	ok(a0["flags"].is_empty(), "F2 no material: not flagged (%s)" % a0["msg"])
 	for k in MATS:
 		S.floor_mat = k
@@ -242,7 +242,7 @@ func _init() -> void:
 	ok(var_to_str(Injury.findings(K, B)) == var_to_str(Injury.findings(K, B)) and var_to_str(rows_of(S, B)) == var_to_str(rows_of(S, B)), "D deterministic: findings and analyze twice are byte-identical")
 	# save / load / clone
 	K.floor_mat = "wood"
-	var js: Dictionary = JSON.parse_string(JSON.stringify(K.to_dict()))
+	var js: Dictionary = JSON.parse_string(JSON.stringify(K.to_dict(B)))
 	var KL := Scene.new()
 	KL.from_dict(js)
 	var KC := K.clone()
@@ -269,7 +269,7 @@ func _init() -> void:
 	var s4: int = m.undo.size() - u0 - reads - s1 - s2 - s3
 	ok(r_read["ok"] and r_list["ok"] and i_read["ok"] and reads == 0, "U read / list add no undo step (%d)" % reads)
 	ok(rs["ok"] and rc["ok"] and is_["ok"] and ic["ok"] and s1 == 1 and s2 == 1 and s3 == 1 and s4 == 1, "U floor set / clear, injury set / clear: one undo step each (%d %d %d %d)" % [s1, s2, s3, s4])
-	ok(isset_ok(isset) and imv["ok"] and (imv["result"]["moves"] as Array).size() == 1 and U.injury.is_empty() and U.floor_mat == "", "U knee_r alias stored as calf_r; the tool lists the move; clear empties the scene")
+	ok(isset_ok(iset) and imv["ok"] and (imv["result"]["moves"] as Array).size() == 1 and U.injury.is_empty() and U.floor_mat == "", "U knee_r alias stored as calf_r; the tool lists the move; clear empties the scene")
 	var before := var_to_str(U.injury) + U.floor_mat
 	var n0: int = m.undo.size()
 	var bad := [FloorMaterial.serve(m, {"action": "set", "material": "lava"}), Injury.serve(m, {"action": "set", "joint": "tail", "rom": 0.3}), Injury.serve(m, {"action": "set", "joint": "knee_r", "rom": 1.5})]

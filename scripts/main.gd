@@ -7173,7 +7173,7 @@ func _snapshot() -> Dictionary:
 	return {"actor": actor_on, "hero": H, "spath": scene_path, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
 		"body": B.state(), "playhead": playhead, "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps, "bcol": body_colour, "bsm": Overlays.smooth,
 		"props": S.props.map(func(p): return Props.to_dict(p)), "pxf": S.props.map(func(p): return p["xf"]), "outl": S.outl.duplicate(true), "building": _bld_file(), "part": _part_file(), "vehicle": _vehicle_file(), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
-		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
+		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "floor_mat": S.floor_mat, "injury": S.injury.duplicate(true), "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
 		"soft": S.soft.duplicate(true),   # L22: the soft-body regions, undone like a card
@@ -7475,6 +7475,9 @@ func _restore(u: Dictionary) -> void:
 	if u["scene"] == S and u.has("flags"):
 		for k in BAKE_FLAGS.size():   # DD4: Ctrl+Z on a bake gives the floor, the pins, spline ... back
 			S.set(BAKE_FLAGS[k], u["flags"][k])
+	if u["scene"] == S and u.has("floor_mat"):
+		S.floor_mat = u["floor_mat"]   # N035: the floor material, undone like a card
+		S.injury = u["injury"].duplicate(true)   # N036: the injury profile, the same
 	if u["scene"] == S and u.has("fitness"):
 		S.fitness = u["fitness"]   # FATIGUE (ROADMAP 39): the fitness slider, undone with the retime it came with
 	if u["scene"] == S and u.has("layers") and var_to_str(u["layers"]) != var_to_str(S.layers):

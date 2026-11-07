@@ -212,6 +212,8 @@ static func capture(S: Scene, B: Body) -> Dictionary:
 	S.stepped = was
 	var cap := {"n": n, "mass": mass, "cs": cs, "gs": gs, "ps": ps, "feet": feet, "fbox": fbox, "bat": bat, "tips": tips, "pcs0": pcs0, "us": us_all,
 		"chains": chains, "gtrack": gtrack}
+	if FloorMaterial.mu_of(S) >= 0.0:
+		cap["mu"] = FloorMaterial.mu_of(S)   # N035: the floor material's friction coefficient; absent = MU
 	return cap
 
 
@@ -355,8 +357,9 @@ static func dynamics(cap: Dictionary) -> Dictionary:
 		if not down.is_empty() and ftot.y > 0.0:
 			fg = ftot
 			var fh := Vector2(fg.x, fg.z)
-			if fh.length() > MU * fg.y:
-				fh = fh.normalized() * MU * fg.y
+			var mu_f: float = float(cap.get("mu", MU))
+			if fh.length() > mu_f * fg.y:
+				fh = fh.normalized() * mu_f * fg.y
 				fg = Vector3(fh.x, fg.y, fh.y)
 			# the net centre of pressure that gives the angular momentum rate:  (r x F) = Ldot (horizontal parts), r from the COM
 			var y0 := 0.0
