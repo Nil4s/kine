@@ -60,7 +60,7 @@ class_name PartKeys
 extends RefCounted
 
 const SAME_T := 0.001  # two keys closer than this (s) are the same key: keying there again replaces it (the file keeps 1 ms)
-const INTERPS := ["bezier", "constant", "linear"]   # KEY INTERPOLATION (round 42, XX1): see the header
+const INTERPS := ["bezier", "constant", "linear", "slerp"]   # KEY INTERPOLATION (round 42, XX1): see the header
 const HANDLES := ["auto_clamped", "auto", "vector", "aligned", "free"]
 const INFS := ["hold", "linear", "cycle", "cycle_offset"]
 const MODS := ["noise", "stepped", "limits", "cycles"]   # DD2; cycles GE4
@@ -307,6 +307,8 @@ static func _inside(keys: Array, t: float, mode: String) -> Vector3:
 		return a
 	if ip == "linear":
 		return a + (b - a) * s
+	if ip == "slerp":   # L86: the shortest quaternion arc (scripts/quat_curve.gd)
+		return QuatCurve.seg(String(keys[i].get("qj", "")), a, b, s)
 	if mode == "hold" and handle_of(keys[i]) == "auto_clamped" and handle_of(keys[i + 1]) == "auto_clamped" and not keys[i].has("wout") and not keys[i + 1].has("win"):   # L84: a weighted handle takes the bezier path
 		# round 41's curve, the very same expression (old files sample bit for bit)
 		var ma := _slope(keys, i)
@@ -595,8 +597,11 @@ static func set_interp(pk: Dictionary, j: String, idx: int, mode: String) -> boo
 		return false
 	if mode == "bezier":
 		(pk[j][idx] as Dictionary).erase("interp")
+		(pk[j][idx] as Dictionary).erase("qj")
 	else:
 		pk[j][idx]["interp"] = mode
+		if mode == "slerp":
+			pk[j][idx]["qj"] = j   # L86: the joint, for QuatCurve.seg
 	return true
 
 
@@ -817,6 +822,8 @@ static func from_file(d: Variant) -> Dictionary:
 				var a: Array = k["v"]
 				var nk := {"t": float(k["t"]), "v": Vector3(float(a[0]), float(a[1]), float(a[2]))}
 				_extras_from_file(k, nk)
+				if nk.get("interp", "") == "slerp":
+					nk["qj"] = String(j)   # L86
 				ks.append(nk)
 		ks.sort_custom(func(x, y): return float(x["t"]) < float(y["t"]))
 		if not ks.is_empty():

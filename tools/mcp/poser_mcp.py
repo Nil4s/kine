@@ -66,6 +66,8 @@ TOOLS = {
     "animtools": ("animtools", "Animation tools (L07 L09 L10 L11): op onion {frame, before, after, step} lists the ghost frames; breakdown {card, factor -0.5..1.5, parts} blends the card between its neighbours; "
                   "retime {card, frames, ripple} moves a key in time (ripple shifts the later keys, no ripple refuses a move across a neighbour); keyset {name, parts, active} makes a keying set that auto-key then uses. One undo step each.",
                   {"type": "object", "properties": {"op": S, "frame": N, "before": N, "after": N, "step": N, "card": N, "factor": N, "frames": N, "ripple": {"type": "boolean"}, "name": S, "parts": {"type": "array", "items": S}, "active": {"type": "boolean"}}, "required": ["op"], "additionalProperties": False}),
+    "euler_warp": ("euler_warp", "Euler filter, quaternion view, slerp and clip time warp. action: euler (joints: part names; unwrap 360 jumps, one undo step) | quat (joint, t0, t1, fps: [t, w, x, y, z] per frame of the part's world rotation, read-only) | slerp (joints, on: key interpolation along the shortest quaternion arc; one undo step) | warp (clip index, knots [[x, y]..] a monotone time curve of strip progress to source progress; refused when not monotone; one undo step) | warp_clear (clip) | warp_read (clip).",
+                   {"type": "object", "properties": {"action": S, "joints": {"type": "array", "items": S}, "joint": S, "t0": N, "t1": N, "fps": N, "on": {"type": "boolean"}, "clip": N, "knots": {"type": "array"}}, "required": ["action"], "additionalProperties": True}),
     "dyntopo": ("dyntopo", "Dynamic topology step: under the sculpt brush edges longer than L_max = detail x radius are split and edges shorter than 0.4 L_max are collapsed. "
                 "Runs one step on a test sphere and returns tris before/after, splits, collapses, edges in the brush outside the band (band_bad), min/max edge in mm, manifold, native, ms.",
                 {"type": "object", "properties": {"radius": N, "detail": N, "levels": N}, "additionalProperties": False}),
@@ -154,7 +156,7 @@ TOOLS = {
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets", "animtools", "anykey", "bake_any"]
+MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets", "animtools", "anykey", "bake_any", "euler_warp"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:

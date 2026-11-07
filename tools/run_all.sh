@@ -1097,3 +1097,4 @@ EXTRA="$EXTRA sockets:w"   # N089: engine sockets from anatomy: regions, proport
 EXTRA="$EXTRA refresh:w"   # L64 L-REFRESH: playback _refresh skips unchanged work (R1 <5 ms, R2 4 fighters lower, R3 hash equal + planted control, R4 same-frame updates)
 EXTRA="$EXTRA animtools:w"   # L87 ANIMTOOLS: onion every N frames per part, breakdown on a selection, ripple retime of keys, keying sets + set-restricted auto-key, one undo step each (tests/animtools_test.gd)
 EXTRA="$EXTRA anykey:w"   # L13/L15/L16 ANYKEY: shape-key weights and any property keyed in the dope sheet, bake constraints/drivers to plain keys (tests/anykey_test.gd)
+EXTRA="$EXTRA eulerwarp:h"   # L86 Euler filter, quaternion view, slerp, clip time warp via euler_warp tool (tests/eulerwarp_test.gd)
