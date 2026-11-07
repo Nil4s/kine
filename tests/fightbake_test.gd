@@ -168,6 +168,10 @@ func _init() -> void:
 	# ---- a. contacts
 	var cs := FightBake.contacts(S2, FPS)
 	ok(cs.size() == 1 and int(cs[0]["frame"]) == f0 and int(cs[0]["partner"]) == 0 and String(cs[0]["region"]) != "" and float(cs[0]["impulse"]) > 0.0, "a the two-body clip lists 1 contact at frame %d: %s" % [f0, str(cs[0]) if cs.size() > 0 else "none"])
+	if cs.is_empty():
+		print("FIGHTBAKE TEST FAIL: no contact listed, the later bars cannot run")
+		quit(1)
+		return
 	var idle := held(2.0)
 	idle.add("stand2", stand_pose())
 	idle.cards[1]["hold"] = 1.0
@@ -189,7 +193,11 @@ func _init() -> void:
 	for fz in forced:
 		var Sb := S2.clone()
 		var orig := (S2.actors[0]["scene"] as Scene).clone()
-		var c: Dictionary = FightBake.contacts(Sb, FPS)[0]
+		var cl := FightBake.contacts(Sb, FPS)
+		if cl.is_empty():
+			ok(false, "b %s: no contact to bake onto" % fz["name"])
+			continue
+		var c: Dictionary = cl[0]
 		var rr := FightBake.bake_reaction(Sb, c, fz)
 		var baked: Scene = Sb.actors[0]["scene"]
 		if not bool(rr.get("ok", false)):

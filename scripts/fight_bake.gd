@@ -11,7 +11,7 @@ class_name FightBake
 extends RefCounted
 
 const FPS := 60
-const REACH := 0.60        # m: the fist within this of the partner's hips (horizontal) is a contact
+const REACH := 0.25        # m: the fist within this of the partner's SKIN (nearest body capsule surface) at the contact frame is a contact (the frame is the fastest one, just before the hit lands)
 const MIN_RISE := 0.08     # s: the soonest a reaction card can arrive (a drop_delay of 0 still needs time to move)
 const HOLD_END := 0.25     # s: the last baked card is held this long
 const M_EFF := {"punch": 3.0, "kick": 6.0}
@@ -68,12 +68,12 @@ static func contacts(S: Scene, fps := FPS) -> Array:
 		var xf := Constraints.actor_xf(S.actors[k]["xf"])
 		var lt: Vector3 = xf.affine_inverse() * tip
 		var root: Vector3 = pb.P["pelvis"]
-		var h := Vector2(lt.x - root.x, lt.z - root.z).length()
 		var H: float = (pb.P["head"] as Vector3).y + 0.12
-		if h <= REACH and lt.y >= 0.0 and lt.y <= H + 0.1 and h < best_d:
+		var d := skin_distance(pb, lt)
+		if d <= REACH and d < best_d:
 			best = k
-			best_d = h
-			best_tag = tag_of(lt.y / H, lt.x - root.x)
+			best_d = d
+			best_tag = tag_of(clampf(lt.y / H, 0.0, 1.0), lt.x - root.x)
 	if best < 0:
 		return []
 	var kind := String(r["striker"]).begins_with("foot")
@@ -84,7 +84,20 @@ static func contacts(S: Scene, fps := FPS) -> Array:
 		rules.append(fl["rule"])
 	return [{"frame": f, "t": t, "striker": key, "kind": kd, "side": String(key).right(1), "speed": speed, "partner": best,
 		"tag": tg, "y": best_tag["y"], "head_y": best_tag["head_y"], "region": RegionReact.pick(tg, best_tag["y"], best_tag["head_y"]),
-		"struck": tg.right(1) if tg.ends_with("_l") or tg.ends_with("_r") else "r", "impulse": float(M_EFF[kd]) * speed, "reach": best_d, "flags": rules}]
+		"struck": tg.right(1) if tg.ends_with("_l") or tg.ends_with("_r") else "r", "impulse": float(M_EFF[kd]) * speed, "skin_m": best_d, "flags": rules}]
+
+
+## distance (m) from a point (the body's own space) to the nearest body capsule surface; 0 inside
+static func skin_distance(pb: Body, pt: Vector3) -> float:
+	var best := INF
+	for part in Body.BODY + Body.WIDE.keys():
+		var c: Array = pb.cap(part)
+		var a: Vector3 = c[0]
+		var ab: Vector3 = (c[1] as Vector3) - a
+		var den := ab.length_squared()
+		var u := clampf((pt - a).dot(ab) / den, 0.0, 1.0) if den > 1e-12 else 0.0
+		best = minf(best, maxf((pt - (a + ab * u)).length() - float(pb.rad[part]), 0.0))
+	return best
 
 
 # ---------------------------------------------------------------- cards
