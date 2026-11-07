@@ -196,6 +196,7 @@ var gz_ui: GazeUI   # GAZE DIRECTOR (ROADMAP I41): scripts/gaze_ui.gd
 var el_ui: EyeLifeUI   # LIVING EYES (ROADMAP I08): scripts/eye_life_ui.gd
 var sh_ui: SellHitUI   # SELL THE HIT (ROADMAP I21): scripts/sell_hit_ui.gd
 var bk_ui: BreakfallUI   # BREAKFALL CHECK (ROADMAP I25): scripts/breakfall_ui.gd
+var sm_ui: StanceMapUI   # N038 stance strength map (scripts/stance_map_ui.gd)
 var rc_ui: RecoveryUI   # RECOVERY STEP (ROADMAP I39): scripts/recovery_ui.gd
 var rc_view := RecoveryView.new()   # its floor drawing
 var sc_ui: SoundCuesUI   # SOUND CUES (ROADMAP I35): scripts/sound_cues_ui.gd
@@ -7171,7 +7172,7 @@ func _snapshot() -> Dictionary:
 	# TC3: tagged with the actor it was taken on, and the actors as they are (the same Body / Scene objects: an add or a
 	# remove is undone by putting the list back), so _restore never puts one actor's body onto another
 	return {"actor": actor_on, "hero": H, "spath": scene_path, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
-		"body": B.state(), "playhead": playhead, "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps, "bcol": body_colour, "bsm": Overlays.smooth,
+		"body": B.state(), "playhead": playhead, "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "sway": S.sway, "sway_seed": S.sway_seed, "scurves": S.strength_curves, "fps": S.fps, "bcol": body_colour, "bsm": Overlays.smooth,
 		"props": S.props.map(func(p): return Props.to_dict(p)), "pxf": S.props.map(func(p): return p["xf"]), "outl": S.outl.duplicate(true), "building": _bld_file(), "part": _part_file(), "vehicle": _vehicle_file(), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
@@ -7335,6 +7336,11 @@ func _restore(u: Dictionary) -> void:
 		if bld != null:
 			bld.sync()   # C2: a Part dimension bound to the body follows it back
 	B.set_state(u["body"])   # lossless (round 8): from_dict re-solved from the file's rounded numbers
+	if u["scene"] == S and (u.get("sway", S.sway) != S.sway or u.get("sway_seed", S.sway_seed) != S.sway_seed or u.get("scurves", S.strength_curves) != S.strength_curves):
+		S.sway = u.get("sway", S.sway)   # N037 / N039 scene settings, undone like a card
+		S.sway_seed = u.get("sway_seed", S.sway_seed)
+		S.strength_curves = u.get("scurves", S.strength_curves)
+		_rebuild_cards()
 	if u["scene"] == S and u.get("holds", S.moving_holds) != S.moving_holds:   # a scene setting, undone like a card
 		S.moving_holds = u["holds"]
 		_rebuild_cards()
@@ -14061,6 +14067,9 @@ func _ui() -> void:
 	ui_ribbon["CHECK"].add_child(_button("Breakfall check", bk_ui.show_bg, "finds each fall or knockdown in the clip (the centre of mass drops 40% of the height in a second and a body part but the feet reaches the floor) and judges the landing like a judo / stunt coach: head clear and chin tucked, no straight-arm catch, impact spread, speed; one-click fixes (tuck the chin, bend the arm into a slap, roll the trunk); preview, then accept (one undo step)"))
 	if rc_ui == null:
 		rc_ui = RecoveryUI.new(self)
+	if sm_ui == null:
+		sm_ui = StanceMapUI.new(self)
+	ui_ribbon["CHECK"].add_child(_button("Stance strength map", sm_ui.show, "a polar picture of how hard a push this stance takes from each direction before a step is needed (feet + capture point)"))
 	ui_ribbon["CHECK"].add_child(_button("Recovery step", rc_ui.show, "after a shove or hit: the capture point (the COM's floor point + speed / omega0, Hof 2005) against the feet; small shove: no step, medium: a step lands on the capture point in 0.25 s, huge: flagged as a fall; preview, then accept (one undo step)"))
 	if rd_ui == null:
 		rd_ui = ReactionDirUI.new(self)
@@ -17724,6 +17733,9 @@ func _commands() -> Array:
 	if rc_ui == null:
 		rc_ui = RecoveryUI.new(self)
 	rc_ui.commands(add)   # RECOVERY STEP (ROADMAP I39)
+	if sm_ui == null:
+		sm_ui = StanceMapUI.new(self)
+	sm_ui.commands(add)   # STANCE STRENGTH MAP (N038)
 	if sf_ui == null:
 		sf_ui = SafetyUI.new(self)
 	sf_ui.commands(add)   # SAFETY SHEET (ROADMAP I28)
@@ -18883,6 +18895,21 @@ func _tool(id: int) -> void:
 	pm.set_item_checked(pm.get_item_index(2), ov.graph_on)
 	pm.set_item_checked(pm.get_item_index(3), stepped_view)
 	pm.set_item_checked(pm.get_item_index(4), S.moving_holds)
+
+
+## N037 / N039: switch real sway (seed >= 0 sets it) or the strength curves on or off; ONE undo step
+func _set_strength(what: String, on: bool, seed := -1) -> void:
+	_push_undo()
+	if what == "sway":
+		S.sway = on
+		if seed >= 0:
+			S.sway_seed = seed
+	elif what == "curves":
+		S.strength_curves = on
+	_rebuild_cards()
+	_ps().apply(B, playhead)
+	_refresh()
+	_say(("real sway %s (seed %d)" % ["on" if S.sway else "off", S.sway_seed]) if what == "sway" else ("strength curves " + ("on: torque caps follow the joint angle" if on else "off: one constant cap per joint")))
 
 
 ## the whole scene mirrored, card by card (and each card's steps), into scenes/_wip/<name>_mirrored.json, opened

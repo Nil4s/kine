@@ -226,7 +226,8 @@ static func sample(S: Scene, B: Body) -> Dictionary:
 	return r
 
 
-static func dynamics(cap: Dictionary) -> Dictionary:
+## curves true (N039): the ratio of the knee and elbow reads the torque-angle curve (scripts/strength_curves.gd) and out["weak"] lists the pushes the constant cap passes
+static func dynamics(cap: Dictionary, curves := false) -> Dictionary:
 	var n: int = cap["n"]
 	var mass: float = cap["mass"]
 	var cs: Array = cap["cs"]
@@ -441,6 +442,11 @@ static func dynamics(cap: Dictionary) -> Dictionary:
 		for i in n:
 			r[i] = float(out["tau"][j][i]) / lim
 		out["ratio"][j] = r
+	if curves:
+		var ck := StrengthCurves.check(out["tau"], StrengthCurves.angles(cap), mass)
+		for j in ck["ratio"]:
+			out["ratio"][j] = ck["ratio"][j]
+		out["weak"] = ck["weak"]
 	out["chain"] = chain_of(out, gtrack, tips, bat, n)
 	return out
 

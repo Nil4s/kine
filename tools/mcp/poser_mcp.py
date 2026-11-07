@@ -108,6 +108,12 @@ TOOLS = {
     "reactable": ("reactable", "Is each strike reactable? Per strike: the frame a viewer can first SEE it coming (the tell), its first active frame, the window between them and the frames a human needs "
                   "(plus latency_ms), status reactable / not reactable and the margin. clip = a scene file (else the live scene); frame adds what that frame is (tell / active / idle).",
                   {"type": "object", "properties": {"clip": S, "frame": {"type": "integer"}, "latency_ms": N, "fps": N}, "additionalProperties": False}),
+    "sway_trace": ("sway_trace", "Real quiet-standing sway of a seed (N037): the (ml, ap) mm samples, RMS against the cited 2.5 / 3.5 mm and the 0.1-1 Hz band. on true/false (with seed) turns the scene's sway on or off as ONE undo step; without on it only reads.",
+                   {"type": "object", "properties": {"seed": N, "seconds": N, "hz": N, "on": {"type": "boolean"}}, "additionalProperties": False}),
+    "stance_map": ("stance_map", "Stance strength map (N038) of the pose at the playhead: per push direction (deg from the facing, 0 forward, 90 left) the impulse this stance takes before a step is needed (N s), the speed it gives, the force over 0.1 s and the edge distance in cm. Read only.",
+                   {"type": "object", "properties": {}, "additionalProperties": False}),
+    "strength_curve": ("strength_curve", "Joint torque-angle curve (N039): the cap of the knee (calf_l/_r) or elbow (lowerarm_l/_r) at an angle (deg of flexion), or the whole table. on true/false turns the scene's strength curves on or off as ONE undo step; the force view then reads the curve.",
+                       {"type": "object", "properties": {"joint": S, "angle": N, "on": {"type": "boolean"}}, "additionalProperties": False}),
     "throw_check": ("throw_check", "Does the throw work? Two bodies judged frame by frame: verdict (throw works / no kuzushi / thrower falls / no contact), the key frame, and per frame the partner's "
                     "extrapolated centre of mass outside his feet (out_m) and the thrower's own balance margin (margin_m). clip = a scene file with a partner (else the live scene); thrower 0 = hero, 1 = partner. brief true = only the verdict, the key frame, the partner out and the thrower margin (under 1 KB).",
                     {"type": "object", "properties": {"clip": S, "fps": N, "thrower": {"type": "integer"}, "brief": {"type": "boolean"}}, "additionalProperties": False}),
@@ -175,7 +181,7 @@ TOOLS = {
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets", "animtools", "anykey", "bake_any", "euler_warp", "react_time", "react_place", "weight_slider", "clip_print", "rig_anim", "fps_wave", "spacing", "jump_budget", "grip_hold"]
+MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets", "animtools", "anykey", "bake_any", "euler_warp", "react_time", "react_place", "weight_slider", "clip_print", "rig_anim", "fps_wave", "spacing", "jump_budget", "grip_hold", "sway_trace", "stance_map", "strength_curve"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:

@@ -95,7 +95,7 @@ static func new_pass() -> void:
 ## depend on the time within a hold (moving holds, a jump in the air)
 static func hold_list(S: Scene) -> Array:
 	var out := []
-	if S.moving_holds or (S.on_floor and not S.flights().is_empty()):
+	if S.moving_holds or S.sway or (S.on_floor and not S.flights().is_empty()):
 		return out
 	var ts: Array = S.times()
 	for i in ts.size():
@@ -150,7 +150,7 @@ static func plain(S: Scene) -> bool:
 
 
 static func _ctx(S: Scene) -> String:
-	return var_to_str([S.body, S.spline, S.pin, S.on_floor, S.floor_body, S.free_limits, S.natural, S.moving_holds, S.fps, S.loop, S.name])
+	return var_to_str([S.body, S.spline, S.pin, S.on_floor, S.floor_body, S.free_limits, S.natural, S.moving_holds, S.sway, S.sway_seed, S.fps, S.loop, S.name])
 
 
 ## the records of frames 0..n-1 (time min(i/hz, length)); fn.call(i, t) plays one frame and returns its record

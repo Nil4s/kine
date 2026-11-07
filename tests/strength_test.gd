@@ -259,9 +259,12 @@ func _init() -> void:
 
 	# ---------------------------------------------------------------- N038 MAP
 	var Bn := stand_body(0.0)
+	# SETUP fixed after the first run (not a bar): the sign of the thigh side angle is not known, so both signs are tried and the one with both feet down and the wider base is the wide stance
 	var Bw := stand_body(12.0)
 	var Bw2 := stand_body(-12.0)
-	if width_of(Bw2) > width_of(Bw):
+	var okw := (Balance.read(Bw)["down"] as Array).size() == 2
+	var okw2 := (Balance.read(Bw2)["down"] as Array).size() == 2
+	if (okw2 and not okw) or (okw2 == okw and width_of(Bw2) > width_of(Bw)):
 		Bw = Bw2
 	var wn := width_of(Bn)
 	var ww := width_of(Bw)
