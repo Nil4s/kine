@@ -96,6 +96,7 @@ func _place() -> void:
 	_keys_menu.reset_size()
 	_multi_btn.position = Vector2(_break.position.x + _break.size.x + 8, 1)   # ROADMAP 65: after Unify / Break
 	_keys_menu.position = Vector2(_multi_btn.position.x + _multi_btn.size.x + 8, 1)
+	place_extra(_keys_menu.position.x + _keys_menu.size.x + 8)   # L95: Ghost, Interp, channel picker
 
 
 func set_multi(on: bool) -> void:
@@ -265,7 +266,7 @@ func key_item(id: int) -> void:
 			if not msel.is_empty():
 				var s := 0.0
 				for q in msel:
-					s += _val(q)
+					s += _qval(q)
 				cursor_v = s / msel.size()
 		4:
 			set_normalize(not normalize)
@@ -430,7 +431,7 @@ func dot_pos(j: String, c: int, i: int) -> Vector2:
 	return Vector2(t_to_x(float(k["t"])), ch_to_y(j, c, (k["v"] as Vector3)[c]))
 
 
-func _val(q: Array) -> float:
+func _qval(q: Array) -> float:
 	return (scene.part_keys[q[0]][q[2]]["v"] as Vector3)[q[1]]
 
 
@@ -492,6 +493,8 @@ func _draw() -> void:
 	var f := get_theme_default_font()
 	var ink := Tok.c("ink")
 	draw_rect(Rect2(Vector2.ZERO, size), Tok.c("graph_bg"))
+	if wave_on:
+		draw_multiline(wave_lines(), Color(ink, 0.2), 1.0)   # L14
 	var cs := chans()
 	draw_string(f, Vector2(PAD_L + _btn.size.x + 8, 15), "%d part%s, %d channels" % [parts().size(), "" if parts().size() == 1 else "s", cs.size()], HORIZONTAL_ALIGNMENT_LEFT, 150, 12, Tok.dim(0.8))
 	# the channel region
@@ -714,8 +717,8 @@ func pivot() -> Vector2:
 		var t := float(scene.part_keys[q[0]][q[2]]["t"])
 		lt = minf(lt, t)
 		ht = maxf(ht, t)
-		lv = minf(lv, _val(q))
-		hv = maxf(hv, _val(q))
+		lv = minf(lv, _qval(q))
+		hv = maxf(hv, _qval(q))
 	return Vector2((lt + ht) * 0.5, (lv + hv) * 0.5)
 
 

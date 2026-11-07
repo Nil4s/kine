@@ -113,6 +113,8 @@ var natural := true
 var layer := {}        # YY9: ONE additive layer, joint -> Vector3 (deg) added to the played angles x layer_w; {} = none
 var layer_w := 1.0     # YY9: the layer's weight 0..1 (written only with a layer)
 var layers := []       # NA1: more layers over it, in order (see add_layers); [] = none, and nothing is written
+var floor_mat := ""    # FLOOR MATERIAL (N035; scripts/floor_material.gd): "" = today (mu not asked), else mat / wood / sand / wet_tile / concrete; in the file as "floor_mat" only when set
+var injury := {}       # INJURY PROFILE (N036; scripts/injury.gd): {"calf_r": {"rom": 0.3, "strength": 0.4}} losses as fractions; in the file as "injury" only when any
 var fitness := 0.5     # FATIGUE (ROADMAP 39; scripts/fatigue.gd): 0..1, how well the fighter keeps his speed over a long fight; 0.5 = the elite fighters measured; in the file only when not 0.5
 var breath := 0.0      # YY6: breaths a minute added on playback (Body.breathe); 0 = off (written only when on)
 var spline := false    # one smooth curve through every card (see SPLINE above); off = the per-card ease
@@ -131,6 +133,11 @@ var body := {}         # PROPORTIONS (round 51, PR1; scripts/proportions.gd): {}
 var moving_holds := false
 var dq_skin := 0.0     # H04 (scripts/dq_skin.gd): 0 = linear blend skinning, 1 = dual quaternion, between = the mix; in the file only when > 0
 const HOLD_DRIFT := 0.08
+## N037: real postural sway in the holds (scripts/sway.gd) instead of the drift; N039: joint torque caps follow the joint angle (scripts/strength_curves.gd).
+## Both opt-in, written only when on.
+var sway := false
+var sway_seed := 0
+var strength_curves := false
 ## STEPPED preview (blocking; view only, never saved): each card's pose is held until the next card ARRIVES, no
 ## in-betweens, the way animators check poses and timing before they spline
 var stepped := false
@@ -413,6 +420,8 @@ func _linear_sample(t: float) -> Dictionary:
 				r["offset"] = _walk_offset(t, i, ts)
 			return r
 		if t < ts[i][2]:
+			if _sways(i, ts):
+				return _sway(i, t - float(ts[i][1]), float(ts[i][2]) - float(ts[i][1]))
 			if _drifts(i, ts):
 				return _drift(i, (t - ts[i][1]) / maxf(1e-6, ts[i][2] - ts[i][1]))
 			return _flat_card(i)
@@ -423,6 +432,22 @@ func _linear_sample(t: float) -> Dictionary:
 func _drifts(i: int, ts: Array) -> bool:
 	return moving_holds and not spline and i < cards.size() - 1 and float(ts[i][2]) - float(ts[i][1]) > 1e-4 \
 		and not _flow(i + 1)
+
+
+## N037: does card i's hold sway? (sway on, a real hold, linear scene, not inside a flow)
+func _sways(i: int, ts: Array) -> bool:
+	return sway and not spline and float(ts[i][2]) - float(ts[i][1]) > 1e-4 and not _flow(i) and not _flow(i + 1)
+
+
+## card i's pose with the quiet-standing sway on spine_01 at t seconds into a hold of length len
+func _sway(i: int, t: float, len: float) -> Dictionary:
+	var a := Moves._flat(cards[i]["pose"])
+	var l := Sway.lean_deg(sway_seed, i, t, len)
+	var j := "spine_01"
+	if a["ang"].has(j):
+		var v: Vector3 = a["ang"][j]
+		a["ang"][j] = Vector3(v.x + l.x, v.y + l.y, v.z)
+	return a
 
 
 ## card i's pose with its upper body f of the way through its hold's drift toward card i+1
@@ -1767,8 +1792,9 @@ var crowd := {}
 func clone() -> Scene:
 	var c := Scene.new()
 	c.cards = cards.duplicate(true)
-	for k in ["name", "natural", "spline", "on_floor", "floor_body", "free_limits", "pin", "fps", "moving_holds", "stepped", "loop", "breath", "fitness", "dq_skin"]:
+	for k in ["name", "natural", "spline", "on_floor", "floor_body", "free_limits", "pin", "fps", "moving_holds", "stepped", "loop", "breath", "fitness", "dq_skin", "floor_mat", "sway", "sway_seed", "strength_curves"]:
 		c.set(k, get(k))
+	c.injury = injury.duplicate(true)
 	c.props = props   # the set (read only there)
 	c.part_keys = part_keys.duplicate(true)
 	c.markers = markers.duplicate(true)
@@ -2394,6 +2420,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 			cs[-1]["ktype"] = c["ktype"]   # XX3: a key's Blender type (breakdown, moving_hold, extreme); never written for a plain key
 		if c.has("weight_i"):
 			cs[-1]["weight_i"] = c["weight_i"]   # ROADMAP 40: the inertia (kg m2) the swing's timing now fits; only on a contact card timed to a weapon
+		if c.has("weight_s"):
+			cs[-1]["weight_s"] = c["weight_s"]   # L23: the mass slider (log2 of the mass ratio) the timing now fits; only on a contact card
 	var out := {"scene": name, "kind": kind, "natural": natural, "on_floor": on_floor, "floor_body": floor_body, "pin": pin, "fps": fps, "length_s": snappedf(length(), 0.001), "cards": cs,
 		"bad_frames": bad,
 		"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other."}
@@ -2405,8 +2433,17 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["spline"] = true   # written only when on, so every older scene saves byte-identical
 	if moving_holds:
 		out["moving_holds"] = true   # the same: only when on
+	if sway:
+		out["sway"] = true   # N037: only when on
+		out["sway_seed"] = sway_seed
+	if strength_curves:
+		out["strength_curves"] = true   # N039: only when on
 	if loop:
 		out["loop"] = true   # the same
+	if floor_mat != "":
+		out["floor_mat"] = floor_mat   # N035: only when set
+	if not injury.is_empty():
+		out["injury"] = injury.duplicate(true)   # N036: only when any
 	if fitness != 0.5:
 		out["fitness"] = fitness   # ROADMAP 39: only when not the default
 	if dq_skin > 0.0:
@@ -2518,7 +2555,7 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 ## on this list fails tests/mirror_list_test.gd: whoever adds a key decides here whether it has a side.
 const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "held_parts": "free (the records of the Parts in his hand: a part has no side, the hand it is in is the card's)", "plan": "rewritten: where it came from", "cards": "each card, below",
 	"bad_frames": "SIDED: recomputed from the mirrored motion (part names like thigh_l)", "kind": "free (the project kind: animation, modeling, building)", "natural": "free", "on_floor": "free",
-	"floor_body": "free", "free_limits": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "fitness": "free", "dq_skin": "free", "body": "free (proportions have no side: both sides scale alike)", "layer_w": "free",
+	"floor_body": "free", "free_limits": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "sway": "free", "sway_seed": "free", "strength_curves": "free", "loop": "free", "breath": "free", "fitness": "free", "floor_mat": "free (a floor has no side)", "injury": "SIDED: Injury.mirror_file (calf_l <-> calf_r, every joint to its twin; the losses free)", "dq_skin": "free", "body": "free (proportions have no side: both sides scale alike)", "layer_w": "free",
 	"layer": "SIDED: Scene.mirror_layer (each joint's offset to its twin, reflected as mirror_pose does)",
 	"layers": "SIDED: each layer's \"v\" by Scene.mirror_layer (an override's angles reflect the same way), its \"offset\" x negated; the rest free",
 	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "refimgs": "free (a picture is not mirrored: its flip toggle does that)", "notes": "free (frames and text, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "part": "free (a part is one solid sketched on its own planes; its Mirror feature is the tool, the scene's Mirror leaves it as it is)", "building": "SIDED: Building.mirror_file (each room reflected across x = 0, its yaw negated; left <-> right walls, a front / back opening's at negated)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180° - yaw, swing negated; keys the same: Props.mirror_dict)",
@@ -2543,7 +2580,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "held_parts": "free (
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
 	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "walk": "free", "lift": "free", "ease": "free", "ease_bias": "free", "expr": "free",
-	"take": "SIDED: the holding hands _l <-> _r (the grip is re-read from the mirrored pose)", "drop": "free", "drop_rig": "SIDED: the baked fall reflected (x negated, the turn (w, x, -y, -z))", "air": "free", "ktype": "free", "weight_i": "free", "from": "free (Easy: the move the card came from, \"punch|<serial>\")"}
+	"take": "SIDED: the holding hands _l <-> _r (the grip is re-read from the mirrored pose)", "drop": "free", "drop_rig": "SIDED: the baked fall reflected (x negated, the turn (w, x, -y, -z))", "air": "free", "ktype": "free", "weight_i": "free", "weight_s": "free", "from": "free (Easy: the move the card came from, \"punch|<serial>\")"}
 
 
 ## the ease_bias slider's value on one card (ROADMAP 55): clamped to -1..1 and rounded to 0.01; 0 erases the key, so a
@@ -2595,6 +2632,8 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 		d2["face"] = Face.mirror_file(d2["face"])   # ROADMAP 74: brow_l <-> brow_r, eye yaw negated
 	if d2.has("ik"):
 		d2["ik"] = LimbIK.mirror_file(d2["ik"], M)   # as main._mirror_scene: hand_l <-> hand_r, points x negated
+	if d2.has("injury"):
+		d2["injury"] = Injury.mirror_file(d2["injury"])   # N036: every joint to its twin
 	if d2.has("plants"):
 		d2["plants"] = FootPlant.mirror_file(d2["plants"])   # foot plants: foot_l <-> foot_r, the times kept
 	if d2.has("asserts"):
@@ -2656,9 +2695,15 @@ func from_dict(d: Dictionary) -> void:
 	natural = bool(d.get("natural", true))
 	spline = bool(d.get("spline", false))
 	moving_holds = bool(d.get("moving_holds", false))
+	sway = bool(d.get("sway", false))
+	sway_seed = int(d.get("sway_seed", 0))
+	strength_curves = bool(d.get("strength_curves", false))
 	loop = bool(d.get("loop", false))
 	breath = float(d.get("breath", 0.0))
 	fitness = clampf(float(d.get("fitness", 0.5)), 0.0, 1.0)
+	floor_mat = String(d.get("floor_mat", ""))
+	floor_mat = floor_mat if FloorMaterial.MU.has(floor_mat) else ""
+	injury = Injury.clean(d.get("injury", {}))
 	dq_skin = clampf(float(d.get("dq_skin", 0.0)), 0.0, 1.0)
 	body = Proportions.clean(d["body"]) if d.get("body") is Dictionary else {}   # PR1: absent = the default body
 	layer = {}
@@ -2770,6 +2815,8 @@ func from_dict(d: Dictionary) -> void:
 			cards[-1]["ktype"] = String(c["ktype"])   # XX3
 		if c.has("weight_i"):
 			cards[-1]["weight_i"] = maxf(0.0, float(c["weight_i"]))   # ROADMAP 40
+		if c.has("weight_s"):
+			cards[-1]["weight_s"] = clampf(float(c["weight_s"]), -2.0, 3.0)   # L23
 	ImpactFrames.rehydrate(self, d.get("impact", {}))   # I13: the impact frames' tags on cards and camera keys
 
 

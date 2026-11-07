@@ -15,7 +15,7 @@ const POINTS := ["head", "pelvis", "spine_03", "upperarm_l", "upperarm_r", "lowe
 const METHODS := ["commands", "open", "new", "run", "pose", "state", "measure", "describe", "ask", "check", "diff", "validate", "save", "quit", "assert", "events", "where", "place", "facts", "brief", "dry", "text_view", "lint", "frame_data"]
 ## C06: the methods the MCP server advertises on top of METHODS. They are NOT in METHODS: its list is the "ready" line and the -32601 text of the
 ## byte-for-byte transcript (refs/agent/serve_transcript.jsonl), which tests/agent_tools_test.gd replays. tools/mcp/poser_mcp.py names each of these (advertised with --math / POSER_MCP_MATH=1)
-const MCP_EXTRA := ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets", "animtools", "anykey", "bake_any", "euler_warp"]
+const MCP_EXTRA := ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets", "animtools", "anykey", "bake_any", "euler_warp", "react_time", "react_place", "weight_slider", "clip_print", "rig_anim", "fps_wave", "spacing", "jump_budget", "grip_hold", "floor", "injury", "sway_trace", "stance_map", "strength_curve", "proportion_breaks", "can_stand", "looks_strong", "weight_split", "part_moves", "stance_fit"]
 ## MCPFAST: the CAD tools (scripts/build/mcp_cad.gd); advertised with --cad
 const MCP_CAD := ["cad_part", "cad_asm", "check_fit", "bom", "eval_gd", "cad_reset"]
 
@@ -472,6 +472,30 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"curve_graph":   # L84: tangent weights, buffer curves (snapshot / swap / compare) and curve modifiers on a joint's part keys (scripts/curve_graph_serve.gd). Not in METHODS
 			var cgr := CurveGraphServe.serve(m, p)
 			return _ok(id, cgr["result"]) if cgr["ok"] else _err(id, -32602, String(cgr["error"]))
+		"rig_anim":   # L91: animation tools + mirror on the scene's own (custom) rig {action: key|breakdown|retime|curve|pairs|mirror} (scripts/rig_anim_serve.gd). Not in METHODS
+			var rar := RigAnimServe.serve(m, p)
+			return _ok(id, rar["result"]) if rar["ok"] else _err(id, -32602, String(rar["error"]))
+		"fps_wave":   # L92: frame-rate conversion that keeps every key's exact time (convert fps snap?; one undo step) and the graph editor's waveform toggle (wave on?) (scripts/fps_wave.gd). Not in METHODS
+			var fwr := FpsWave.serve(m, p)
+			return _ok(id, fwr["result"]) if fwr["ok"] else _err(id, -32602, String(fwr["error"]))
+		"floor":   # N035: floor material {action: read|list|set|clear, material?}; mu read by the friction judges; one undo step per edit (scripts/floor_material.gd). Not in METHODS
+			var flr := FloorMaterial.serve(m, p)
+			return _ok(id, flr["result"]) if flr["ok"] else _err(id, -32602, String(flr["error"]))
+		"injury":   # N036: injury profile {action: read|set|clear|moves, joint?, rom?, strength?}; the judges use the reduced limits; moves lists what now fails; one undo step per edit (scripts/injury.gd). Not in METHODS
+			var inj := Injury.serve(m, p)
+			return _ok(id, inj["result"]) if inj["ok"] else _err(id, -32602, String(inj["error"]))
+		"spacing":   # L96: spacing chart from a tracked reference {action: read|match, joint, ref, landmark?}; match = ONE undo step, keys fixed (scripts/spacing_chart.gd). Not in METHODS
+			var spr := SpacingChart.serve(m, p)
+			return _ok(id, spr["result"]) if spr["ok"] else _err(id, -32602, String(spr["error"]))
+		"proportion_breaks", "can_stand", "looks_strong":   # L102: N056 style breaks, N058 square-cube stand check, N060 muscle girth vs torque; read-only (scripts/body_check.gd). Not in METHODS
+			var bcr := BodyCheck.serve(String(method), m, p)
+			return _ok(id, bcr["result"]) if bcr["ok"] else _err(id, -32602, String(bcr["error"]))
+		"weight_split", "part_moves", "stance_fit":   # L105: N069 weight split, N068 part-first moves, N070 body-fit stances; read-only (scripts/part_first.gd). Not in METHODS
+			var pfr := PartFirst.serve(String(method), m, p)
+			return _ok(id, pfr["result"]) if pfr["ok"] else _err(id, -32602, String(pfr["error"]))
+		"jump_budget", "grip_hold":   # L97: N030 take-off power vs CMJ norms, N032 grip force vs grip norms; read-only (scripts/body_limits.gd). Not in METHODS
+			var blr := BodyLimits.serve(String(method), m, p)
+			return _ok(id, blr["result"]) if blr["ok"] else _err(id, -32602, String(blr["error"]))
 		"sockets":   # N089: the five engine sockets (weapon_r, weapon_l, back_sheath, hip_holster_r, head_fx) placed from the anatomy of a preset body {preset?, mass?} (scripts/sockets_serve.gd). Not in METHODS
 			var skr := SocketsServe.serve(m, p)
 			return _ok(id, skr["result"]) if skr["ok"] else _err(id, -32602, String(skr["error"]))
@@ -487,6 +511,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"texture_paint":   # L53 TPAINT: a screen-space brush stamp onto a UV-mapped shape {shape?, x?, y?, radius?, size?, color?, strength?, hardness?, pad?, w?, h?} (scripts/tpaint_serve.gd). Not in METHODS
 			var tpr := TPaintServe.serve(m, p)
 			return _ok(id, tpr) if tpr["ok"] else _err(id, -32602, String(tpr["error"]))
+		"clip_print":   # L90 (L27 + L21): {op: fingerprint|transfer, src}: the open scene's timing fingerprint against a scene file (numbers table + one distance), or that clip's timing on the open scene's poses, one undo step (scripts/clip_print_serve.gd). Not in METHODS
+			var cpr := ClipPrintServe.serve(m, p)
+			return _ok(id, cpr["result"]) if cpr["ok"] else _err(id, -32602, String(cpr["error"]))
 		"anim_stack":   # L79: animation layers (bone masks, add / over, weight, mute) and NLA strips (scale, repeat, blend curves, mute) {op, index?, ...}; each edit ONE undo step (scripts/anim_stack.gd). Not in METHODS
 			var asr := AnimStack.serve(m, p)
 			return _ok(id, asr["result"]) if asr["ok"] else _err(id, -32602, String(asr["error"]))
@@ -499,6 +526,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"cancel_windows":   # N081: the frames where the body is balanced and slow enough to start another move {clip?, frame?, fps?, v_max?, h_max?} (scripts/cancel_windows.gd). Not in METHODS
 			var cwr := CancelWindows.serve(m, p)
 			return _ok(id, cwr["result"]) if cwr["ok"] else _err(id, -32602, String(cwr["error"]))
+		"sway_trace", "stance_map", "strength_curve":   # N037 real sway, N038 stance strength map, N039 strength curves (scripts/strength_serve.gd). Not in METHODS
+			var str_r := StrengthServe.serve(String(method), m, p)
+			return _ok(id, str_r["result"]) if str_r["ok"] else _err(id, -32602, String(str_r["error"]))
 		"throw_check":   # N040 wired (L34): does the throw work? {clip?, fps?, thrower?} (scripts/throw_serve.gd). Not in METHODS
 			var tcr := ThrowServe.serve(m, p)
 			return _ok(id, tcr["result"]) if tcr["ok"] else _err(id, -32602, String(tcr["error"]))
@@ -514,6 +544,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"bake_reaction", "fix_impact", "bake_momentum":   # L76: the fight maths baked as cards, one undo step (scripts/fight_bake_serve.gd). Not in METHODS
 			var fbr := FightBakeServe.serve(String(method), m, p)
 			return _ok(id, fbr["result"]) if fbr["ok"] else _err(id, -32602, String(fbr["error"]))
+		"react_time", "react_place", "weight_slider":   # L89: reaction auto-timing, mass slider (scripts/react_weight_serve.gd). Not in METHODS
+			var rwr := ReactWeightServe.serve(String(method), m, p)
+			return _ok(id, rwr["result"]) if rwr["ok"] else _err(id, -32602, String(rwr["error"]))
 		"lock_check":   # N041 wired: does the lock reach his limit, or go past it? {clip?, fps?, locker?} (scripts/lock_serve.gd). Not in METHODS
 			var lcr := LockServe.serve(m, p)
 			return _ok(id, lcr["result"]) if lcr["ok"] else _err(id, -32602, String(lcr["error"]))

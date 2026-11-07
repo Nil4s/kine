@@ -149,3 +149,50 @@ static func apply(S: Scene, B: Body) -> Dictionary:
 	res["msg"] = "timed the swing to the %s (%.2f kg, I = %.2f kg m2 about the shoulder): wind-up %.2f -> %.2f s, recovery %.2f -> %.2f s (x%.2f). The contact card stays as it was" % [
 		kind, float(inr["mass"]), float(inr["i"]), res["windup_before"], res["windup_after"], res["recovery_before"], res["recovery_after"], f]
 	return res
+
+
+# ---------------------------------------------------------------- L23 MASS SLIDER (L89)
+## "Make it heavier / lighter": one slider s, the log2 of the mass ratio (s = 1 is mass x2, -1 is x0.5), from the momentum model:
+##   the SAME impulse J gives the peak velocity v = J / m, so the strike's move (the move into the contact card) takes k = 2^s times as long;
+##   the force that builds and arrests the momentum is the same, so over the same arc anticipation and settle go as sqrt(m): sqrt(k).
+## Poses are never touched (the contact and the plants stay where they were); card 0's hold (the stillness before the cue) is kept.
+## The contact card remembers its slider ("weight_s"), so a value is absolute: the same value twice is a no-op and s after s0 is x 2^(s - s0).
+const SLIDER_MIN := -2.0
+const SLIDER_MAX := 3.0
+
+
+static func slider(S: Scene, s: float) -> Dictionary:
+	var res := {"ok": false, "msg": "", "ratio": pow(2.0, s)}
+	s = clampf(s, SLIDER_MIN, SLIDER_MAX)
+	var c := contact_card(S)
+	if c < 0:
+		res["msg"] = "no contact to weigh the motion against: put a hit marker on the strike card first (Markers), then run this again"
+		return res
+	var d := s - float(S.cards[c].get("weight_s", 0.0))
+	if absf(d) < 0.005:
+		res["msg"] = "the clip already has this weight (slider %.2f, mass x%.2f): pick another value" % [s, pow(2.0, s)]
+		return res
+	var k := pow(2.0, d)
+	var ks := sqrt(k)
+	var t_old: Array = S.times().duplicate(true)
+	var mv := []
+	for i in S.cards.size():
+		mv.append(S.move_time(i))
+	var ant0 := float(t_old[c][0]) - float(t_old[1][0])
+	var set0 := float(t_old[-1][2]) - float(t_old[c][1])
+	for i in range(1, S.cards.size()):
+		var fm := k if i == c else ks
+		S.cards[i]["move"] = snappedf(maxf(0.04, mv[i] * fm), 0.001)
+		S.cards[i]["hold"] = snappedf(float(S.cards[i]["hold"]) * ks, 0.001)
+	if absf(s) < 0.005:
+		S.cards[c].erase("weight_s")
+	else:
+		S.cards[c]["weight_s"] = snappedf(s, 0.001)
+	S.markers = Markers.remap(S.markers, t_old, S.times())
+	var t_new := S.times()
+	res["ok"] = true
+	res["card"] = c
+	res["ratio"] = pow(2.0, s)
+	res["msg"] = "mass x%.2f: the strike move x%.2f (peak velocity x%.2f), anticipation %.2f -> %.2f s, settle %.2f -> %.2f s; poses and contacts stay" % [
+		pow(2.0, s), k, 1.0 / k, ant0, float(t_new[c][0]) - float(t_new[1][0]), set0, float(t_new[-1][2]) - float(t_new[c][1])]
+	return res

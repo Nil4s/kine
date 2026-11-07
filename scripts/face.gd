@@ -148,7 +148,7 @@ static func values_at(face: Dictionary, t: float) -> Dictionary:
 	for ch in CHANNELS:
 		var v := 0.0
 		if face.has(ch) and not (face[ch] as Array).is_empty():
-			v = PartKeys.at(face[ch], t).x
+			v = PartKeys.value_at(face[ch], t).x   # L94: with the curve modifiers (none = exactly at())
 		var r := range_of(ch)
 		out[ch] = clampf(v, r.x, r.y)
 	return out
@@ -274,7 +274,9 @@ static func from_file(d: Variant) -> Dictionary:
 				ks.append({"t": float(k["t"]), "v": Vector3(float(a[0]), float(a[1]), float(a[2]))})
 				if k.get("gen") is String:
 					ks[-1]["gen"] = k["gen"]   # I08: the generator's tag
+				PartKeys._extras_from_file(k, ks[-1])   # L94: weights, handles, stack
 		ks.sort_custom(func(x, y): return float(x["t"]) < float(y["t"]))
 		if not ks.is_empty():
+			PartKeys._fix_inf(ks)
 			out[ch] = ks
 	return out

@@ -45,6 +45,10 @@ var over := {}              # command id -> key ("" = unbound), only where it di
 var capture := ""           # the command id waiting for its new key ("" = not editing a key)
 var pending := ""           # a key that conflicted: the same key again moves it
 var synth := ""             # the built-in key of the command being run from a key: main's own match runs it
+var scoped := PageKeys.new()   # P06: keys bound globally or to one page (scripts/page_keys.gd), consulted first by dispatch
+var learn := CmdLearn.new()    # P18: how often each command runs (scripts/cmd_learn.gd)
+var scope_sel := ""          # the editor's scope: "" = Global, else a page id (P06)
+var scope_dd: OptionButton
 var hold := -1              # keycode of the ? that is down (the cheat sheet hides when it is released)
 var ui: PanelContainer      # the editor (built on first open)
 var search: LineEdit
@@ -124,8 +128,16 @@ static func cheat_groups(cmds: Array) -> Array:
 
 # ---- the config file -----------------------------------------------------------------------------------------------
 
+## the page-scoped keys live in a file beside the config (P06): kine_pagekeys.json in the config's folder
+static func scoped_path_of(cfg: String) -> String:
+	return cfg.get_base_dir().path_join("kine_pagekeys.json")
+
+
 func load_from(path: String) -> void:
 	over = {}
+	scoped.items = []
+	if FileAccess.file_exists(scoped_path_of(path)):
+		scoped.load_file(scoped_path_of(path))   # schema 2, or an old schema-1 profile (every binding global)
 	var cf := ConfigFile.new()
 	if cf.load(path) != OK or not cf.has_section(SECTION):
 		return
@@ -141,6 +153,8 @@ func save_to(path: String) -> void:
 	for key in over:
 		cf.set_value(SECTION, key, over[key])
 	cf.save(path)
+	if not scoped.items.is_empty() or FileAccess.file_exists(scoped_path_of(path)):
+		scoped.save_file(scoped_path_of(path))
 
 
 # ---- changing a key -------------------------------------------------------------------------------------------------
@@ -170,8 +184,34 @@ func set_key(id: String, combo: String, confirm := false) -> Dictionary:
 	return {"ok": true, "msg": msg}
 
 
+## P06: bind a key to a command on ONE page ("animate", "stage", ...; any case). The page's own key wins over the global one; a page with no
+## binding for the key falls back to the global key. Another command already on that key on that page is reported ({conflict}), not overwritten,
+## unless confirm is true.
+func set_page_key(id: String, combo: String, page: String, confirm := false) -> Dictionary:
+	if _find(m.ui_cmd.commands, id).is_empty():
+		return {"ok": false, "msg": "no command called %s" % id}
+	if page.strip_edges() == "":
+		return {"ok": false, "msg": "a page is needed (use set_key for a key on every page)"}
+	var r := scoped.bind(combo, id, page.to_lower(), confirm)
+	if r["ok"]:
+		save_to(m.settings)
+	return r
+
+
+## remove the command's key on that page (it falls back to the global key). True when something was removed.
+func clear_page_key(id: String, page: String) -> bool:
+	var pg := page.to_lower()
+	for b in scoped.items:
+		if String(b["cmd"]) == id and String(b["scope"]) == pg:
+			var gone := scoped.unbind(String(b["key"]), pg)
+			save_to(m.settings)
+			return gone
+	return false
+
+
 func reset_all() -> void:
 	over.clear()
+	scoped.items = []
 	pending = ""
 	capture = ""
 	refresh()
@@ -291,6 +331,12 @@ func dispatch(k: InputEventKey) -> bool:
 	if combo == "" or combo == synth:
 		return false
 	var cmds: Array = m.ui_cmd.commands
+	var sid := scoped.resolve(combo, String(m.cur_page).to_lower())
+	if sid != "":
+		var sc := _find(cmds, sid)
+		if not sc.is_empty():
+			(sc["run"] as Callable).call()   # main's registry wrapper counts it (CmdLearn)
+			return true
 	var c := holder(cmds, combo)
 	if c.is_empty():
 		return not built_in(cmds, combo).is_empty()   # its key moved away or was unbound: the built-in key does nothing
@@ -299,6 +345,8 @@ func dispatch(k: InputEventKey) -> bool:
 		hold = k.keycode
 		return true
 	if String(c.get("default", c["keys"])) == combo:
+		if not bool(m._pressing):
+			learn.record(String(c["id"]))   # a real key press: main's own match runs it (a command run from a palette is counted by the wrapper)
 		return false   # still its own key: main's own match runs it, as it always did
 	m._step_hint = String(c["name"])
 	synth = String(c.get("default", c["keys"]))
@@ -333,9 +381,25 @@ func take_input(ev: InputEvent) -> bool:
 	return false
 
 
+static func scope_pages() -> Array:
+	return ["body", "pose", "animate", "stage", "check", "deliver", "model", "sculpt", "surface"]
+
+
 func _capture_key(k: InputEventKey) -> void:
 	var combo := combo_of(k)
 	var id := capture
+	if scope_sel != "":
+		var rs := scoped.bind(combo, id, scope_sel, combo == pending and combo != "")
+		if rs.has("conflict"):
+			pending = combo
+			status.text = String(rs["msg"])
+			return
+		capture = ""
+		pending = ""
+		status.text = String(rs["msg"])
+		m._pw_save_keys()
+		rebuild_rows()
+		return
 	var r := set_key(id, combo, combo == pending and combo != "")
 	if r.has("conflict"):
 		pending = combo
@@ -377,6 +441,18 @@ func open_editor() -> void:
 		v.add_child(status)
 		var bar := HBoxContainer.new()
 		v.add_child(bar)
+		scope_dd = OptionButton.new()
+		scope_dd.name = "hk_scope"
+		scope_dd.tooltip_text = "Global: the key works on every page. A page: the key works only there and wins over a global one"
+		scope_dd.add_item("Global")
+		for pg in scope_pages():
+			scope_dd.add_item(String(pg).capitalize())
+		scope_dd.item_selected.connect(func(i: int):
+			scope_sel = "" if i <= 0 else String(scope_pages()[i - 1])
+			capture = ""
+			pending = ""
+			rebuild_rows())
+		bar.add_child(scope_dd)
 		var reset_b := Button.new()
 		reset_b.name = "hk_reset"
 		reset_b.text = "Reset to defaults"
@@ -441,6 +517,12 @@ func rebuild_rows() -> void:
 		var b := Button.new()
 		b.name = "hk_" + String(c["id"])
 		b.text = String(c["keys"]) if String(c["keys"]) != "" else "(no key)"
+		if scope_sel != "":
+			var own := ""
+			for sb in scoped.items:
+				if String(sb["cmd"]) == String(c["id"]) and String(sb["scope"]) == scope_sel:
+					own = String(sb["key"])
+			b.text = own if own != "" else "(global key)"
 		b.custom_minimum_size.x = 150
 		b.pressed.connect(begin_capture.bind(String(c["id"])))
 		row.add_child(b)

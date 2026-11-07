@@ -44,6 +44,11 @@ const GRAV := 9.81
 const SOURCE := "Newton: outside force = dP/dt; bar 1.5 BW without a step, 3 BW with one, read over 0.05 s (measured peak horizontal braking 1.54-1.60 BW, Harper 2022 review table)"
 
 
+## N035: the friction couple of two planted feet scales with mu (a floor at or above mu 1 gives the old arm)
+static func yaw_arm(mu: float) -> float:
+	return YAW_ARM * minf(1.0, mu) if mu >= 0.0 else YAW_ARM
+
+
 static func bar_text() -> String:
 	return "bar: %.1f BW of horizontal ground force over %.2f s (%.1f BW if a foot just landed); torque %.2f m x BW yaw, %.2f m x BW tilt (measured: Dos'Santos cuts 1.54-1.60 BW, in Harper 2022 review; torque arms unverified)" % [BRACE_BW, BRACE_WIN / HZ, STEP_BW, YAW_ARM, TILT_ARM]
 
@@ -165,6 +170,11 @@ static func analyze(S: Scene, B: Body) -> Dictionary:
 	var n: int = sm["n"]
 	var mass: float = sm["mass"]
 	var bw := mass * GRAV
+	# N035: a floor material (mu) caps the horizontal force at mu x 1 BW (the vertical load of a planted stop) and shrinks the yaw arm; none = today
+	var mu := FloorMaterial.mu_of(S)
+	var cap_bw := minf(BRACE_BW, mu) if mu >= 0.0 else BRACE_BW
+	var step_cap := minf(STEP_BW, mu) if mu >= 0.0 else STEP_BW
+	var yaw_a := yaw_arm(mu)
 	var ts := S.times()
 	var rows := []
 	var flags := []
@@ -172,7 +182,7 @@ static func analyze(S: Scene, B: Body) -> Dictionary:
 		var ta := float(ts[i][1])
 		var ia := clampi(int(round(ta * HZ)), 0, n - 1)
 		var stepped := false
-		var bar := BRACE_BW
+		var bar := cap_bw
 		var row := {"card": i, "t": ta, "ia": ia, "stepped": false, "bar_bw": bar, "flag": false, "f_bw": 0.0, "tau_ratio": 0.0, "p_in": 0.0, "p_out": 0.0, "frames": 0, "kind": "", "msg": "", "h_in": 0.0, "h_out": 0.0}
 		# every 3-frame window from the start of the move into the card to 2 frames after its arrival (the root finishes its move before the arrival:
 		# Scene.LAG staggers the joint levels, so the body stops a little before the card's time). The best window is the one furthest over its bar.
@@ -184,7 +194,7 @@ static func analyze(S: Scene, B: Body) -> Dictionary:
 		var s0 := clampi(int(round(float(ts[i][0]) * HZ)), 0, n - 1)
 		for s in range(s0, mini(ia + 3, n - 1 - BRACE_WIN) + 1):
 			var st := stepped_in(sm, s + BRACE_WIN)
-			var barw := STEP_BW if st else BRACE_BW
+			var barw := step_cap if st else cap_bw
 			var p0: Vector3 = sm["P"][s]
 			var p1: Vector3 = sm["P"][s + BRACE_WIN]
 			p0.y = 0.0
@@ -202,7 +212,7 @@ static func analyze(S: Scene, B: Body) -> Dictionary:
 			var h1: Vector3 = sm["H"][s + BRACE_WIN]
 			var dh := (h1 - h0) * HZ / BRACE_WIN
 			if h0.length() >= MIN_P * 0.1 and dh.dot(h0) < 0.0:
-				var rt := maxf(absf(dh.y) / (bw * YAW_ARM), Vector2(dh.x, dh.z).length() / (bw * TILT_ARM)) / (2.0 if st else 1.0)
+				var rt := maxf(absf(dh.y) / (bw * yaw_a), Vector2(dh.x, dh.z).length() / (bw * TILT_ARM)) / (2.0 if st else 1.0)
 				if rt > best_t:
 					best_t = rt
 					best_ts = s
@@ -262,6 +272,8 @@ static func analyze(S: Scene, B: Body) -> Dictionary:
 	out["bw"] = bw
 	out["rows"] = rows
 	out["flags"] = flags
+	if mu >= 0.0:
+		out["mu"] = mu
 	out["msg"] = ("%d of %d transitions drop momentum faster than a body can brace" % [flags.size(), rows.size()]) if not flags.is_empty() else "%d transitions: every stop is one a body can brace" % rows.size()
 	return out
 

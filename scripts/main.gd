@@ -196,6 +196,7 @@ var gz_ui: GazeUI   # GAZE DIRECTOR (ROADMAP I41): scripts/gaze_ui.gd
 var el_ui: EyeLifeUI   # LIVING EYES (ROADMAP I08): scripts/eye_life_ui.gd
 var sh_ui: SellHitUI   # SELL THE HIT (ROADMAP I21): scripts/sell_hit_ui.gd
 var bk_ui: BreakfallUI   # BREAKFALL CHECK (ROADMAP I25): scripts/breakfall_ui.gd
+var sm_ui: StanceMapUI   # N038 stance strength map (scripts/stance_map_ui.gd)
 var rc_ui: RecoveryUI   # RECOVERY STEP (ROADMAP I39): scripts/recovery_ui.gd
 var rc_view := RecoveryView.new()   # its floor drawing
 var sc_ui: SoundCuesUI   # SOUND CUES (ROADMAP I35): scripts/sound_cues_ui.gd
@@ -340,6 +341,8 @@ var ui_doc_dot: Label     # unsaved changes
 var ui_ribbon := {}        # tab -> its row of tools (round 7)
 var ui_ribbon_tabs := {}   # tab -> its tab button
 var ui_toggles := []       # [button, func -> is it on]: the ribbon's on/off buttons show their state (synced in _refresh)
+var pie_on := false   # P04: the brush pie menu (Q on the sculpt page); off by default (scripts/kmesh_sculpt_ui.gd)
+var ui_pie: RingMenu   # P04: the brush pie, a RingMenu that picks on mouse release
 var ui_ring: RingMenu   # right-CLICK a part: a ring of actions (round 7, scripts/ring_menu.gd)
 var _rpress := {}   # the right button's press: where, the view's turn then, the part under it (click vs drag)   # left panel, 2nd tab: every part by name + the scene's clips (round 7, scripts/browser.gd)   # top-right of the view: turns with the camera, click a face = that view (round 7)   # S: type to find any command (round 7, scripts/command_search.gd)
 var ui_card_btns: Array = []
@@ -3311,13 +3314,15 @@ func _ready() -> void:
 		_sm.call_deferred("run", self)
 	if OS.get_cmdline_user_args().has("--light") or OS.get_cmdline_user_args().has("--dark"):   # shots and tests choose
 		theme_pref = "light" if OS.get_cmdline_user_args().has("--light") else "dark"
-	if theme_pref not in ["system", "light", "dark"]:
+	if theme_pref not in ["system", "light", "dark", "hc"]:
 		theme_pref = "system"
 	var pal := Tok.palette_arg()   # STYLE PROPOSAL: --kine-palette=a|b|c (a shot or a review); "" = the app's own colours
 	if pal != "":
 		theme_pref = "light" if pal == "c" else "dark"
 	Tok.set_dark(_theme_wanted())
 	Tok.apply_palette(pal)
+	if theme_pref == "hc":
+		Tok.set_mode("hc")
 	# THE SCALE (ROADMAP 58): the saved one (the user chose it), or a test's 100, or on a first start the screen's pick,
 	# made once the ribbon is built (_auto_scale_now). Nothing is saved for the pick: it is made again each start
 	var pct := 100 if testing else (int(cf.get_value("look", "scale", 0)) if cf.has_section_key("look", "scale") else 0)
@@ -3364,6 +3369,8 @@ func _ready() -> void:
 	BootProfile.mark("vx")
 	hk = Hotkeys.new(self)   # HOTKEYS: the saved keys, applied by _commands() (scripts/hotkeys.gd)
 	hk.load_from(settings)
+	hk.scoped.load_file()   # P06: the page keys (user://kine_pagekeys.json); the run counts and dismissals (P18) load with hk.learn
+	pg_spaces = PageSpaces.new()   # P07: each page's panel layout (user://kine_page_spaces.json)
 	camnav = CamNav.new(self)   # W01: camera navigation settings (scripts/cam_nav.gd)
 	camnav.load_from(settings)
 	camnav_ui = CamNavUI.new(self, camnav)
@@ -3652,6 +3659,7 @@ var intro: KineIntro   # the opening intro while it plays (null after, or when o
 
 ## a test's own settings file goes with it (ribbon_test clicks VIEW > Light like any button: one file per run piled up)
 func _exit_tree() -> void:
+	_pw_save()
 	SlicerSend.shutdown()   # C79: the start-up slicer lookup (a `reg query` on a worker) must not hold the quit
 	if nb_ui != null:
 		nb_ui.finish()   # I44: the fatigue worker ends before the scenes it reads go
@@ -4919,7 +4927,7 @@ func dummy_settle() -> void:
 
 
 static func _dummy_head(dist: float, so: bool) -> String:
-	return "dummy %.2f m out, %s" % [dist, "SOLID: the weapon stops on it" if so else "see-through"]
+	return "dummy %s out, %s" % [Units.len(dist), "SOLID: the weapon stops on it" if so else "see-through"]
 
 
 ## the measurement itself, on ITS OWN scene, dummy and body (so it can run on any thread): {"txt", "SL"}
@@ -4934,7 +4942,7 @@ static func _dummy_measure(sc: Scene, dist: float, yaw: float, so: bool) -> Dict
 	if hs.is_empty():
 		txt += "\nthe scene: no hit at this range"
 	for x in hs:
-		txt += "\n%.2fs  %s  %.1f m/s  (%.2f m up)" % [x["t"], x["zone"], x["speed"], x["u"]]
+		txt += "\n%.2fs  %s  %.1f m/s  (%s up)" % [x["t"], x["zone"], x["speed"], Units.len(float(x["u"]))]
 	if so and not hs.is_empty():
 		var r: Array = td.landed(sc, HB)
 		sl = r[0]
@@ -4983,7 +4991,7 @@ static func _fighters_measure(hs: Scene, others: Array) -> Dictionary:
 		var what: String = "weapon" if Body.is_wep(h["part"]) else String(h["part"])
 		txt += "\n%.2fs  %s  %s: %s's %s on %s's %s  %.1f m/s  %.1f cm deep" % [h["t"], h["zone"], h["kind"], who, what, whom, h["on"], h["speed"], float(h["depth"]) * 100.0]
 		if float(h["u"]) >= 0.0:
-			txt += "  (%.2f m up)" % h["u"]
+			txt += "  (%s up)" % Units.len(float(h["u"]))
 	return {"txt": txt, "hits": all}
 
 
@@ -5660,6 +5668,8 @@ func _place(mi: MeshInstance3D, a: Vector3, b: Vector3, r: float, capsule := tru
 
 
 func _refresh() -> void:
+	if uiw != null:
+		uiw.refresh()   # L95: the quaternion readout follows the playhead and the picked part
 	var _rf := PerfDoc.t()
 	var _rx := _rf
 	if ic_ui != null:
@@ -7171,9 +7181,9 @@ func _snapshot() -> Dictionary:
 	# TC3: tagged with the actor it was taken on, and the actors as they are (the same Body / Scene objects: an add or a
 	# remove is undone by putting the list back), so _restore never puts one actor's body onto another
 	return {"actor": actor_on, "hero": H, "spath": scene_path, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
-		"body": B.state(), "playhead": playhead, "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps, "bcol": body_colour, "bsm": Overlays.smooth,
+		"body": B.state(), "playhead": playhead, "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "sway": S.sway, "sway_seed": S.sway_seed, "scurves": S.strength_curves, "fps": S.fps, "bcol": body_colour, "bsm": Overlays.smooth,
 		"props": S.props.map(func(p): return Props.to_dict(p)), "pxf": S.props.map(func(p): return p["xf"]), "outl": S.outl.duplicate(true), "building": _bld_file(), "part": _part_file(), "vehicle": _vehicle_file(), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
-		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
+		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "floor_mat": S.floor_mat, "injury": S.injury.duplicate(true), "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
 		"soft": S.soft.duplicate(true),   # L22: the soft-body regions, undone like a card
@@ -7335,6 +7345,11 @@ func _restore(u: Dictionary) -> void:
 		if bld != null:
 			bld.sync()   # C2: a Part dimension bound to the body follows it back
 	B.set_state(u["body"])   # lossless (round 8): from_dict re-solved from the file's rounded numbers
+	if u["scene"] == S and (u.get("sway", S.sway) != S.sway or u.get("sway_seed", S.sway_seed) != S.sway_seed or u.get("scurves", S.strength_curves) != S.strength_curves):
+		S.sway = u.get("sway", S.sway)   # N037 / N039 scene settings, undone like a card
+		S.sway_seed = u.get("sway_seed", S.sway_seed)
+		S.strength_curves = u.get("scurves", S.strength_curves)
+		_rebuild_cards()
 	if u["scene"] == S and u.get("holds", S.moving_holds) != S.moving_holds:   # a scene setting, undone like a card
 		S.moving_holds = u["holds"]
 		_rebuild_cards()
@@ -7475,6 +7490,9 @@ func _restore(u: Dictionary) -> void:
 	if u["scene"] == S and u.has("flags"):
 		for k in BAKE_FLAGS.size():   # DD4: Ctrl+Z on a bake gives the floor, the pins, spline ... back
 			S.set(BAKE_FLAGS[k], u["flags"][k])
+	if u["scene"] == S and u.has("floor_mat"):
+		S.floor_mat = u["floor_mat"]   # N035: the floor material, undone like a card
+		S.injury = u["injury"].duplicate(true)   # N036: the injury profile, the same
 	if u["scene"] == S and u.has("fitness"):
 		S.fitness = u["fitness"]   # FATIGUE (ROADMAP 39): the fitness slider, undone with the retime it came with
 	if u["scene"] == S and u.has("layers") and var_to_str(u["layers"]) != var_to_str(S.layers):
@@ -10015,6 +10033,7 @@ func _kmesh_edit_start() -> void:
 		return
 	_mesh_page_for("MODEL")
 	kmed.start()
+	UiWire.register(self)   # L95: the cube is a registered mesh for AnyKey
 	_mesh_show_sync()
 
 
@@ -10058,7 +10077,9 @@ func _sculpt_start() -> void:
 		_say("The test sphere is already open: drag on it to sculpt, or press Esc to leave")
 		return
 	_mesh_page_for("SCULPT")
-	ksc.start()   # the test cube, if it is open, is kept and hidden on this page (set_showing): the sphere gets the strokes
+	ksc.start()
+	UiWire.register(self)   # L95
+	# the test cube, if it is open, is kept and hidden on this page (set_showing): the sphere gets the strokes
 	_mesh_show_sync()
 
 
@@ -11110,12 +11131,24 @@ func _bake() -> void:
 
 ## ANY KEY (L13/L15, scripts/any_key.gd): key a shape-key weight or any registered property at the playhead, one undo step
 func _anykey_put(id: String, v: Variant) -> void:
+	UiWire.register(self)   # L95: the registries follow the stage's real objects
 	_step_hint = "Key " + AnyKey.label(id)
 	_push_undo()
 	AnyKey.put(S, id, playhead, v)
 	AnyKey.play(S, playhead)
 	_refresh()
 	_say("keyed %s = %s at %.2f s (Ctrl+Z takes it back)" % [AnyKey.label(id), str(v), playhead])
+	_uiw().after_key(id)   # L95: an id with no registered target is said out loud, not silently dropped
+
+
+## L95 UIWIRE (scripts/ui_wire.gd): the wire panel and its palette commands, made on first use
+var uiw: UiWire
+
+
+func _uiw() -> UiWire:
+	if uiw == null:
+		uiw = UiWire.new(self)
+	return uiw
 
 
 ## BAKE FROM ANYTHING (L16): constraints / drivers sampled per frame f0..f1 into plain part keys, optionally removing the source, ONE undo step
@@ -11218,6 +11251,8 @@ func _curve_toggle() -> void:
 		ui_curve.limit = func(j, v): return B.clamp_ang(j, v)
 		ui_curve.changed = func(): S.apply(B, playhead); _refresh()
 		ui_curve.say = func(t): _say(t)
+		ui_curve.wave_envs = audio_envs   # L14
+		ui_curve.wave_on = graph_wave
 		ui_root.add_child(ui_curve)
 		ui_curve.add_child(_detach_button("graph"))
 	ui_curve.visible = not ui_curve.visible
@@ -11314,9 +11349,10 @@ var _why_all := []   # DD5: every HITCH / TIP SPEED span of the open scene (Why.
 func _curve_sync() -> void:
 	if ui_curve == null or not ui_curve.visible:
 		return
-	var moved: bool = ui_curve.scene != S or ui_curve.joint != sel
+	var moved: bool = ui_curve.scene != S or (ui_curve.joint != sel and not ui_curve.au)
 	ui_curve.scene = S
-	ui_curve.joint = sel
+	if not ui_curve.au:   # L94/L95: in au mode the editor stays on the picked face channel
+		ui_curve.joint = sel
 	ui_curve.playhead = playhead
 	ui_curve.fps = S.fps
 	ui_curve.card_times = S.times().map(func(x): return float(x[1]))   # DD0: Ctrl-snap to the cards
@@ -11332,7 +11368,11 @@ func _curve_sync() -> void:
 		_why_sig = wsig
 		_why_all = Why.spans(S, ov.GB)
 	ui_curve.why = Why.for_joint(_why_all, sel)
+	if ui_curve.au:
+		ui_curve.band = {}
+		ui_curve.why = []
 	if moved:
+		ui_curve.ghost_clear()   # L95: a ghost belongs to the curve it was taken from
 		ui_curve.sel_i = -1
 		ui_curve.picked = []   # DD0: a new part, a new set of dots (the old [angle, index] pairs meant the old part's keys)
 		ui_curve.frame_all()
@@ -12838,7 +12878,7 @@ func _theme() -> Theme:
 		th.set_color("font_hover_pressed_color", t, Tok.c("on_accent"))
 	for t in ["CheckBox", "CheckButton"]:   # C33: an ON box under the mouse keeps the accent fill its dark on_accent words need (it fell back to a dark box: 1.04:1)
 		th.set_stylebox("hover_pressed", t, box.call(Tok.c("accent")))
-	if not Tok.dark:
+	if not Tok.dark or Tok.hc:   # P08: high contrast names every colour too (Godot's own greys are not a 7:1 promise)
 		# LIGHT (round 9): Godot's own look is dark, so every control that draws its own box or text gets the palette.
 		# Dark keeps Godot's look for these (nothing Nick knows changes)
 		var tx := Tok.c("text")
@@ -12855,7 +12895,7 @@ func _theme() -> Theme:
 			th.set_stylebox("normal", t, StyleBoxEmpty.new())
 			th.set_stylebox("pressed", t, StyleBoxEmpty.new())
 			th.set_stylebox("hover", t, box.call(Tok.c("btn_hover")))
-		var edge := Tok.c("btn_hover").darkened(0.15)
+		var edge := Tok.c("mk_border") if Tok.hc else Tok.c("btn_hover").darkened(0.15)
 		var field: StyleBoxFlat = box.call(Tok.c("field"), 4, 5)
 		field.content_margin_top = 2   # + the 1 px border = Godot's own field height: a card is as tall in light as in dark
 		field.content_margin_bottom = 2
@@ -13396,7 +13436,7 @@ func _theme_wanted() -> bool:
 	match theme_pref:
 		"light":
 			return false
-		"dark":
+		"dark", "hc":
 			return true
 	return _system_dark()
 
@@ -13419,11 +13459,30 @@ func _set_light(on: bool) -> void:
 	_say("light theme (VIEW > Light again for dark)" if on else "dark theme")
 
 
+## VIEW > High contrast (P08): on = the black / white / yellow palette (WCAG 7:1); off = the mode it came from
+var _hc_prev := "dark"
+
+
+func _set_high_contrast(on: bool) -> void:
+	if on == Tok.hc:
+		return
+	if on:
+		_hc_prev = Tok.mode()
+		theme_pref = "hc"
+		Tok.set_mode("hc")
+	else:
+		theme_pref = _hc_prev
+		Tok.set_mode(_hc_prev)
+	_retheme()
+	_save_theme()
+	_say("high contrast theme (VIEW > High contrast again to leave)" if on else "%s theme" % _hc_prev)
+
+
 ## VIEW > Follow system: on = the palette is Windows' (dark or light, re-read when the window gets focus); off = the
 ## palette it has now, kept as an explicit choice
 func _set_theme_system(on: bool) -> void:
 	theme_pref = "system" if on else ("dark" if Tok.dark else "light")
-	if on and _theme_wanted() != Tok.dark:
+	if on and (_theme_wanted() != Tok.dark or Tok.hc):
 		Tok.set_dark(_theme_wanted())
 		_retheme()
 	_save_theme()
@@ -13464,6 +13523,8 @@ func _retheme() -> void:
 	ui_tinted = ui_tinted.filter(func(x): return is_instance_valid(x[0]))
 	for x in ui_tinted:
 		(x[0] as Label).add_theme_color_override("font_color", Tok.of(x[1]))
+	if ui_status != null:
+		_status_look()   # P08: the status line's colour follows what it says; the tint loop above just set its creation token
 	for t in ui_ribbon_tabs:
 		(ui_ribbon_tabs[t] as Button).add_theme_color_override("font_pressed_color", Tok.c("heading") if Tok.dark else Tok.c("on_accent"))
 	ui_say_box.bg_color = Tok.c("say_bg")
@@ -14059,6 +14120,9 @@ func _ui() -> void:
 	ui_ribbon["CHECK"].add_child(_button("Breakfall check", bk_ui.show_bg, "finds each fall or knockdown in the clip (the centre of mass drops 40% of the height in a second and a body part but the feet reaches the floor) and judges the landing like a judo / stunt coach: head clear and chin tucked, no straight-arm catch, impact spread, speed; one-click fixes (tuck the chin, bend the arm into a slap, roll the trunk); preview, then accept (one undo step)"))
 	if rc_ui == null:
 		rc_ui = RecoveryUI.new(self)
+	if sm_ui == null:
+		sm_ui = StanceMapUI.new(self)
+	ui_ribbon["CHECK"].add_child(_button("Stance strength map", sm_ui.show, "a polar picture of how hard a push this stance takes from each direction before a step is needed (feet + capture point)"))
 	ui_ribbon["CHECK"].add_child(_button("Recovery step", rc_ui.show, "after a shove or hit: the capture point (the COM's floor point + speed / omega0, Hof 2005) against the feet; small shove: no step, medium: a step lands on the capture point in 0.25 s, huge: flagged as a fall; preview, then accept (one undo step)"))
 	if rd_ui == null:
 		rd_ui = ReactionDirUI.new(self)
@@ -14199,6 +14263,7 @@ func _ui() -> void:
 	ui_ribbon["VIEW"].add_child(_button("Final shot", func(): _temple_final_shot(), "the camera as a PNG with no interface at all (1920 x 1080 unless the panel says otherwise), lit like the live view; saved in the exports folder"))
 	tog.call("VIEW", "Next poses", _sg_toggle, func(): return sg_on, "while a card is current: up to 3 ghost poses of what may come next (gold = your usual next, violet = from real motion, rose = the move phase), small thumbnails after the card.  Tab cycles, Enter or a click takes one as a new card, Esc hides.  Nothing changes until you take one")
 	tog.call("VIEW", "Light", func(): _set_light(Tok.dark), func(): return not Tok.dark, "light or dark theme (remembered)")
+	tog.call("VIEW", "High contrast", func(): _set_high_contrast(not Tok.hc), func(): return Tok.hc, "black, white and yellow with every text at 7:1 or better (WCAG AAA); every page follows (remembered)")
 	tog.call("VIEW", "Follow system", func(): _set_theme_system(theme_pref != "system"), func(): return theme_pref == "system", "the palette follows Windows' dark mode (remembered); Light sets it by hand")
 	tog.call("VIEW", "Corrective shapes", func(): corr.on = not corr.on; dummy_corr.on = corr.on; _refresh(); dummy_corr.update(T.D), func(): return corr.on,
 		"the elbows and knees keep their volume as they bend: the skin pushes out along its normals as the bend goes 0 -> 140 deg (scripts/corrective.gd). Off = the plain skinning, which pinches at a bent joint")
@@ -15028,6 +15093,10 @@ func _ui() -> void:
 	ui_ring = RingMenu.new()
 	ui_ring.top_margin = TOP_H
 	ui_root.add_child(ui_ring)
+	ui_pie = RingMenu.new()
+	ui_pie.top_margin = TOP_H
+	ui_pie.release_pick = true
+	ui_root.add_child(ui_pie)
 	ui_cmd = CommandSearch.new()
 	ui_cmd.offset_top = TOP_H + 10
 	ui_root.add_child(ui_cmd)
@@ -15045,6 +15114,9 @@ func _ui() -> void:
 	ui_root.add_child(ui_plugins)
 	ui_cmd.commands = _commands() + plugins.command_rows()
 	_nt_sync()
+	var learn_keys := LearnKeys.new(self)   # P18: commands run from the S box get offered a key (scripts/learn_keys.gd)
+	add_child(learn_keys)
+	learn_keys.attach()
 	ui_cmd.files_provider = _search_files   # ROADMAP 52: the saved poses and scenes, read each time the box opens
 	ui_cmd.pose_by_words = _pose_words
 	ui_cmd.tools_provider = func(): return MeshTools.rows(self)   # ROADMAP_400 P02: the mesh tools (scripts/mesh_tools.gd), built on the S box's first search
@@ -15578,7 +15650,7 @@ func _panel_part() -> void:
 	if locked_parts.has(sel):
 		ui_title.text += "   (LOCKED)"
 	if side_col(sel) != SIDE_MID:
-		ui_title.add_theme_color_override("font_color", side_col(sel))
+		ui_title.add_theme_color_override("font_color", (Tok.c("ch_x") if sel.ends_with("_l") else Tok.c("ch_z")) if Tok.hc else side_col(sel))   # P08: the 3:1 side blue is not readable on the HC panel
 	else:
 		ui_title.remove_theme_color_override("font_color")
 	ui_title.modulate = LIMIT if not lims.is_empty() else Color.WHITE
@@ -15609,7 +15681,7 @@ func _panel_part() -> void:
 		ui_hips[k][0].min_value = -1.0 if k != 1 else -0.9
 		ui_hips[k][0].max_value = 1.0 if k != 1 else 0.4
 		ui_hips[k][0].value = B.offset[k]
-		_set_prop(ui_hips[k][1], names[k], "%.2f m" % B.offset[k])
+		_set_prop(ui_hips[k][1], names[k], Units.len(B.offset[k]))
 	if ui_math.visible:
 		var A := B.compose(sel, v)
 		var con: Array = B.contacts()
@@ -15649,7 +15721,7 @@ func _panel_bat() -> void:
 		ui_hips[k][0].min_value = -span if (k != 1 or locked) else -0.2
 		ui_hips[k][0].max_value = span
 		ui_hips[k][0].value = pos[k]
-		_set_prop(ui_hips[k][1], names[k], "%.3f m" % pos[k], "inside the hand" if locked else "")
+		_set_prop(ui_hips[k][1], names[k], Units.len_fine(pos[k]), "inside the hand" if locked else "")
 	if ui_math.visible:
 		var x := B.wep_xform()
 		ui_math.text = "knob %s  tip %s\nrotation %s\nin the hand: pos %s rot %s" % [_vs(x[0]), _vs(B.wep_point(B.wep_len)), _qs(x[1]), _vs(B.wep_lpos), _qs(B.wep_lrot)]
@@ -16526,7 +16598,50 @@ trail here", "run": _press.bind(KEY_T, true)},
 this part" if locked_parts.has(j) else "Lock
 this part"), "run": _toggle_lock.bind(j)},
 	]
+	if not PartFirst.offers(j).is_empty():
+		its.append({"name": "Moves
+with this", "run": _pf_open.bind(j, p)})   # N068 part-first actions
 	ui_ring.open(p, nice(j), its)
+
+
+## N068 PART-FIRST ACTIONS: the second ring, the moves this part can do. Picking one builds it (text-to-blocking, this part as the striker)
+func _pf_open(j: String, p: Vector2) -> void:
+	var its := []
+	for id in PartFirst.offers(j):
+		its.append({"name": PartFirst.MOVES[id][0], "run": _pf_build.bind(j, id)})
+	ui_ring.open(p, "Moves: " + part_words(j), its)
+
+
+var pf_last := {}   # the last part-first build: {part, id, text, ok, file}
+
+
+func _pf_build(j: String, id: String) -> void:
+	var text := PartFirst.words(j, id)
+	var lab: String = PartFirst.MOVES[id][0]
+	pf_last = {"part": j, "id": id, "text": text, "ok": false}
+	if text == "":
+		_say("%s from the %s: text-to-blocking has no %s generator yet, so nothing was built (the scene is unchanged)" % [lab, part_words(j), lab.to_lower()])
+		return
+	var W := Body.new()
+	W.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var r: Dictionary = load("res://scripts/text_blocking.gd").build(text, W)
+	if not r["ok"]:
+		_say("%s from the %s ('%s'): %s" % [lab, part_words(j), text, r["error"]])
+		return
+	var S2: Scene = r["scene"]
+	var path: String = load("res://scripts/text_blocking.gd").unique_path(UserPaths.w("res://scenes/_wip"), load("res://scripts/text_blocking.gd").slug(text))
+	var d := S2.to_dict(W)
+	d["plan"] = "Part-first: %s with the %s ('%s'): %s" % [lab, part_words(j), text, r["status"]]
+	_step_hint = "Part-first: %s (%s)" % [lab, part_words(j)]
+	_push_undo()   # ONE undo step: the whole-scene swap, as a template
+	undo[-1]["swap"] = true
+	_write(path, d)
+	_load_scene(path, true)
+	_rebuild_cards()
+	_refresh()
+	pf_last["ok"] = true
+	pf_last["file"] = path.get_file()
+	_say("%s with the %s: built as %s (%d cards). %s" % [lab, part_words(j), path.get_file(), S2.cards.size(), r["status"]])
 
 
 ## show one ribbon row. A page's row (SET is STAGE's) is a PAGE SWITCH; "VIEW" only shows the view row (tests, --ribbon)
@@ -16913,7 +17028,11 @@ func _page_set(p: String, save := true) -> void:
 			dummy_on = true
 			_dummy_hits()
 	_pp("leave")
+	if p != was_page:
+		_pw_leave(was_page)
 	cur_page = p
+	if p != was_page:
+		_pw_enter(p)
 	if bld != null:
 		bld.page_changed(was_page, p)
 	_pp("pre_show")
@@ -17468,6 +17587,117 @@ var campiv: CamPivot   # C07
 var camx: CamExtras   # C01
 var kt: KeymapTranslate   # P20: Blender / Maya key helper
 var blk: BlKeys           # B16: Blender-style modal G / R / S layer
+var pg_spaces: PageSpaces   # P07: per-page panel layouts
+var _learn_toast: PanelContainer
+var _learn_shown := {}   # command id -> true: its suggestion toast was shown this session (once each)
+const PAGE_WS := {"ANIMATE": "animate", "MODEL": "part", "SCULPT": "part", "SURFACE": "part"}   # the app page -> the workspace page (scripts/work_layouts.gd) whose layout it keeps
+
+
+func _pw_ws() -> WorkLayouts:
+	return bld.shell.ws if bld != null and bld.shell != null else null
+
+
+func _pw_leave(pg: String) -> void:
+	var w := _pw_ws()
+	if pg_spaces != null and w != null and PAGE_WS.has(pg):
+		pg_spaces.leave(w, String(PAGE_WS[pg]))
+
+
+func _pw_enter(pg: String) -> void:
+	var w := _pw_ws()
+	if pg_spaces != null and w != null and PAGE_WS.has(pg) and pg_spaces.enter(w, String(PAGE_WS[pg])):
+		w.touch()
+		bld.shell.ws_changed()
+
+
+func _pw_save_keys() -> void:
+	if hk != null:
+		hk.scoped.save_file()
+
+
+## the page keys, the run counts with the dismissals, and the page layouts: on a change and on quit
+func _pw_save() -> void:
+	if hk == null:
+		return
+	hk.scoped.save_file()
+	hk.learn.save_file()
+	if pg_spaces != null:
+		pg_spaces.save_file()
+
+
+## a command ran: count it; a habit (3+ runs, no key) gets one small non-modal suggestion per session
+func _learn_after(id: String) -> void:
+	if hk == null:
+		return
+	hk.learn.record(id)
+	if _learn_shown.has(id) or hk.learn.runs(id) < CmdLearn.MIN_RUNS or hk.learn.is_dismissed(id) or ui_cmd == null:
+		return
+	for r in hk.learn.suggest(ui_cmd.commands, hk.scoped, CmdLearn.MIN_RUNS, 100000):
+		if String(r["id"]) == id:
+			_learn_shown[id] = true
+			_learn_toast_show(r)
+			return
+
+
+func _learn_toast_show(r: Dictionary) -> void:
+	if _learn_toast == null:
+		_learn_toast = PanelContainer.new()
+		_learn_toast.name = "learn_toast"
+		_learn_toast.z_index = 90
+		_learn_toast.anchor_left = 1.0
+		_learn_toast.anchor_right = 1.0
+		_learn_toast.anchor_top = 1.0
+		_learn_toast.anchor_bottom = 1.0
+		_learn_toast.offset_left = -430
+		_learn_toast.offset_right = -16
+		_learn_toast.offset_top = -190
+		_learn_toast.offset_bottom = -110
+		var st := StyleBoxFlat.new()
+		st.bg_color = Tok.c("float")
+		st.set_corner_radius_all(8)
+		st.set_content_margin_all(10)
+		_learn_toast.add_theme_stylebox_override("panel", st)
+		var v := VBoxContainer.new()
+		_learn_toast.add_child(v)
+		var lb := Label.new()
+		lb.name = "learn_text"
+		lb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lb.custom_minimum_size.x = 380
+		v.add_child(lb)
+		var h := HBoxContainer.new()
+		v.add_child(h)
+		var a := Button.new()
+		a.name = "learn_accept"
+		h.add_child(a)
+		var d := Button.new()
+		d.name = "learn_dismiss"
+		d.text = "Dismiss"
+		h.add_child(d)
+		ui_root.add_child(_learn_toast)
+	var id := String(r["id"])
+	var key := String(r["key"])
+	(_learn_toast.find_child("learn_text", true, false) as Label).text = "You run \"%s\" a lot (%d times). Give it the key %s?" % [r["name"], int(r["runs"]), key]
+	var ab := _learn_toast.find_child("learn_accept", true, false) as Button
+	ab.text = "Accept %s" % key
+	for c in ab.pressed.get_connections():
+		ab.pressed.disconnect(c["callable"])
+	ab.pressed.connect(func():
+		var res := hk.learn.accept(id, key, hk.scoped)
+		_pw_save_keys()
+		_learn_toast.visible = false
+		_say(String(res.get("msg", ""))))
+	var db := _learn_toast.find_child("learn_dismiss", true, false) as Button
+	for c in db.pressed.get_connections():
+		db.pressed.disconnect(c["callable"])
+	db.pressed.connect(func():
+		hk.learn.dismiss(id)
+		_learn_toast.visible = false)
+	_learn_toast.visible = true
+	get_tree().create_timer(30.0).timeout.connect(func():
+		if is_instance_valid(_learn_toast) and _learn_toast.visible and not hk.learn.is_dismissed(id):
+			_learn_toast.visible = false)
+
+
 var hk: Hotkeys   # HOTKEYS: rebinding, the saved keys, the editor (scripts/hotkeys.gd)
 
 
@@ -17637,6 +17867,7 @@ func _commands() -> Array:
 	add.call("Secondary: clear", "", _sec_clear, "secondary clear remove off delete chain", true, "takes every secondary item and its keys off the scene (Ctrl+Z puts them back)")
 	add.call("Driver: factor -1", "", _drv_factor.bind(-1.0), "driver factor negative mirror invert opposite", true, "the picked part's driver: it moves the opposite way to its source")
 	add.call("Driver: remove the picked part's driver", "", _drv_remove, "driver delete remove clear", true, "the picked part stops following its source (its angle is the card's again)")
+	_uiw().commands(add)   # L95 UIWIRE: Key this property, rig mirror, react, mass slider, quaternion readout (scripts/ui_wire.gd)
 	_shot_commands(add)   # THE SHOT CAMERA (shot_camera.gd)
 	if clips_ui == null:
 		clips_ui = ClipsUI.new(self)
@@ -17722,6 +17953,9 @@ func _commands() -> Array:
 	if rc_ui == null:
 		rc_ui = RecoveryUI.new(self)
 	rc_ui.commands(add)   # RECOVERY STEP (ROADMAP I39)
+	if sm_ui == null:
+		sm_ui = StanceMapUI.new(self)
+	sm_ui.commands(add)   # STANCE STRENGTH MAP (N038)
 	if sf_ui == null:
 		sf_ui = SafetyUI.new(self)
 	sf_ui.commands(add)   # SAFETY SHEET (ROADMAP I28)
@@ -17866,10 +18100,10 @@ func _commands() -> Array:
 		add.call("Style: make it " + st + "...", "", _style_dialog.bind(st), "style transfer make it %s heavier older tired angrier walk" % st, false, "a copy of this scene in the style (timing, spacing, posture; ROADMAP 25), with an intensity 0-100 %; saved in scenes/_wip and opened (yours untouched)")
 	add.call("Body: proportions...", "", _proportions_dialog, "proportions height stature tall short size body limbs arm leg length character ansur woman man female male", false, "a small dialog: a preset (ANSUR II 5th / 50th / 95th, woman or man) or a stature; the cards keep their angles, the feet stay on the floor (PR1)")
 	for pk in Proportions.PRESETS:
-		add.call("Body: " + Proportions.PRESET_NAMES[pk], "", func(): proportions_set(Proportions.preset(pk)), "proportions height stature body " + pk.replace("_", " "), true, "the body's proportions: %s (ANSUR II stature %.1f cm), the cards retargeted (PR1)" % [Proportions.PRESET_NAMES[pk], float(Proportions.PRESETS[pk]["stature"]) * 100.0])
+		add.call("Body: " + Proportions.PRESET_NAMES[pk], "", func(): proportions_set(Proportions.preset(pk)), "proportions height stature body " + pk.replace("_", " "), true, "the body's proportions: %s (ANSUR II stature %s), the cards retargeted (PR1)" % [Proportions.PRESET_NAMES[pk], Units.stature(float(Proportions.PRESETS[pk]["stature"]))])
 	add.call("Body: fighter archetype...", "", _archetype_dialog, "archetype fighter boxer sumo judo sprinter marathon gymnast kendo mma athlete weight class reach ape index body", false, "a list of athletes' published measurements (stature, mass, arm span / height) put on the body; the cards keep their angles (G23)")
 	add.call("Body: from height, weight, sex, age, build", "", _body_nums_dialog, "body five numbers height weight sex age build bmi person make character", false, "a small dialog: height cm, weight kg, sex, age, build -> a whole body (ANSUR II + Winter ratios) and your percentile; one undo step (G13)")
-	add.call("Body: the mannequin's own proportions", "", func(): proportions_set({}), "proportions default reset height body", true, "the body back to the mannequin as shipped (%.1f cm), the cards retargeted (PR1)" % (Proportions.DEFAULT_STATURE * 100.0))
+	add.call("Body: the mannequin's own proportions", "", func(): proportions_set({}), "proportions default reset height body", true, "the body back to the mannequin as shipped (%s), the cards retargeted (PR1)" % Units.stature(Proportions.DEFAULT_STATURE))
 	add.call("Actor: add a second fighter (mirror of this one, facing it)", "", _actor_add, "actor fighter character opponent two second partner duel versus", true, "a second fighter in the scene: this scene mirrored, 150 cm in front, turned to face this one (TC3; Save scene keeps both)")
 	add.call("Crowd: make 20 copies of this fighter", "", _crowd_make, "crowd copies many fighters army group mob extras background spread", true, "20 copies of the current fighter's clip, scattered without overlap, each with its own time, speed, slight joint noise, mirror and stature (ANSUR II); one Ctrl+Z")
 	add.call("Crowd: re-roll (new seed)", "", _crowd_reroll, "crowd reroll seed random new variation", true, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures; one Ctrl+Z")
@@ -18003,12 +18237,17 @@ func _commands() -> Array:
 	add.call("Ask AI", "", _ai_toggle, "ai llm model chat prompt type words describe gpt claude gemini ollama assistant agent generate make animate", false, "type what should happen and an AI builds the cards on this scene, one Ctrl+Z per step")
 	add.call("Audio: add a sound file (wav / ogg / mp3)", "", _audio_ask, "audio sound music wav ogg mp3 voice track waveform lip sync timing import", false, "pick a sound file: it is added as a track, one lane under the timeline (a waveform; drag the lane to set its offset, click its name to mute it); it plays in step with Play and sounds a short slice as you drag the playhead")
 	add.call("Lip-sync: from the audio track", "", _lip_from_audio, "lip sync lipsync mouth jaw talk speech audio voice visemes timing", true, "bake a jaw and mouth shapes from the sound (a wav on the timeline): the loudness opens the jaw 0-15 deg, the zero-crossing rate picks closed, round, open or wide; one undo step")
+	add.call("Scene: frame rate to 24 / 30 / 60 fps (keys keep their exact times)", "", _fps_convert_ask, "fps frame rate framerate convert 24 30 60 sub-frame keys retime keep times", true, "change the scene's fps without moving any key in time: a key between two frames becomes a sub-frame key; notes and boxes follow the rate; one undo step. Type the rate in the box")
+	add.call("Scene: frame rate, snap keys to whole frames", "", _fps_snap_ask, "fps frame rate snap whole frames round keys convert", true, "the same, and each part key moves to the nearest whole frame of the new rate (at most half a frame; the status line counts the moves); one undo step")
+	add.call("Graph editor: sound waveform on / off", "", _graph_wave_toggle, "graph editor curve sound audio waveform wave toggle", false, "draw the sound track's waveform under the curves, the same peaks as the timeline's sound lane")
 	add.call("Audio: remove the sound", "", _audio_remove, "audio sound delete clear track waveform", true, "take the picked track off the timeline (click its lane first; with one track there is nothing to pick); the file stays on disk; one undo step")
 	add.call("Audio: louder (+3 dB)", "", _audio_gain.bind(3.0), "audio sound volume gain louder up db", true, "the sound 3 dB louder (about 1.4×), up to +12 dB; in playback and the playblast; one undo step")
 	add.call("Audio: quieter (-3 dB)", "", _audio_gain.bind(-3.0), "audio sound volume gain quieter down softer db", true, "the sound 3 dB quieter, down to -30 dB; in playback and the playblast; one undo step")
 	add.call("Beats: find the beats in the sound", "", _beats_find, "beats bpm tempo music beat grid downbeat bar audio", true, "find the beats and the tempo of the sound (a wav): marks on the timeline, bars marked when a 4/4 grid is evident; one undo step")
 	add.call("Beats: snap the contact cards to the nearest beat", "", _beats_snap, "beats snap contact hit strike align music sync", true, "move each hit (contact) card so it lands on its nearest beat; a card never moves more than 25 % of its own move, else nothing moves; one undo step")
 	add.call("Weight: time the swing to the weapon", "", _weight_feel, "weight heavy light weapon mass inertia swing slow fast windup recovery hammer dagger bat feel", true, "retime the wind-up and recovery of the swing by the held weapon's moment of inertia about the shoulder (a heavy weapon is slower, a light one quicker; Cross & Bower: time goes as I^0.27); the hit card and its pose stay; one undo step")
+	add.call("Weight: make it heavier", "", _weight_step.bind(0.5), "weight heavier heavy mass slow anticipation settle momentum", true, "mass x1.41: longer anticipation and settle, lower peak velocity at the same impulse; poses and contacts stay; needs a hit marker; one undo step")
+	add.call("Weight: make it lighter", "", _weight_step.bind(-0.5), "weight lighter light mass quick snappy momentum", true, "mass x0.71: shorter anticipation and settle, higher peak velocity at the same impulse; poses and contacts stay; needs a hit marker; one undo step")
 	add.call("Beats: clear the beats", "", _beats_clear, "beats clear remove music", true, "take the beat marks off the timeline; one undo step")
 	add.call("Audio: mute or unmute the picked track", "", _audio_mute_picked, "audio sound track mute silence unmute lane", true, "the picked track (click its lane) silent or sounding again, in Play, the scrub and the playblast; one undo step")
 	add.call("Audio: solo or unsolo the picked track", "", _audio_solo_picked, "audio sound track solo only isolate lane", true, "the picked track soloed: only soloed tracks sound (in Play, the scrub and the playblast); one undo step")
@@ -18169,9 +18408,11 @@ func _commands() -> Array:
 		var f: Callable = d["run"]
 		var nm: String = d["name"]
 		d["raw"] = f   # the command's own callable (tests and tools ask what a command is bound to)
+		var cid: String = String(d["id"])
 		d["run"] = func():
 			_nt_note(nm)
 			f.call()
+			_learn_after(cid)   # P18: every run (palette, menu, key, chip) is counted; a habit gets a suggestion toast
 	return rows   # the keys the user chose (scripts/hotkeys.gd) replace the built-in ones
 
 
@@ -18876,6 +19117,21 @@ func _tool(id: int) -> void:
 	pm.set_item_checked(pm.get_item_index(2), ov.graph_on)
 	pm.set_item_checked(pm.get_item_index(3), stepped_view)
 	pm.set_item_checked(pm.get_item_index(4), S.moving_holds)
+
+
+## N037 / N039: switch real sway (seed >= 0 sets it) or the strength curves on or off; ONE undo step
+func _set_strength(what: String, on: bool, seed := -1) -> void:
+	_push_undo()
+	if what == "sway":
+		S.sway = on
+		if seed >= 0:
+			S.sway_seed = seed
+	elif what == "curves":
+		S.strength_curves = on
+	_rebuild_cards()
+	_ps().apply(B, playhead)
+	_refresh()
+	_say(("real sway %s (seed %d)" % ["on" if S.sway else "off", S.sway_seed]) if what == "sway" else ("strength curves " + ("on: torque caps follow the joint angle" if on else "off: one constant cap per joint")))
 
 
 ## the whole scene mirrored, card by card (and each card's steps), into scenes/_wip/<name>_mirrored.json, opened
@@ -21196,6 +21452,7 @@ func _close_asked() -> void:
 
 
 func _quit_app() -> void:
+	_pw_save()
 	if quit_fn.is_valid():
 		quit_fn.call()
 		return
@@ -23722,6 +23979,7 @@ func _on_drop(files: PackedStringArray) -> void:
 ## own track's stream, not the premix.
 const AUDIO_SLICE_EXTRA := 0.04   # s added to one frame for a scrub slice
 const AUDIO_MIX_QUIET := 150000   # usec: a change is mixed after this long without another change
+var graph_wave := false         # L14: the sound's waveform under the graph editor's curves (view only)
 var audio_envs: Array = []      # per track: AudioTrack.envelope of its file ({} = not loaded)
 var audio_mixes := 0            # how many premixes were built (tests)
 var audio_mix_usec := 0         # how long the last premix took to build, usec (tests)
@@ -23805,6 +24063,8 @@ func _audio_reload() -> void:
 		_a_paths.append(path)
 		audio_envs.append({} if path == "" else AudioTrack.envelope(st, path))
 	audio_decode_usec = Time.get_ticks_usec() - t0
+	if ui_curve != null:
+		ui_curve.wave_envs = audio_envs   # L14
 	if audio_pick >= n:
 		audio_pick = -1
 	_audio_remix_now()
@@ -24258,6 +24518,30 @@ func face_at(rest: Vector3) -> Vector3:
 	return (B.P["head"] as Vector3) + (B.G["head"] as Quaternion) * (rest - (B.p0["head"] as Vector3))
 
 
+## L92: frame-rate conversion (scripts/fps_wave.gd). The target is the next of 24 / 30 / 60 after the scene's rate
+func _fps_convert_to(snap: bool) -> void:
+	var n := 30 if S.fps == 24 else (60 if S.fps == 30 else 24)
+	var r := FpsWave.serve(self, {"action": "convert", "fps": n, "snap": snap})
+	if not r["ok"]:
+		_say(String(r["error"]))
+		return
+	var res: Dictionary = r["result"]
+	_say("frame rate %d -> %d fps: %d keys kept at their exact times%s" % [res["from"], res["to"], res["keys"], (", %d moved to whole frames (largest %.1f ms), %d kept in place" % [(res["moves"] as Array).size(), 1000.0 * float(res["max_move"]), res["kept"]]) if snap else ""])
+
+
+func _fps_convert_ask() -> void:
+	_fps_convert_to(false)
+
+
+func _fps_snap_ask() -> void:
+	_fps_convert_to(true)
+
+
+func _graph_wave_toggle() -> void:
+	FpsWave.serve(self, {"action": "wave"})
+	_say("graph editor waveform " + ("on" if graph_wave else "off"))
+
+
 func _audio_remove() -> void:
 	var i := _audio_target()
 	if i < 0:
@@ -24386,6 +24670,23 @@ func _weight_feel() -> void:
 	var r := WeightFeel.apply(trial, B)
 	if not r["ok"]:
 		_say(r["msg"] + " (nothing changed; pick another weapon or card, then try again)")
+		return
+	_push_undo()
+	_markers_hold()
+	S.cards = trial.cards
+	_markers_follow()
+	_retimed()
+	_say(r["msg"] + ".  Ctrl+Z undoes")
+
+
+## WEIGHT SLIDER (L23; WeightFeel.slider): the open scene heavier / lighter by a step of the slider (log2 of the mass ratio)
+func _weight_step(d: float) -> void:
+	var c := WeightFeel.contact_card(S)
+	var v := (float(S.cards[c].get("weight_s", 0.0)) if c >= 0 else 0.0) + d
+	var trial := S.clone()
+	var r := WeightFeel.slider(trial, v)
+	if not r["ok"]:
+		_say(r["msg"] + " (nothing changed)")
 		return
 	_push_undo()
 	_markers_hold()
@@ -26067,6 +26368,9 @@ func _open_scene_dict(path: String, d: Dictionary, work: bool, built := false) -
 		if journal_on:
 			journal.trim()   # ... and its journal goes with it
 	_props_show()   # the opened scene's set is drawn now (a load used to leave the props out of the view until the next edit)
+	UiWire.register(self)   # L95: the stage's lights / floor / skin are AnyKey targets for the scene just opened
+	if not S.anykeys.is_empty() or uiw != null:
+		_uiw().after_open()
 	S.apply(B, 0.0)
 	_home_refit()   # C62: a scene opened under the untouched home view is framed for ITS body
 	_home_refit.call_deferred()   # ... and again once its first pose has settled
@@ -26743,7 +27047,7 @@ func _archetype_dialog() -> void:
 		ui_arch_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		for id in Archetypes.ORDER:
 			var a: Dictionary = Archetypes.TABLE[id]
-			ui_arch_list.add_item("%s   %.0f cm, %.0f kg" % [a["name"], float(a["stature"]) * 100.0, float(a["mass"])])
+			ui_arch_list.add_item("%s   %s, %.0f kg" % [a["name"], Units.stature(float(a["stature"])), float(a["mass"])])
 			ui_arch_list.set_item_tooltip(ui_arch_list.item_count - 1, String(a["src"]))
 		ui_arch_list.item_activated.connect(func(i):
 			ui_arch_dlg.hide()
@@ -26776,22 +27080,27 @@ func _proportions_dialog() -> void:
 		ui_prop_preset = OptionButton.new()
 		ui_prop_preset.name = "opt_preset"
 		for k in PROP_KEYS:
-			ui_prop_preset.add_item("the mannequin as shipped (%.1f cm)" % (Proportions.DEFAULT_STATURE * 100.0) if k == "" else ("custom stature" if k == "custom"
-				else "%s (ANSUR II, %.1f cm)" % [Proportions.PRESET_NAMES[k], float(Proportions.PRESETS[k]["stature"]) * 100.0]))
+			ui_prop_preset.add_item("the mannequin as shipped (%s)" % Units.stature(Proportions.DEFAULT_STATURE) if k == "" else ("custom stature" if k == "custom"
+				else "%s (ANSUR II, %s)" % [Proportions.PRESET_NAMES[k], Units.stature(float(Proportions.PRESETS[k]["stature"]))]))
 		ui_prop_preset.item_selected.connect(func(i):
 			var k: String = PROP_KEYS[i]
 			if k != "custom":
-				ui_prop_stature.set_value_no_signal((Proportions.DEFAULT_STATURE if k == "" else float(Proportions.PRESETS[k]["stature"])) * 100.0))
+				ui_prop_stature.set_value_no_signal(Units.to_unit(Proportions.DEFAULT_STATURE if k == "" else float(Proportions.PRESETS[k]["stature"]))))
 		v.add_child(ui_prop_preset)
 		var h := HBoxContainer.new()
 		var l := Label.new()
-		l.text = "stature (cm)"
+		l.text = "stature (%s)" % Units.suffix()
 		h.add_child(l)
 		ui_prop_stature = SpinBox.new()
 		ui_prop_stature.name = "spin_stature"
-		ui_prop_stature.min_value = 100.0
-		ui_prop_stature.max_value = 230.0
-		ui_prop_stature.step = 0.1
+		ui_prop_stature.min_value = Units.to_unit(1.0)
+		ui_prop_stature.max_value = Units.to_unit(2.3)
+		ui_prop_stature.step = Units.to_unit(0.001)
+		ui_prop_stature.get_line_edit().text_submitted.connect(func(t: String):   # P14: "6 ft", "70 in", "178 cm" typed into the field
+			var mm := Units.parse_m(t)
+			if not is_nan(mm):
+				ui_prop_stature.set_value_no_signal(Units.to_unit(mm))
+				ui_prop_preset.select(PROP_KEYS.size() - 1))
 		ui_prop_stature.value_changed.connect(func(_x): ui_prop_preset.select(PROP_KEYS.size() - 1))
 		h.add_child(ui_prop_stature)
 		v.add_child(h)
@@ -26803,7 +27112,7 @@ func _proportions_dialog() -> void:
 			elif k == "custom":
 				var d := S.body.duplicate(true)
 				d.erase("preset")
-				d["stature"] = ui_prop_stature.value / 100.0
+				d["stature"] = Units.from_unit(ui_prop_stature.value)
 				proportions_set(d)
 			else:
 				proportions_set(Proportions.preset(k)))

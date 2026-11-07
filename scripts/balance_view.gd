@@ -28,6 +28,7 @@ var last := {}
 ## I24 DRAG THE BALANCE: the point the COM is being dragged to while a drag runs ({} = none): {"xz": Vector2, "state": String}.
 ## A ring in the state's colour is drawn there (amber near the edge, red outside) and the solve's own marker stays where the body is
 var req := {}
+var split_labels := {}   # N069: "_l" / "_r" -> the Label3D of that foot's weight percent
 var verts := 0   # vertices in the last drawing (tests)
 var _mesh: MeshInstance3D
 var _im: ImmediateMesh
@@ -45,6 +46,20 @@ func _ready() -> void:
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_mesh.material_override = m
 	add_child(_mesh)
+	# N069 WEIGHT SPLIT: a big % on the floor under each foot (left = his left, +x)
+	for sd in ["_l", "_r"]:
+		var lb := Label3D.new()
+		lb.name = "split" + sd
+		lb.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		lb.fixed_size = true
+		lb.pixel_size = 0.0022
+		lb.font_size = 48
+		lb.outline_size = 12
+		lb.no_depth_test = true
+		lb.render_priority = 3
+		lb.visible = false
+		add_child(lb)
+		split_labels[sd] = lb
 
 
 static func state_of(r: Dictionary) -> String:
@@ -66,6 +81,8 @@ func show_body(B: Body) -> void:
 		return
 	_im.clear_surfaces()
 	verts = 0
+	for sd in split_labels:
+		(split_labels[sd] as Label3D).visible = false
 	if not on:
 		last = {}
 		return
@@ -74,6 +91,16 @@ func show_body(B: Body) -> void:
 	var st := state_of(r)
 	last = {"com": c, "foot": Vector2(c.x, c.z), "poly": r["poly"], "margin": r["margin"], "state": st}
 	var col := colour(st)
+	var sp := WeightSplit.read(B)   # N069: nothing at all when no foot is down
+	last["split"] = sp
+	if bool(sp["shown"]) and st != "air":
+		for sd in split_labels:
+			var lb: Label3D = split_labels[sd]
+			var pt: Vector2 = sp["p" + sd.substr(1)]
+			lb.text = str(sp[sd.substr(1)])
+			lb.modulate = col
+			lb.position = Vector3(pt.x, 0.02, pt.y - 0.12)
+			lb.visible = true
 	var poly: PackedVector2Array = r["poly"]
 	# the support area filled, see-through (a fan from its first point: the hull is convex), and a disc at the COM's
 	# floor point: 1-pixel lines alone were lost at a normal zoom (screenshot, round 43)
@@ -120,6 +147,16 @@ func show_body(B: Body) -> void:
 				_im.surface_add_vertex(Vector3(rq.x + cos(a) * RING_R, LIFT * 3.0, rq.y + sin(a) * RING_R))
 		_im.surface_end()
 	verts = poly.size() * 2 + 6   # the lines (the fill and disc are a surface of their own)
+
+
+## N069: the texts of the visible weight labels, left then right ([] = none shown)
+func split_text() -> Array:
+	var out := []
+	for sd in ["_l", "_r"]:
+		var lb: Label3D = split_labels.get(sd)
+		if lb != null and lb.visible:
+			out.append(lb.text)
+	return out
 
 
 ## the status line's words: "balance: inside by 4.1 cm" / "OUTSIDE by 2.0 cm: he tips" / "in the air"

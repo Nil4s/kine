@@ -25,6 +25,7 @@ const MOVE_MIN := 3.0  # px: a drag starts after this much movement (a click tha
 
 var scene: Scene = null
 var joint := ""
+var au := false             # L94: `joint` names a face AU channel (scene.face), drawn clamped to its range
 var playhead := 0.0
 var fps := 24
 var limit: Callable = Callable()    # (joint, Vector3) -> Vector3, the legal angles
@@ -47,6 +48,9 @@ const VIEWS := ["plain", "normal", "stacked"]
 const VIEW_NAMES := {"plain": "View: degrees", "normal": "View: -1..1", "stacked": "View: lanes"}
 var _rng := [Vector2(-1, 1), Vector2(-1, 1), Vector2(-1, 1)]   # DD3: each angle's range (lo, hi) in the fitted views
 var _view_btn: Button
+var _wave_btn: Button
+var wave_on := false          # L14: the sound's waveform drawn under the curves (a view toggle; nothing is saved)
+var wave_envs: Array = []     # L14: per audio track, AudioTrack.envelope of its file (main.audio_envs); the track list is scene.audio_tracks
 var _mods: MenuButton       # DD2: the curve modifiers (Blender's F-Curve modifiers: noise, stepped, limits)
 const MOD_ITEMS := ["Add noise", "Add stepped (on twos)", "Add limits (the keys' range)", "Mix of the last = factor (0..1)", "Remove the last"]
 var last_shape := {}        # DD1: the last tool's report {"tool", "changed", "skipped"}
@@ -59,6 +63,9 @@ var say: Callable = Callable()      # (text) -> void: the status line (the Unify
 var _hd := []           # ROADMAP 65: the handle being dragged [angle, key index, "in" | "out"], [] = none
 var _unify: Button
 var _break: Button
+var _ghost_btn: Button      # L95: shows the buffer curve behind the live one (ghost_keys)
+var _au_pick: OptionButton  # L95: "Part keys" | a face AU channel (puts the editor in au mode)
+var _interp: MenuButton     # L95: key interpolation (bezier / constant / linear / slerp) and slerp on the whole part
 var band := {}   # YY7: GaitBand.for_part() of the picked part (the people's band + the body's own line), {} = none
 
 
@@ -128,6 +135,51 @@ func _init() -> void:
 		_view_btn.add_theme_stylebox_override(st, flat_box)
 	_view_btn.pressed.connect(func(): set_view(VIEWS[(VIEWS.find(view) + 1) % VIEWS.size()]))
 	add_child(_view_btn)
+	_wave_btn = Button.new()
+	_wave_btn.text = "Wave"
+	_wave_btn.toggle_mode = true
+	_wave_btn.tooltip_text = "draw the sound track's waveform under the curves (the same peaks as the timeline's sound lane)"
+	_wave_btn.focus_mode = Control.FOCUS_NONE
+	_wave_btn.add_theme_font_size_override("font_size", 11)
+	for st in ["normal", "hover", "pressed", "focus"]:
+		_wave_btn.add_theme_stylebox_override(st, flat_box)
+	_wave_btn.toggled.connect(func(on): wave_on = on; queue_redraw())
+	add_child(_wave_btn)
+	_ghost_btn = Button.new()
+	_ghost_btn.text = "Ghost"
+	_ghost_btn.toggle_mode = true
+	_ghost_btn.tooltip_text = "show a buffer copy of this curve faintly behind it (the newest buffer of this part, else one taken now) so you can compare while you edit; off hides it"
+	_ghost_btn.focus_mode = Control.FOCUS_NONE
+	_ghost_btn.add_theme_font_size_override("font_size", 11)
+	for st in ["normal", "hover", "pressed", "focus"]:
+		_ghost_btn.add_theme_stylebox_override(st, flat_box)
+	_ghost_btn.toggled.connect(ghost_toggle)
+	add_child(_ghost_btn)
+	_interp = MenuButton.new()
+	_interp.text = "Interp"
+	_interp.flat = false
+	_interp.tooltip_text = "how the picked keys leave toward the next key (bezier / constant / linear / slerp = the shortest quaternion arc), or slerp on the whole part"
+	_interp.focus_mode = Control.FOCUS_NONE
+	_interp.add_theme_font_size_override("font_size", 11)
+	for st in ["normal", "hover", "pressed", "focus"]:
+		_interp.add_theme_stylebox_override(st, flat_box)
+	for k in PartKeys.INTERPS.size():
+		_interp.get_popup().add_item(PartKeys.INTERPS[k], k)
+	_interp.get_popup().add_item("Slerp the whole part: on", 10)
+	_interp.get_popup().add_item("Slerp the whole part: off", 11)
+	_interp.get_popup().id_pressed.connect(interp_item)
+	add_child(_interp)
+	_au_pick = OptionButton.new()
+	_au_pick.tooltip_text = "which curve: the picked part's keys, or one face channel (an AU: brows, jaw, eyes, visemes), drawn clamped to its range"
+	_au_pick.focus_mode = Control.FOCUS_NONE
+	_au_pick.add_theme_font_size_override("font_size", 11)
+	for st in ["normal", "hover", "pressed", "focus"]:
+		_au_pick.add_theme_stylebox_override(st, flat_box)
+	_au_pick.add_item("Part keys")
+	for ch in Face.CHANNELS:
+		_au_pick.add_item(String(ch))
+	_au_pick.item_selected.connect(func(i): set_au("" if i <= 0 else _au_pick.get_item_text(i)))
+	add_child(_au_pick)
 	_unify = _tan_button("Unify", "the picked key's two tangent handles share one slope per angle (a smooth pass through the key); drag a handle's end to set its angle and its length (how long the curve keeps the slope)", true)
 	_break = _tan_button("Break", "the picked key's two tangent handles move apart: a corner at the key (angle and length of each side on its own)", false)
 
@@ -151,6 +203,89 @@ func _tan_button(txt: String, tip: String, unify: bool) -> Button:
 	return b
 
 
+## L95: Ghost, Interp and the channel picker in a row from x
+func place_extra(x: float) -> float:
+	for c in [_ghost_btn, _interp, _au_pick]:
+		if c == null:
+			continue
+		c.reset_size()
+		c.position = Vector2(x, 1)
+		x += c.size.x + 8
+	return x
+
+
+## L95: the Ghost toggle. On: the newest buffer curve of this joint (CurveBuffer, the same slots the curve_graph tool fills), else one taken now
+## (no undo step: the scene does not change). Off: hidden.
+func ghost_toggle(on: bool) -> void:
+	if not on or scene == null or keys().is_empty():
+		ghost_keys = []
+		if on:
+			_ghost_btn.set_pressed_no_signal(false)
+			if say.is_valid():
+				say.call("Ghost: there are no keys on this curve to copy yet")
+		queue_redraw()
+		return
+	var slot := -1
+	for i in range(CurveBuffer.slots.size() - 1, -1, -1):
+		if CurveBuffer.slots[i]["joint"] == joint and not (CurveBuffer.slots[i]["keys"] as Array).is_empty():
+			slot = i
+			break
+	if slot < 0:
+		slot = CurveBuffer.snapshot(_store(), joint)
+	ghost_keys = (CurveBuffer.keys_of(slot) as Array).duplicate(true)
+	queue_redraw()
+
+
+func ghost_clear() -> void:
+	ghost_keys = []
+	if _ghost_btn != null:
+		_ghost_btn.set_pressed_no_signal(false)
+
+
+## L95: the channel picker: "" = the picked part's keys (main sets joint), else a face channel (au mode, scene.face)
+func set_au(ch: String) -> void:
+	au = ch != ""
+	if au:
+		joint = ch
+	picked = []
+	sel_i = -1
+	sel_ch = -1
+	ghost_clear()
+	frame_all()
+	queue_redraw()
+
+
+## L95: the Interp menu. 0..3 = PartKeys.INTERPS on the picked keys; 10 / 11 = slerp on / off on every key of the part (the tool euler_warp slerp). One undo step
+func interp_item(id: int) -> void:
+	if scene == null or joint == "" or keys().is_empty():
+		if say.is_valid():
+			say.call("Interp: this curve has no keys")
+		return
+	if id >= 10:
+		if au or keys().size() < 2:
+			if say.is_valid():
+				say.call("Slerp: needs a body part with two keys or more (not a face channel)")
+			return
+		if begin.is_valid():
+			begin.call()
+		QuatCurve.set_slerp(_store(), [joint], id == 10)
+	else:
+		var idxs := picked_keys()
+		if idxs.is_empty() and sel_i >= 0:
+			idxs = [sel_i]
+		if idxs.is_empty():
+			if say.is_valid():
+				say.call("Interp: pick keys first (click a dot), then choose how they leave")
+			return
+		if begin.is_valid():
+			begin.call()
+		for i in idxs:
+			PartKeys.set_interp(_store(), joint, i, PartKeys.INTERPS[id])
+	queue_redraw()
+	if changed.is_valid():
+		changed.call()
+
+
 ## ROADMAP 65: Unify / Break on the picked key (the key under the last click, else the first picked dot), one undo step
 func tangent_cmd(unify: bool) -> bool:
 	var i := sel_i
@@ -162,7 +297,7 @@ func tangent_cmd(unify: bool) -> bool:
 		return false
 	if begin.is_valid():
 		begin.call()
-	var r := PartKeys.unify(scene.part_keys, joint, i) if unify else PartKeys.break_handles(scene.part_keys, joint, i)
+	var r := PartKeys.unify(_store(), joint, i) if unify else PartKeys.break_handles(_store(), joint, i)
 	queue_redraw()
 	if changed.is_valid():
 		changed.call()
@@ -210,10 +345,49 @@ func _notification(what: int) -> void:
 			_factor.position = Vector2(_shape.position.x + _shape.size.x + 4, 1)
 			_mods.position = Vector2(_factor.position.x + _factor.size.x + 8, 1)
 			_view_btn.position = Vector2(_mods.position.x + _mods.size.x + 8, 1)
+			_wave_btn.reset_size()
+			_wave_btn.position = Vector2(_view_btn.position.x + _view_btn.size.x + 8, 1)
 			_unify.reset_size()
 			_break.reset_size()
-			_unify.position = Vector2(_view_btn.position.x + _view_btn.size.x + 8, 1)
+			_unify.position = Vector2(_wave_btn.position.x + _wave_btn.size.x + 8, 1)
 			_break.position = Vector2(_unify.position.x + _unify.size.x + 2, 1)
+			place_extra(_break.position.x + _break.size.x + 8)
+
+
+## L14 THE SOUND UNDER THE CURVES: one (x, peak 0..1) per pixel column of the plot, the loudest of the audible tracks there, from the
+## same AudioTrack.peak the timeline's sound lane reads (AudioTrack.columns), so the two line up. Empty when the toggle is off or there is no sound.
+func wave_columns() -> PackedVector2Array:
+	var out := PackedVector2Array()
+	if not wave_on or scene == null or scene.audio_tracks.is_empty():
+		return out
+	var p := plot()
+	var aud := AudioTrack.audible(scene.audio_tracks)
+	var any := false
+	for i in scene.audio_tracks.size():
+		if i >= wave_envs.size() or not aud[i] or not (wave_envs[i] as Dictionary).get("ok", false):
+			continue
+		var cols := AudioTrack.columns(wave_envs[i], float(scene.audio_tracks[i].get("offset", 0.0)), p.position.x, p.end.x, x_to_t)
+		if not any:
+			out = cols
+			any = true
+		else:
+			for k in mini(out.size(), cols.size()):
+				out[k].y = maxf(out[k].y, cols[k].y)
+	return out
+
+
+## the segments (pairs of ends) wave_columns() is drawn as: a vertical bar about the plot's middle per loud column, inside the plot
+func wave_lines() -> PackedVector2Array:
+	var out := PackedVector2Array()
+	var p := plot()
+	var mid := p.position.y + p.size.y * 0.5
+	for c in wave_columns():
+		if c.y <= 0.0:
+			continue
+		var h := minf(c.y, 1.0) * p.size.y * 0.5
+		out.append(Vector2(c.x, mid - h))
+		out.append(Vector2(c.x, mid + h))
+	return out
 
 
 ## DD1: reshape the selected dots with a Key > Blend tool (KeyBlend), one undo step; the angles kept legal
@@ -254,9 +428,9 @@ func mod_item(id: int) -> int:
 	var r := 0
 	match id:
 		0:
-			r = PartKeys.add_mod(scene.part_keys, joint, {"type": "noise", "ch": ch, "strength": 4.0, "scale": 0.3, "phase": 0.0, "seed": ks.size(), "mix": 1.0})
+			r = PartKeys.add_mod(_store(), joint, {"type": "noise", "ch": ch, "strength": 4.0, "scale": 0.3, "phase": 0.0, "seed": ks.size(), "mix": 1.0})
 		1:
-			r = PartKeys.add_mod(scene.part_keys, joint, {"type": "stepped", "ch": ch, "step": 2.0 / float(maxi(fps, 1)), "offset": 0.0, "mix": 1.0})
+			r = PartKeys.add_mod(_store(), joint, {"type": "stepped", "ch": ch, "step": 2.0 / float(maxi(fps, 1)), "offset": 0.0, "mix": 1.0})
 		2:
 			var lo := INF
 			var hi := -INF
@@ -265,12 +439,12 @@ func mod_item(id: int) -> int:
 					if ch < 0 or c == ch:
 						lo = minf(lo, (k["v"] as Vector3)[c])
 						hi = maxf(hi, (k["v"] as Vector3)[c])
-			r = PartKeys.add_mod(scene.part_keys, joint, {"type": "limits", "ch": ch, "min": lo, "max": hi, "mix": 1.0})
+			r = PartKeys.add_mod(_store(), joint, {"type": "limits", "ch": ch, "min": lo, "max": hi, "mix": 1.0})
 		3:
 			ms[-1]["mix"] = clampf(_factor.value, 0.0, 1.0)
 			r = ms.size() - 1
 		4:
-			PartKeys.remove_mod(scene.part_keys, joint, ms.size() - 1)
+			PartKeys.remove_mod(_store(), joint, ms.size() - 1)
 	queue_redraw()
 	if changed.is_valid():
 		changed.call()
@@ -278,9 +452,21 @@ func mod_item(id: int) -> int:
 
 
 func keys() -> Array:
-	if scene == null or joint == "" or not scene.part_keys.has(joint):
+	if scene == null or joint == "" or not _store().has(joint):
 		return []
-	return scene.part_keys[joint]
+	return _store()[joint]
+
+
+func _store() -> Dictionary:
+	return scene.face if au else scene.part_keys
+
+
+func _val(ks: Array, t: float, c: int) -> float:
+	var v: float = PartKeys.value_at(ks, t)[c]
+	if au:
+		var r := Face.range_of(joint)
+		v = clampf(v, r.x, r.y)
+	return v
 
 
 func plot() -> Rect2:
@@ -442,7 +628,7 @@ func ghost_line(c: int) -> PackedVector2Array:
 	var n := int(ceilf(plot().size.x / 2.0))
 	for i in n + 1:
 		var t := t0 + (t1 - t0) * float(i) / float(n)
-		pts.append(Vector2(t_to_x(t), cv_to_y(c, PartKeys.value_at(ghost_keys, t)[c])))
+		pts.append(Vector2(t_to_x(t), cv_to_y(c, _val(ghost_keys, t, c))))
 	return pts
 
 
@@ -461,7 +647,7 @@ func polyline(c: int) -> PackedVector2Array:
 			ts.append(float(k["t"]))
 	ts.sort()
 	for t in ts:
-		pts.append(Vector2(t_to_x(t), cv_to_y(c, PartKeys.value_at(ks, t)[c])))
+		pts.append(Vector2(t_to_x(t), cv_to_y(c, _val(ks, t, c))))
 	return pts
 
 
@@ -553,6 +739,8 @@ func _draw() -> void:
 		draw_line(Vector2(ph, p.position.y), Vector2(ph, p.end.y), Tok.c("say"), 1.5)
 	draw_string(f, Vector2(p.position.x, size.y - 5), "%.2f s" % t0, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Tok.dim(0.7))
 	draw_string(f, Vector2(p.end.x - 40, size.y - 5), "%.2f s" % t1, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Tok.dim(0.7))
+	if wave_on:
+		draw_multiline(wave_lines(), Color(ink, 0.2), 1.0)
 	_draw_band()
 	_draw_why()
 	if ks.is_empty() and band.get("ok", false):
@@ -658,7 +846,7 @@ func _gui_input(ev: InputEvent) -> void:
 			var hh := pick_handle(mb.position)
 			if not hh.is_empty() and hit[1] < 0:
 				_hd = hh
-				_mode = "handle"
+				_mode = "weight" if mb.alt_pressed else "handle"   # L95: Alt-drag sets the tangent weight
 				queue_redraw()
 				accept_event()
 				return
@@ -710,6 +898,8 @@ func _gui_input(ev: InputEvent) -> void:
 				begin.call()
 		if _mode == "handle":
 			drag_handle(mm.position)
+		elif _mode == "weight":
+			drag_weight(mm.position)
 		elif _mode == "scale":
 			scale_picked(1.0 + (mm.position.x - _press.x) / 150.0, 1.0 - (mm.position.y - _press.y) / 150.0)
 		else:
@@ -754,7 +944,29 @@ func drag_handle(at: Vector2) -> void:
 	var dv := cy_to_v(c, at.y) - (k["v"] as Vector3)[c]
 	if (x_to_t(at.x) < float(k["t"])) != (side == "in"):
 		len = 0.0   # a handle dragged across its key has no length: it stops at the shortest
-	PartKeys.set_tangent(scene.part_keys, joint, i, side, c, len, dv)
+	PartKeys.set_tangent(_store(), joint, i, side, c, len, dv)
+	queue_redraw()
+	if changed.is_valid():
+		changed.call()
+
+
+## L95: Alt-drag on a handle: its end's distance in time from the key, as a multiple of a third of the segment, is the WEIGHT (win / wout; the
+## slope stays). Same maths as the tool curve_graph weight (PartKeys.set_weight)
+func drag_weight(at: Vector2) -> void:
+	if _hd.is_empty() or scene == null:
+		return
+	var i: int = _hd[1]
+	var side: String = _hd[2]
+	var ks := keys()
+	var nb := i - 1 if side == "in" else i + 1
+	if i < 0 or i >= ks.size() or nb < 0 or nb >= ks.size():
+		return
+	var tk := float(ks[i]["t"])
+	var seg := absf(float(ks[nb]["t"]) - tk)
+	var len := absf(x_to_t(at.x) - tk)
+	if (x_to_t(at.x) < tk) != (side == "in"):
+		len = 0.0
+	PartKeys.set_weight(_store(), joint, i, side, len / maxf(seg / 3.0, 1e-9))
 	queue_redraw()
 	if changed.is_valid():
 		changed.call()

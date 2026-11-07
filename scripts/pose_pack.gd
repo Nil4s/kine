@@ -43,7 +43,7 @@ const SCENE_KEYS := ["scene", "natural", "on_floor", "floor_body", "pin", "fps",
 	"beats", "beats_audio", "face", "attrs", "iq", "lip", "ik", "plants", "drivers", "secondary", "hair", "rigx", "bones", "cape", "constraints", "body",
 	"shots", "clips", "sets", "camera", "boxes"]
 const CARD_KEYS := ["name", "move", "hold", "arrive_s", "leave_s", "pose", "flow", "walk", "steps", "lift", "ease", "ease_bias",
-	"plant", "take", "drop", "drop_rig", "air", "ktype", "weight_i"]
+	"plant", "take", "drop", "drop_rig", "air", "ktype", "weight_i", "weight_s"]
 const PROP_KEYS := ["kind", "pos", "yaw", "swing", "keys"]
 const PROP_KEY_KEYS := ["t", "pos", "yaw", "swing"]
 const BANNED_KEYS := ["script", "path", "file", "src", "code", "expression", "url", "audio", "actors", "res"]

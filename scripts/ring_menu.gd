@@ -13,6 +13,8 @@ var items: Array = []
 var at := Vector2.ZERO
 var title := ""
 var hover := -1
+## P04 pie use: a mouse RELEASE on a wedge runs it (release in the middle or outside cancels). Off = the click ring above.
+var release_pick := false
 
 
 func _ready() -> void:
@@ -100,3 +102,13 @@ func _gui_input(ev: InputEvent) -> void:
 	elif ev is InputEventKey and ev.pressed and (ev as InputEventKey).keycode == KEY_ESCAPE:
 		close()
 		accept_event()
+
+
+## P04: a release with no press on the ring (the pie opened by a key) is not delivered to _gui_input, so the pie hears it here
+func _input(ev: InputEvent) -> void:
+	if release_pick and visible and ev is InputEventMouseButton and not ev.pressed and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		var i := wedge((ev as InputEventMouseButton).position)
+		close()
+		get_viewport().set_input_as_handled()
+		if i >= 0:
+			(items[i]["run"] as Callable).call()

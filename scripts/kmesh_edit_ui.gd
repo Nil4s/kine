@@ -70,6 +70,7 @@ var prim_panel: PanelContainer
 var _prim_kind: OptionButton
 var _prim_box: GridContainer
 var _prim_fields := {}        # param -> SpinBox
+var redo_panel: KMeshRedoPanel   # P03: the last op's parameters (scripts/kmesh_redo_panel.gd)
 var live := {}                # B09: the primitive still live: {kind, params, step, base_v, base_f, at}
 const PRIM_GAP := 0.1         # m between the new primitive and what is already there
 var meas: KMeshMeasure   # B20: the ruler + readout while measuring, else null
@@ -103,6 +104,9 @@ func setup(main: Node) -> void:
 	_ov.draw.connect(_draw_overlay)
 	m.ui_root.add_child(_ov)
 	_build_prim_panel()
+	redo_panel = KMeshRedoPanel.new()
+	m.ui_root.add_child(redo_panel)
+	redo_panel.setup(self)
 	mods = KMeshModifiersUI.new()
 	add_child(mods)
 	mods.setup(self)
@@ -146,6 +150,7 @@ func start() -> void:
 	xray = false
 	_ov.visible = true
 	live = {}
+	redo_panel.close()
 	prim_panel.visible = true
 	view.rebuild()
 	if body == null:
@@ -171,6 +176,8 @@ func stop() -> void:
 	prim_panel.visible = false
 	mods.close()
 	live = {}
+	if redo_panel != null:
+		redo_panel.close()
 	if legend != null:
 		legend.visible = false
 	if body != null:
@@ -485,12 +492,14 @@ func subdivide(levels := 1) -> void:
 	if nf > SUBDIV_MAX_FACES:
 		m._say("Model: subdividing would make " + str(nf) + " faces, past the preview's " + str(SUBDIV_MAX_FACES) + ". Ctrl+Z a step back first")
 		return
+	var sel0 := sel.snapshot()
 	undo.begin(mesh)
 	var r := KMeshSubdiv.subdivide(mesh, levels)
 	mesh.attrs = {}   # the new channels are sized for the new faces: from_arrays must not fit the old ones
 	mesh.from_arrays(r.verts, r.faces)
 	mesh.attrs = r.attrs
-	undo.commit("subdivide")
+	var sst := undo.commit("subdivide")
+	redo_panel.note("subdivide", {"levels": levels}, sst, sel0)   # P03
 	sel.clear()
 	view.mark_dirty()
 	m._say("Model: subdivided (Catmull-Clark), now " + str(mesh.face_count()) + " faces. Ctrl+Z takes it back")
@@ -720,9 +729,12 @@ func quick(kind_: String) -> void:
 			mean += sqrt(KMeshMeasure.face_area(mesh, fi))
 		amt = BUTTON_INSET_F * (mean / float(maxi(fs.size(), 1)))
 	var what := "Extrude" if kind_ == "extrude" else "Inset"
+	var sel0 := sel.snapshot()
 	undo.begin(mesh)
 	var r: Dictionary = KMeshExtrude.extrude(mesh, sel, amt) if kind_ == "extrude" else KMeshExtrude.inset(mesh, sel, amt)
-	undo.commit(what)   # an op that changed nothing keeps no step
+	var qst := undo.commit(what)   # an op that changed nothing keeps no step
+	if String(r.get("error", "")) == "":
+		redo_panel.note(kind_, {"distance" if kind_ == "extrude" else "amount": amt}, qst, sel0)   # P03
 	view.mark_dirty()
 	if String(r.get("error", "")) != "":
 		m._say("Model: %s: %s" % [kind_, r["error"]])

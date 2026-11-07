@@ -52,7 +52,7 @@ func _key(S: Scene, name: String) -> String:
 static func key_for(S: Scene, name: String) -> String:
 	hashes += 1
 	var a := [name, S.cards, S.part_keys, S.ik, S.clips, S.plants, S.drivers, S.secondary, S.cons, S.layer, S.layer_w, S.layers, S.breath,
-		S.fitness, S.spline, S.natural, S.on_floor, S.floor_body, S.free_limits, S.pin, S.fps, S.moving_holds, S.stepped, S.loop, S.body,
+		S.fitness, S.spline, S.natural, S.on_floor, S.floor_body, S.free_limits, S.pin, S.fps, S.moving_holds, S.sway, S.sway_seed, S.stepped, S.loop, S.body,
 		S.bones, S.spline_chains, S.props]
 	if name == "cape":
 		a.append(Cloth.self_collide)
