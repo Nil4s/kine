@@ -23811,7 +23811,7 @@ func _face_geo_set(on: bool) -> void:
 			add_child(face_geo_root)
 			face_geo_mask = MeshInstance3D.new()
 			face_geo_mask.name = "mask"
-			face_geo_mask.material_override = FaceWrinkle.material(hp.material_override)   # L62 I09: vertex colours + expression wrinkles (face_wrinkle.gd)
+			face_geo_mask.material_override = FaceGeo.mask_material(hp.material_override)   # the head's own material, sRGB vertex colours
 			face_geo_root.add_child(face_geo_mask)
 			for e in face_geo_data["eyes"]:
 				var en := MeshInstance3D.new()
@@ -23892,6 +23892,14 @@ func _face_geo_draw(P: Dictionary) -> void:
 			skin = (hm as StandardMaterial3D).albedo_color
 		var wrk := FaceWrinkle.compute(d, st)
 		face_geo_mask.mesh = FaceWrinkle.mask_mesh(d, wrk["verts"], wrk, skin)
+		# L62 I09: the wrinkle shader only while a wrinkle muscle is driven (a neutral face keeps the head's own StandardMaterial3D)
+		var wr_on := false
+		for gv in FaceWrinkle.gates(au):
+			wr_on = wr_on or gv > 0.0
+		if wr_on and not (face_geo_mask.material_override is ShaderMaterial):
+			face_geo_mask.material_override = FaceWrinkle.material(hm)
+		elif not wr_on and face_geo_mask.material_override is ShaderMaterial:
+			face_geo_mask.material_override = FaceGeo.mask_material(hm)
 		var tf := FaceGeo.eye_transforms(d, st)
 		for i in 2:
 			(face_geo_eye_nodes[i] as Node3D).transform = tf[i]
