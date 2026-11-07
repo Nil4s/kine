@@ -86,6 +86,12 @@ TOOLS = {
                      {"type": "object", "properties": {"clip": S, "fps": N, "ang": {"type": "object"}, "kind": S, "side": S, "miss": {"type": "boolean"}}, "additionalProperties": False}),
     "effort_face": ("effort_face", "Effort face from torque: the clip's worst joint-torque ratio per frame drives AU4 brow lowerer, AU7 lid tightener, AU24 lip press, AU38 nostril and a clench, peaking about 3 frames BEFORE the torque peak; 0 on an idle clip. {clip?, fps?}", {"type": "object", "properties": {"clip": S, "fps": N}}),
     "pain_face": ("pain_face", "Pain face from hit force: impulse (N s) gives the Prkachin-Solomon pain set (AU4, 6, 7, 9, 10, 43) starting about 110 ms after contact, growing with impulse then decaying; returns PSPI (0-16), peak AUs, onset. Zero impulse = no pain. {impulse, contact?, length?, fps?}", {"type": "object", "properties": {"impulse": N, "contact": N, "length": N, "fps": N}, "required": ["impulse"]}),
+    "bake_reaction": ("bake_reaction", "Bake the hit reaction onto the struck partner at the contact frame: the region (from the fist's height, or tag/y/head_y/region) and impulse give region_react's joint deltas, written as one card that arrives at contact + drop delay. Frames before the contact do not change. One undo step on the live scene; with clip a copy is baked and the numbers returned.",
+                      {"type": "object", "properties": {"clip": S, "frame": {"type": "integer"}, "tag": S, "y": N, "head_y": N, "region": S, "impulse": N, "side": S}, "additionalProperties": False}),
+    "fix_impact": ("fix_impact", "Fix the flagged impact (bent wrist, locked knee) at the contact frame by writing impact_align's fix pose into the cards around it. One undo step; an error when the impact is clean.",
+                   {"type": "object", "properties": {"clip": S, "fps": N}, "additionalProperties": False}),
+    "bake_momentum": ("bake_momentum", "Key body_collide's after-hit velocities onto both bodies' roots (pelvis offset cards at 0.1/0.2/0.4/0.8 s after the contact). v_a/v_b [x,y,z] m/s, m_a/m_b kg override the measured root speeds and masses; t forces a contact time. One undo step.",
+                      {"type": "object", "properties": {"clip": S, "frame": {"type": "integer"}, "t": N, "v_a": {"type": "array"}, "v_b": {"type": "array"}, "m_a": N, "m_b": N, "sex": S, "e": N}, "additionalProperties": False}),
     "hit_region": ("hit_region", "Hit reaction by body region: from an anatomy tag (obliques_r = liver, face low = chin, quadriceps = thigh, abdominals high = solar plexus) and the impulse (N s) it returns the region and joint deltas (liver folds to the hit side with a delayed drop, chin snaps the head and buckles both knees, thigh buckles the hit leg, solar plexus folds forward), inside body limits, growing with impulse.",
                    {"type": "object", "properties": {"tag": S, "y": N, "head_y": N, "impulse": N, "side": S}, "required": ["tag"], "additionalProperties": False}),
     "body_collide": ("body_collide", "Shoulder charge / tackle: momentum shared between two bodies by de Leva upper-body mass; the lighter one changes speed more. Returns after-velocities, momentum before/after, and pelvis keys for both bodies.",
@@ -130,7 +136,7 @@ TOOLS = {
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack"]
+MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:
