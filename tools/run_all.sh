@@ -1110,3 +1110,4 @@ EXTRA="$EXTRA uiwire:w"   # L95 UIWIRE: AnyKey registry + Key this property, gra
 EXTRA="$EXTRA bodycheck2:h"   # L102 N056 style breaks + N058 can this body stand + N060 looks strong enough (tests/bodycheck2_test.gd)
 EXTRA="$EXTRA pagehot:h"   # L107 P06 per-page hotkeys + P07 per-page workspaces + P18 learn-from-me hotkeys (tests/pagehot_test.gd)
 EXTRA="$EXTRA redopanel:w"   # P03 last-op redo panel: bevel / extrude / inset / subdivide re-run from the pre-op state, one undo step, closes on the next edit (scripts/kmesh_redo_panel.gd; tests/redopanel_test.gd)
+EXTRA="$EXTRA themehc:w"   # P08 HIGH CONTRAST theme via Tok: WCAG 7:1 pairs, planted 3:1, real page recolour + byte-identical restore (tests/themehc_test.gd)
