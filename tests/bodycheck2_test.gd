@@ -1,14 +1,14 @@
 ## godot --headless --path . -s tests/bodycheck2_test.gd     (L102: N056 stylised proportions with consequences, N058 can this body stand, N060 looks strong enough; scripts/body_check.gd)
 ## BARS WRITTEN AND COMMITTED BEFORE THE CODE. None was changed after a run.
 ## SOURCES (ALL QUOTED FROM MEMORY, NOT RE-READ THIS SESSION: reported UNVERIFIED; no web tables were opened)
-##  * Muscle specific tension (force per physiological cross-section): about 30-40 N/cm^2, used 35 N/cm^2 as the limit (Zatsiorsky & Prilutsky 2012,
+##  * Muscle specific tension (force per physiological cross-section): about 30-40 N/cm^2, used 35 N/cm^2 as the limit, UNVERIFIED (from memory) (Zatsiorsky & Prilutsky 2012,
 ##    Biomechanics of Skeletal Muscles, ch. 2; the same range in Maganaris et al. 2001 / Narici 1992 for the quadriceps, 22-40).
-##  * Quadriceps physiological cross-section about 87 cm^2 (Ward et al. 2009, Clin Orthop Relat Res 467:1074, lower-limb architecture, sum over the four heads).
-##  * Knee extensor moment arm about 4.5 cm at 60 deg flexion (in vivo values, Herzog & Read 1993): scaled with thigh length.
-##  * Compact (cortical) bone, ultimate compressive stress along the shaft 170 MPa (Reilly & Burstein 1975, J Biomech 8:393: femur 167-193 MPa);
-##    flagged at half of it (fatigue/safety, MINE, stated). Tibial mid-shaft cortical area about 3.3 cm^2 (Ruff & Hayes 1983, order of 330 mm^2).
-##  * Walking loads the tibia at about 4 body weights (Burdett 1982 / Komi, order of 3-5 BW): the bone check uses single-leg stance x 4.
-##  * Elbow / shoulder moment arms 4.0 / 5.0 cm (Murray et al. 1995; order of magnitude): the default arm's capacity is set equal to ForceView.LIMIT_NM.
+##  * Quadriceps physiological cross-section 85.9 cm^2 = sum of the Table 3 means RF 13.5 + VL 35.1 + VI 16.7 + VM 20.6 (Ward et al. 2009, Clin Orthop Relat Res 467:1074, PMID 18972175; CHECKED 11-06; the earlier 87 appears nowhere in the paper).
+##  * Knee extensor moment arm about 4.5 cm at 60 deg flexion UNVERIFIED (from memory) (Herzog & Read 1993): scaled with thigh length.
+##  * Compact (cortical) bone, ultimate compressive stress along the shaft 170 MPa (Reilly & Burstein 1975, J Biomech 8:393: femur 167-193 MPa; UNVERIFIED (from memory), range not confirmed);
+##    flagged at half of it (fatigue/safety, MINE, stated). Tibial mid-shaft cortical area about 3.3 cm^2 (Ruff & Hayes 1983, order of 330 mm^2; UNVERIFIED (from memory), no source found).
+##  * Walking loads the tibia at about 4 body weights (Burdett 1982 is a RUNNING ankle-force paper, not walking tibia load; Komi; order of 3-5 BW; UNVERIFIED (no source found)): the bone check uses single-leg stance x 4.
+##  * Elbow / shoulder moment arms 4.0 / 5.0 cm (Murray et al. 1995; order of magnitude; UNVERIFIED (from memory)): the default arm's capacity is set equal to ForceView.LIMIT_NM.
 ## BARS
 ##  N056  A1 the default body gives no breaks (breaks == []), the hand reaches the face with margin > 0
 ##        A2 a chibi (head x1.8, same stature): its face margin = (upper arm + forearm) - |wrist target - shoulder| computed here independently from

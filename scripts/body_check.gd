@@ -1,7 +1,7 @@
 ## body_check.gd - L102: N056 STYLISED PROPORTIONS WITH CONSEQUENCES, N058 CAN THIS BODY STAND, N060 LOOKS STRONG ENOUGH. All read-only: they build their
 ## own Body (or read the open one) and never write the scene, the pose or the undo stack. Bars: tests/bodycheck2_test.gd.
-## SOURCES are quoted from memory and UNVERIFIED (listed in the test header): specific tension 35 N/cm^2 (Zatsiorsky & Prilutsky 2012), quadriceps PCSA
-## 87 cm^2 (Ward 2009), knee extensor arm 4.5 cm, cortical bone 170 MPa ultimate (Reilly & Burstein 1975), tibial cortical area 3.3 cm^2, gait load 4 BW,
+## SOURCES are quoted from memory and UNVERIFIED (listed in the test header; only the Ward PCSA was checked 11-06 and corrected, the gait load 4 BW has no walking source: Burdett 1982 is a running paper): specific tension 35 N/cm^2 (Zatsiorsky & Prilutsky 2012), quadriceps PCSA
+## 85.9 cm^2 (Ward 2009, sum of Table 3 means, PMID 18972175, checked 11-06), knee extensor arm 4.5 cm, cortical bone 170 MPa ultimate (Reilly & Burstein 1975), tibial cortical area 3.3 cm^2, gait load 4 BW,
 ## elbow / shoulder arms 4 / 5 cm. MINE: the face point, the half-squat lever (load line half a thigh behind the knee), the bone flag at half the ultimate stress.
 ##
 ## N056 style(body): the face point F = cervicale + (0, 0.5 h, 0.4 h), h = head height (cervicale -> top of head), standing at rest. The fingertips touch it when
@@ -11,14 +11,14 @@
 ##   shifted by that extra head mass. Breaks (thresholds mine): no face touch; face margin down > 2 cm; jab reach change >= 5 cm; head share +3 points or COM +/-3 cm.
 ## N058 stand(B, mass, size, leg_r, limits): BONE = single-leg stance x 4 BW through the tibial cortical area 3.3 cm^2 x (calf radius / default)^2;
 ##   MUSCLE = a half squat, each leg carries M g / 2 at a lever (half a thigh) over the knee extensor arm (4.5 cm x thigh / default thigh), over the quadriceps
-##   area 87 cm^2 x (thigh radius / default)^2. size scales every length and radius (geometric similarity), leg_r only the leg radii.
+##   area 85.9 cm^2 x (thigh radius / default)^2. size scales every length and radius (geometric similarity), leg_r only the leg radii.
 ## N060 muscle(joint, torque, girth): capacity = sigma x PCSA x arm; the PCSA at the default girth is set so the default arm equals ForceView.LIMIT_NM (the
 ##   strong-young-man cap every judge already uses), and it scales with girth^2. The elbow's muscle lives in the upper arm, the knee's in the thigh.
 class_name BodyCheck
 extends RefCounted
 
 const SIGMA := 35.0   # N/cm^2
-const QUAD_CM2 := 87.0
+const QUAD_CM2 := 85.9
 const KNEE_ARM_M := 0.045
 const LEVER_THIGHS := 0.5
 const TIBIA_CM2 := 3.3

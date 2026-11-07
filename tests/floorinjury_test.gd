@@ -3,13 +3,13 @@
 ## Momentum (the stop: horizontal ground force over a planted stop is at most mu x the vertical load, 1 body weight standing; the pivot:
 ## the friction couple scales with mu) and the Force view (the friction cone). No material = today, untouched.
 ## THE NUMBERS (static / dynamic shoe-floor COF), and where they come from (read by me 11-06, search results, primaries not all opened):
-##   mat       0.75  rubber shoe sole on dry rubber floor tiles, 0.75 (Friction Coefficient of Rubber Shoe Sole Sliding Against Different Rubber
+##   mat       0.75  (UNVERIFIED: 0.75 is not in the cited paper's text, which gives required COF 0.35/0.45/0.54; values may sit only in figures) rubber shoe sole on dry rubber floor tiles, 0.75 (Friction Coefficient of Rubber Shoe Sole Sliding Against Different Rubber
 ##                   Floor Tiles, Tribology in Industry 2022, tribology.rs/journals/2022/2022-2/5-1188.pdf)
-##   concrete  1.00  rubber on dry concrete, 1.0 (a floor-safety trade article; no test method given: WEAK source)
+##   concrete  1.00  rubber on dry concrete, 1.0 (a floor-safety trade article; no test method given: WEAK source; UNVERIFIED (from memory))
 ##   wet_tile  0.20  wet old tile 0.2-0.3, new wet tile 0.4-0.5 (tile-cleaning patent US 8,782,843 table; contaminated wet tile in a campus
-##                   study lost 90-99 % of its friction): the low end, the slippery case Nick asked for. NOT a shoe-sole test
+##                   study lost 90-99 % of its friction): the low end, the slippery case Nick asked for. NOT a shoe-sole test; UNVERIFIED (from memory), patent not opened
 ##   wood      0.50  NO measured shoe-on-wood value found; 0.5 is the static COF adopted as a US floor-safety standard (Miller 1983, as cited
-##                   in the sand-floor campus study, Safety Science 2006 doi 10.1016/j.ssci.2006.xx): a PLACEHOLDER, flagged
+##                   in the sand-floor campus study, Safety Science 2006, UNVERIFIED (no source found)): a PLACEHOLDER, flagged
 ##   sand      0.40  NO measured shoe-on-sand value found (the campus study found sand on a floor drops friction well below dry and wet, no
 ##                   number read): 0.4 is MINE, flagged
 ## HOW the judge reads it: a body gets at most mu x 1 BW of horizontal force from a planted foot, so the stop's bar is min(1.6 BW, mu BW)
@@ -165,6 +165,7 @@ func _init() -> void:
 	var aw: Dictionary = rows_of(Sa, B)
 	ok(Momentum.yaw_arm(0.2) == 0.25 * 0.2 and Momentum.yaw_arm(1.0) == 0.25 and Momentum.yaw_arm(1.5) == 0.25, "F4 yaw arm = 0.25 x min(1, mu): %.4f at 0.2" % Momentum.yaw_arm(0.2))
 	ok(tau_def > 0.0 and float(aw["rows"][0]["tau_ratio"]) >= tau_def, "F4 pivot torque ratio dry %.4f -> wet tile %.4f (>= and the default is not zero)" % [tau_def, aw["rows"][0]["tau_ratio"]])
+	S.floor_mat = ""   # the F1 loop left "sand" set; the default capture must see no material
 	var capw := ForceView.capture(S, B)
 	S.floor_mat = "wet_tile"
 	var capw2 := ForceView.capture(S, B)

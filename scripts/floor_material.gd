@@ -7,8 +7,8 @@ class_name FloorMaterial
 extends RefCounted
 
 const MU := {"mat": 0.75, "concrete": 1.0, "wet_tile": 0.2, "wood": 0.5, "sand": 0.4}
-const SRC := {"mat": "rubber sole on dry rubber floor tiles 0.75 (Tribology in Industry 2022)", "concrete": "rubber on dry concrete 1.0 (trade article, weak)",
-	"wet_tile": "wet old tile 0.2-0.3 (tile-cleaning patent table), the low end", "wood": "0.5 = the US floor-safety static COF (Miller 1983): a placeholder, no shoe-on-wood value found",
+const SRC := {"mat": "rubber sole on dry rubber floor tiles 0.75 (Tribology in Industry 2022; UNVERIFIED: 0.75 not in its text)", "concrete": "rubber on dry concrete 1.0 (trade article, weak)",
+	"wet_tile": "wet old tile 0.2-0.3 (tile-cleaning patent table), the low end", "wood": "0.5 = the US floor-safety static COF (Miller 1983, UNVERIFIED (no source found)): a placeholder, no shoe-on-wood value found",
 	"sand": "0.4 mine: sand on a floor drops friction below wet (campus study, no number read)"}
 
 

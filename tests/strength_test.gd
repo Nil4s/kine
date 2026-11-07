@@ -6,14 +6,13 @@
 ## REGISTERED NUMBERS
 ##  SWAY  quiet standing, eyes open, firm floor, young adults: RMS of the sway about its mean, anteroposterior (AP) 3.5 mm, mediolateral (ML) 2.5 mm
 ##        (Prieto, Myklebust, Hoffmann, Lovett & Myklebust 1996, IEEE Trans Biomed Eng 43:956, "Measures of postural steadiness: young vs elderly";
-##        Raymakers, Samson & Verhaar 2005, Gait Posture 21:48, 100 young adults 60 s trials). These are COP values; the COM moves a little less,
+##        Raymakers, Samson & Verhaar 2005, Gait Posture 21:48, PMID 15536033: young group n=10, age 21-45, 60 s trials, 10 Hz; the 3.5 / 2.5 mm values themselves: UNVERIFIED (from memory), the abstracts give no RMS). These are COP values; the COM moves a little less,
 ##        so the model is the upper bound (stated). The band: nearly all the sway power is 0.1-1 Hz (Winter 1995, Gait Posture 3:193; Prieto 1996
-##        mean frequency 0.2-0.6 Hz). Dominant frequency must lie in 0.1-1.0 Hz.
-##  CURVES  knee extension torque by knee flexion angle, men, isokinetic ~60 deg/s: peak at 71 deg of flexion from full extension (Kooistra, de Ruiter &
-##        de Haan 2007, Eur J Appl Physiol 100:309, mean 71 +- 1.4 deg; the web search result "peak torque at 71 deg" agrees); 77.9 % of peak at
-##        100 deg in men (Marginson & Eston 2001, "The relationship between torque and joint angle during knee extension in boys and men", J Sports
-##        Sci 19:875); ~40 % of peak at full extension (0 deg) (Kulig, Andrews & Hay 1984, Exerc Sport Sci Rev 12:417; MY ROUND NUMBER from the usual
-##        figure of 35-45 %). Elbow flexion: peak at 90 deg of elbow flexion (Kulig 1984; Knapik, Wright, Mawdsley & Braun 1983, Phys Ther 63:938),
+##        mean frequency 0.2-0.6 Hz; band and both cites UNVERIFIED (from memory)). Dominant frequency must lie in 0.1-1.0 Hz.
+##  CURVES  knee extension torque by knee flexion angle, men, isokinetic ~60 deg/s: peak at 71 deg of flexion from full extension (UNVERIFIED (from memory); the earlier Kooistra 2007 cite was
+##        REMOVED: that paper tested only 30/60/90 deg and does not give a 71 deg peak); 77.9 % of peak at
+##        100 deg in men (Marginson & Eston 2001, J Sports Sci 19:875, doi 10.1080/026404101753113822; the number is UNVERIFIED (from memory), not read in the paper); ~40 % of peak at full extension (0 deg) (UNVERIFIED (from memory): Kulig, Andrews & Hay 1984, Exerc Sport Sci Rev 12:417; MY ROUND NUMBER from the usual
+##        figure of 35-45 %). Elbow flexion: peak at 90 deg of elbow flexion (UNVERIFIED (from memory); Kulig 1984; Knapik et al. 1983 says the peak angle is highly variable; Knapik, Wright, Mawdsley & Braun 1983, Phys Ther 63:938),
 ##        ~55 % of peak at full extension (0 deg) (round number from the same figures). The PEAK VALUE is the existing ForceView.LIMIT_NM (calf 250,
 ##        lowerarm 80 N m at 75 kg): the curve scales it, so the cap at the peak angle is that number.
 ##  MAP   the impulse a stance takes before a step is needed: J = M * omega0 * d, d = distance from the COM's floor point to the support polygon's edge

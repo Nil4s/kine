@@ -6,7 +6,7 @@
 ##    (work over the push time), so the MEAN column is the norm. "Elite" = that mean; the top of the elite range = mean + 2 SD = 37.72 W/kg.
 ##  * Grip norm: Dodds et al. 2014, "Grip strength across the life course: normative data from twelve British studies", PLoS ONE 9(12):e113637,
 ##    doi 10.1371/journal.pone.0113637: peak median grip, men 51 kg (ages 29-39), women 31 kg (ages 26-42) = 500.2 N and 304.0 N.
-##  * Friction of the hand on a handle MU = 0.8: DisarmTruth.MU (scripts/disarm_truth.gd, its stated assumption: leather on wood).
+##  * Friction of the hand on a handle MU = 0.8: DisarmTruth.MU (scripts/disarm_truth.gd, its stated assumption: leather on wood; UNVERIFIED (from memory), own assumption).
 ##  * Weapon force on the hand: Newton, F = m * |a_com| (the centripetal m w^2 r plus the tangential m alpha r, as a vector sum). Gravity is left
 ##    out, as in I30 (scripts/weapon_torque.gd): this is the force the SWING needs.
 ## Bars (stated before any implementation; none was changed after a run):

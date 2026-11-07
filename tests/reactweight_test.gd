@@ -3,7 +3,7 @@
 ## SOURCE of the reaction time: Counter.REACT = 0.29 s, the MEASURED simple visual reaction time of elite karate athletes, 292 +- 45 ms (n=28),
 ##   Liu, See, Chang et al. 2018, Arch Budo 14 (abstract), the figure that commit ce537bf4 "measured 0.29 s reaction time" moved the i31 fixture past.
 ##   A block is a choice response, so 0.29 s is the KIND bound. SUPERHUMAN = 0.20 s = 0.29 - 2 x 0.045 (mean minus two SD of the same sample;
-##   the old textbook simple RT of Woodworth & Schlosberg 1954 is the same 0.20 s).
+##   the old textbook simple RT of Woodworth & Schlosberg 1954 is the same 0.20 s: UNVERIFIED (from memory)).
 ## DEFINITIONS (fixed here): cue = the first frame (1/60 s steps) at which any joint of the ATTACKER is more than 2 deg from its frame 0 pose;
 ##   block start = the start of the move into the defender's first card named like a block (FightRhythm.BLOCK_WORDS); gap = block start - cue.
 ## RT bars (the attacker: guard held 0.5 s, then a wind-up, a jab; the defender stands, then blocks; blocks placed at cue + gap):
