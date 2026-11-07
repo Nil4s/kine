@@ -1,21 +1,20 @@
 ## percentile.gd - PERCENTILE READOUT (ROADMAP_400 G16): where each measurable dimension of the body sits among ANSUR II men and women.
 ## Normal approximation: percentile = Phi((x - mean) / sd) (BodyModel.cdf). Values outside the 1st-99th percentile are flagged.
-## SOURCE: ANSUR II 2012 report, Gordon et al. 2014 (US Army NATICK/TR-15/007). Not checked against PubMed/DOI here:
-##   UNVERIFIED (from memory). Stature rows are BodyModel.ANSUR's. The other rows are rounded estimates and are marked as such:
-##   span = 1.03 x stature (BodyModel.ARM_K calibration), sd 4.7 % of the mean; biacromial breadth men 399 mm sd 19, women
-##   355 mm sd 17 (ratios 0.227 / 0.218 of stature as in BodyFromNumbers); bitrochanteric breadth men 362 mm sd 21, women 370 mm sd 24.
+## SOURCE: ANSUR II 2012 public data (openlab.psu.edu/ansur2), summary stats in data/ansur2_summary.json (L138, VERIFIED 11-07):
+##   span, biacromialbreadth, hipbreadth (standing). ANSUR II has no bitrochanteric breadth, so "hips" is the standing hip breadth;
+##   the hips factor K below was chosen against the old bitrochanteric estimate, so the hips percentile stays approximate.
 ## The skeleton has joint CENTRES, not skin landmarks, so a joint distance is turned into the landmark breadth by a factor of MINE
 ##   (an estimate, not from ANSUR): shoulders 1.10 (biacromial / joint distance), hips 2.16 (bitrochanteric / hip-joint distance).
 class_name Percentile
 extends RefCounted
 
-const SOURCE := "ANSUR II 2012 (Gordon et al. 2014, NATICK/TR-15/007), UNVERIFIED (from memory); non-stature rows are rounded estimates"
+const SOURCE := "ANSUR II 2012 (Gordon et al. 2014, NATICK/TR-15/007): values VERIFIED 11-07 against the public data (openlab.psu.edu/ansur2, data/ansur2_summary.json); report citation UNVERIFIED (no DOI/PMID); hips = standing hip breadth"
 ## dim -> sex -> [mean mm, sd mm]
 const TABLE := {
 	"stature": {"male": [1756.2, 68.6], "female": [1628.5, 64.2]},
-	"span": {"male": [1809.0, 85.0], "female": [1677.0, 78.0]},
-	"shoulders": {"male": [399.0, 19.0], "female": [355.0, 17.0]},
-	"hips": {"male": [362.0, 21.0], "female": [370.0, 24.0]},
+	"span": {"male": [1814.2, 84.6], "female": [1660.3, 83.0]},
+	"shoulders": {"male": [415.7, 19.2], "female": [365.3, 18.3]},
+	"hips": {"male": [345.7, 24.2], "female": [353.8, 26.7]},
 }
 const K := {"stature": 1.0, "span": 1.0, "shoulders": 1.10, "hips": 2.16}   # measured -> survey landmark (MINE)
 const LABEL := {"stature": "Stature", "span": "Arm span", "shoulders": "Shoulder breadth", "hips": "Hip breadth"}

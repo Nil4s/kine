@@ -82,6 +82,11 @@ func registry() -> Array:
 	R.append(["HAND_CIRC m (median)", "hand_shape.gd:29", float(HS.HAND_CIRC), "male", "dims/handcircumference/p50", 0.001])
 	R.append(["HAND_LENGTH m (median)", "hand_shape.gd:30", float(HS.HAND_LENGTH), "male", "dims/handlength/p50", 0.001])
 	R.append(["WRIST_CIRC m (median)", "hand_shape.gd:46", float(HS.WRIST_CIRC), "male", "dims/wristcircumference/p50", 0.001])
+	var PC = load("res://scripts/percentile.gd")
+	for sx in ["male", "female"]:
+		for dk in [["span", "span"], ["shoulders", "biacromialbreadth"], ["hips", "hipbreadth"]]:
+			R.append(["Percentile %s mean mm" % dk[0], "percentile.gd:15", float(PC.TABLE[dk[0]][sx][0]), sx, "dims/%s/mean" % dk[1], 1.0])
+			R.append(["Percentile %s SD mm" % dk[0], "percentile.gd:15", float(PC.TABLE[dk[0]][sx][1]), sx, "dims/%s/sd" % dk[1], 1.0])
 	return R
 
 
