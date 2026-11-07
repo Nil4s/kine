@@ -77,7 +77,7 @@ func region_errors(d: Dictionary, W: Dictionary) -> Dictionary:
 	var err := {}
 	var nums := {}
 	for side in ["_r", "_l"]:
-		var nm := "weapon" + side
+		var nm: String = "weapon" + side
 		var c := (bpos(sk, "hand" + side) + bpos(sk, "middle_01" + side)) * 0.5
 		var e: float = (W[nm] as Vector3).distance_to(c)
 		nums[nm] = e
@@ -214,7 +214,7 @@ func _init() -> void:
 	for n in NAMES:
 		nbad += 0 if String(real["err"][n]) == "" else 1
 	ok(nbad == 0, "(6) CONTROL the real sockets pass the same function on the tall body (%d bad)" % nbad)
-	var fl := bodies["female_5"]
+	var fl: Dictionary = bodies["female_5"]
 	var bad_t := 0
 	for n in NAMES:
 		var a: Dictionary = fl["sock"][n]
