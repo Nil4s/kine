@@ -105,6 +105,7 @@ func install_enable(folder: String, src: String) -> Dictionary:
 ## a fresh scene: 3 cards, one box prop, one head key at 0.5 s
 func fresh_scene() -> void:
 	m.S.cards.clear()
+	m.sel_card = -1
 	m.S.props.clear()
 	m.S.part_keys = {}
 	m._pose_words("raise the right arm 90")
@@ -343,8 +344,11 @@ func _init() -> void:
 	ok(r["ok"] and r["action"] == "updated" and r["from_version"] == "1.0.0" and r["version"] == "1.1.0", "update 1.0.0 -> 1.1.0 reported (%s)" % str(r.get("action", r.get("why", ""))))
 	ok(rec_of("upd")["enabled"] and rec_of("upd")["loaded"] and rec_of("upd")["manifest"]["version"] == "1.1.0", "the update kept the enable switch and loaded the new code")
 	m._plugins_changed()
+	said.clear()
+	m.plugins.host["say"] = func(txt): said.append(String(txt)); real_say.call(txt)
 	run_row("Upd: go")
-	ok(rec_of("upd")["enabled"] and String(m.ui_status.text).contains("v11 sees volume 11"), "the setting survived the update: the new version read volume 11")
+	m.plugins.host["say"] = real_say
+	ok(rec_of("upd")["enabled"] and said.has("Upd: v11 sees volume 11"), "the setting survived the update: the new version read volume 11")
 	ok(FileAccess.get_file_as_string(DATA + "/upd/data/keep.txt") == "kept", "the plugin's data survived the update")
 	r = m.plugins.install(TMP + "/src/upd")
 	ok(not r["ok"] and String(r["why"]).contains("older") and rec_of("upd")["manifest"]["version"] == "1.1.0", "a downgrade is refused and the installed version stays 1.1.0")
