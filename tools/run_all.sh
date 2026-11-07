@@ -1126,3 +1126,4 @@ EXTRA="$EXTRA coach:w"   # L121 P19 task coach: BODY MODEL SURFACE POSE, live ch
 EXTRA="$EXTRA fistclose:w"   # L116 close the right fist: tip gap <= 15 mm, thumb weight out of the palm, self-intersection reported (tests/fistclose_test.gd; scripts/fist_check.gd from w4-fistmat)
 EXTRA="$EXTRA bgsave:w"   # L124 P15 background save: 2000-frame scene, longest main-thread frame < 50 ms vs old path, byte-identical, no edit leak, failure keeps old file, queue latest-wins, wait on quit (tests/bgsave_test.gd, scripts/bg_save.gd)
 EXTRA="$EXTRA poseedit:w"   # L128 A20 pose-aware edit: known posed displacement mapped to rest by inverse skinning, re-skin 1e-5, bone frame, one undo, planted no-inverse fake (tests/poseedit_test.gd; scripts/sculpt_pose.gd)
+EXTRA="$EXTRA bodysliders:h"   # L133 C22 lean/bulk/soft region brushes bounded by ANSUR II girth, landmarks fixed, one undo (tests/bodysliders_test.gd, scripts/body_sliders.gd)
