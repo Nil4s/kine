@@ -16,7 +16,7 @@ Rules carried over: features first, tests light (one test per item, real numbers
 human claims cited (ANSUR II, NIOSH, gait papers); Blender is GPL, ideas only; no Maya reverse engineering; full suite
 once per 25 merged.
 
-Merged: 106 / 400 (★ 29 / 119)
+Merged: 115 / 400 (★ 29 / 119) (lane L66 audit, 2026-11-07: 9 added with evidence)
 
 ## The tracks
 
@@ -106,8 +106,8 @@ Merged: 106 / 400 (★ 29 / 119)
 - [x] C02 $$ Brushes: draw, clay strips, inflate, smooth, flatten, pinch, crease, grab, snake hook
 - [x] C03 $$ Masking: paint mask, invert, blur, mask by cavity; masked areas frozen
 - [ ] C04 $$ Multires levels (subdivide for detail, sculpt at any level, details kept when the base moves)
-- [ ] C05 $$ Dynamic topology (local remesh under the brush)
-- [ ] C06 $$ Voxel remesh (uniform resolution), keep volume
+- [x] C05 $$ Dynamic topology (local remesh under the brush) (done: scripts/kmesh_dyntopo.gd:1, 2c61b24f)
+- [x] C06 $$ Voxel remesh (uniform resolution), keep volume (done: scripts/kmesh_voxel_remesh.gd:1, 84f1975c)
 - [x] C07 $$ Symmetry + radial symmetry in sculpt
 - [x] C08 $$ Alphas / stamps (skin pores, scales, fabric), drag rect, spray
 - [x] C09 $$ Face sets: group regions, hide / show, sculpt only one
@@ -136,14 +136,14 @@ Merged: 106 / 400 (★ 29 / 119)
 ## D. SURFACE: UVs
 
 - [x] D01 $$ UV editor panel: the 2D view, select / move / rotate / scale islands
-- [ ] D02 $$ Seams: mark / clear, seam by angle, seam from face sets
+- [ ] D02 $$ Seams: mark / clear, seam by angle, seam from face sets (partial: scripts/kmesh_uv.gd:29 'seam' edge attribute; no seam-by-angle or face-set seams)
 - [x] D03 $$ Unwrap: angle-based (LSCM from the 2002 paper), conformal, projection (cube / cylinder / sphere)
 - [x] D04 $$ Island packing (with margin, rotate, texel density equalised)
 - [x] D05 $ Checker texture + stretch heat map
 - [ ] D06 $$ UV sync with 3D selection, pin, live unwrap
 - [ ] D07 $$ UDIMs (multi-tile)
 - [ ] D08 $$ Straighten / align / stitch islands
-- [ ] D09 $$ Texel density tool (px / cm, matched across objects)
+- [ ] D09 $$ Texel density tool (px / cm, matched across objects) (partial: scripts/kmesh_uvpack.gd:22 px/cm density report; not matched across objects, 13ff3b50)
 - [ ] D10 $$ UV layers (several sets per mesh)
 - [x] D11 $$ Export UV layout as PNG / SVG
 - [ ] D12 ★ $$ Body seams by default: the base body ships with seams where a tailor / a game artist hides them (inner arm, inner leg, back of the head)
@@ -155,7 +155,7 @@ Merged: 106 / 400 (★ 29 / 119)
 
 - [x] E01 $$ Materials: PBR (base colour, metal, rough, normal, AO, emission, SSS), assign by face set
 - [x] E02 $$ Material library (skin, cloth, leather, steel, wood) with thumbnails
-- [ ] E03 $$ Texture paint: brushes on the model, layers, blend modes
+- [ ] E03 $$ Texture paint: brushes on the model, layers, blend modes (partial: scripts/kmesh_tpaint.gd:1 screen-projection texel paint, 43c0607d; no layers or blend modes)
 - [x] E04 $$ Vertex paint
 - [ ] E05 $$ Bake: normal, AO, curvature, cavity, thickness from high → low
 - [ ] E06 $$ Smart masks (edges wear, cavity dirt) from the bakes
@@ -195,11 +195,11 @@ Merged: 106 / 400 (★ 29 / 119)
 ## G. BODY page (make the character)
 
 - [x] G01 $$ Base body mesh (CC0 / own), quad topology, rigged to the UE5 skeleton Kine uses
-- [ ] G02 $$ ANSUR II sliders: stature, mass, 30 measured dimensions as percentiles, men and women
+- [ ] G02 $$ ANSUR II sliders: stature, mass, 30 measured dimensions as percentiles, men and women (partial: scripts/body_from_numbers.gd:7 ANSUR percentile body, c10f8492; not the 30 dimensions)
 - [ ] G03 $$ Proportions solve: a slider moves the skeleton AND the mesh (bones resized, limits kept)
 - [ ] G04 $$ Head shapes: skull width, jaw, brow, nose, ears (from 3D head surveys' ranges)
 - [ ] G05 $$ Hands and feet sizes (ANSUR hand length / breadth, foot length)
-- [ ] G06 $$ Body presets: fighter, heavyweight, lean runner, child, elder
+- [ ] G06 $$ Body presets: fighter, heavyweight, lean runner, child, elder (partial: 916b9b22 G23 14 athlete archetypes; no heavyweight, child or elder presets)
 - [x] G07 $$ Save / load bodies (.kbody), thumbnails in the Browser
 - [ ] G08 $$ Body to the current scene: re-fit an animation to the new proportions (retarget, contacts kept)
 - [ ] G09 $$ Muscle definition and body fat as separate controls
@@ -209,7 +209,7 @@ Merged: 106 / 400 (★ 29 / 119)
 - [x] G13 ★ $ Body from 5 numbers: height, weight, sex, age, build → a whole plausible body (regression on ANSUR)
 - [ ] G14 ★ $$ Body from a photo (front + side) → measurements → body (pose estimation already in Kine)
 - [ ] G15 ★ $$ Body from a video clip: the tracked limb lengths give the body (VideoIQ lengths)
-- [ ] G16 ★ $$ Percentile readout: every body says where it sits ("shoulders 92nd percentile of men")
+- [ ] G16 ★ $$ Percentile readout: every body says where it sits ("shoulders 92nd percentile of men") (partial: scripts/body_from_numbers.gd:75 percentile sentence for number-built bodies only)
 - [ ] G17 ★ $$ Impossible body warning: combinations outside measured populations flagged, with the nearest real one
 - [ ] G18 ★ $$ Mass properties from the mesh: segment masses and inertia from volume × tissue density (replaces table guesses; checked against Dempster / de Leva)
 - [ ] G19 ★ $$ The body changes the physics: a heavier body really moves slower in the judges (balance, exertion, hit reactions use G18)
@@ -226,7 +226,7 @@ Merged: 106 / 400 (★ 29 / 119)
 - [x] H02 $$ Weight paint: brush, smooth, normalise, mirror, lock bones
 - [ ] H03 $$ Weight tools: transfer from another mesh, limit 4 influences, clean small
 - [x] H04 $$ Dual-quaternion skinning option (no candy-wrapper wrists)
-- [ ] H05 $$ Corrective shape keys driven by joint angle (pose space deformation)
+- [x] H05 $$ Corrective shape keys driven by joint angle (pose space deformation) (done: scripts/corrective.gd:16, e1629b4c)
 - [ ] H06 $$ Lattice / cage deformers
 - [ ] H07 $$ Delta mush (smooth deformation)
 - [ ] H08 $$ Wrap deformer (clothes follow the body)
@@ -242,7 +242,7 @@ Merged: 106 / 400 (★ 29 / 119)
 - [ ] H18 ★ $$ Auto correctives from the scene: the worst-deforming poses of THIS animation get corrective shapes generated
 - [ ] H19 ★ $$ Muscle bulge driven by effort: exertion (torque per joint) drives the bulge, not just the angle
 - [ ] H20 ★ $$ Skin slide: skin slides over bone landmarks (elbow, knee, scapula) as measured, not stretched
-- [ ] H21 ★ $$ Breathing: chest / belly volume follows a breathing rate from exertion (rest 12–20 / min, effort up to 40–60)
+- [ ] H21 ★ $$ Breathing: chest / belly volume follows a breathing rate from exertion (rest 12–20 / min, effort up to 40–60) (partial: ce79a892 breathing on any pose; not driven by exertion)
 - [ ] H22 ★ $$ Contact deformation: a hand gripping, a fist landing, a foot on the floor flattens the soft tissue it presses
 - [ ] H23 ★ $$ Jiggle by tissue: fat / muscle secondary motion with damping from measured soft-tissue studies
 - [x] H24 ★ $ "Weights broke here" one click: shows the vert with the worst weight problem in the worst frame
@@ -250,13 +250,13 @@ Merged: 106 / 400 (★ 29 / 119)
 
 ## I. Face as geometry (replaces the painted face)
 
-- [ ] I01 $$ Head mesh with eyelids, lips, jaw, brows as real geometry, eyes as separate balls
+- [ ] I01 $$ Head mesh with eyelids, lips, jaw, brows as real geometry, eyes as separate balls (partial: scripts/face_geo.gd:1 opt-in face mask (lid/lip/jaw/brow), c0cb565a; painted face stays default)
 - [ ] I02 $$ Jaw and eye bones, eyelid follow-the-eye
-- [ ] I03 $$ FACS action units as blendshapes (AU1..AU28 core set)
+- [ ] I03 $$ FACS action units as blendshapes (AU1..AU28 core set) (partial: scripts/face.gd:8 AU mixes on the painted face; no AU blendshapes on geometry)
 - [ ] I04 $$ Expression presets built from AUs (joy, anger, fear, effort, pain)
 - [ ] I05 $$ Face controls on the face (on-surface handles), and a slider panel
-- [ ] I06 $$ Visemes from AUs; lip-sync drives the geometry
-- [ ] I07 $$ Teeth and tongue visible and animatable
+- [ ] I06 $$ Visemes from AUs; lip-sync drives the geometry (partial: f7b6c144 10 visemes from 14 AUs; geometry lip-sync not verified)
+- [ ] I07 $$ Teeth and tongue visible and animatable (partial: f7b6c144 rounded teeth; no tongue)
 - [x] I08 $$ Eye look-at with saccades and blinks (blink rate from studies, 15–20 / min)
 - [ ] I09 $$ Wrinkle maps driven by AUs (forehead, crow's feet)
 - [ ] I10 $$ Face capture from webcam → AUs (MediaPipe face landmarks, already allowed)
@@ -274,23 +274,23 @@ Merged: 106 / 400 (★ 29 / 119)
 ## J. Rigging your own
 
 - [x] J01 $$ Bone editor: add / delete / parent bones, edit rest pose, roll
-- [ ] J02 $$ Rig any mesh: auto-place a humanoid skeleton from mesh landmarks
-- [ ] J03 $$ Constraints: copy location / rotation / scale, limit, track-to, damped track, stretch-to, child-of
-- [ ] J04 $$ Drivers with expressions (exists for body; extend to mesh shapes / any property)
-- [ ] J05 $$ IK chains on any bones (tails, tentacles), pole targets
-- [ ] J06 $$ Spline IK (spines, tails, ropes)
+- [ ] J02 $$ Rig any mesh: auto-place a humanoid skeleton from mesh landmarks (partial: scripts/autorig.gd (7879cb03) quick-rig from user markers, not auto-placed from landmarks)
+- [ ] J03 $$ Constraints: copy location / rotation / scale, limit, track-to, damped track, stretch-to, child-of (partial: scripts/constraints.gd:42 copy loc/rot, track-to, damped track, limit location, child-of, 6cc907e6; no stretch-to, copy scale, limit rotation)
+- [ ] J04 $$ Drivers with expressions (exists for body; extend to mesh shapes / any property) (partial: scripts/drivers.gd:26 body drivers with expressions; not mesh shapes)
+- [ ] J05 $$ IK chains on any bones (tails, tentacles), pole targets (partial: 5111126b IK/FK with pole targets per limb; not any-bone chains)
+- [x] J06 $$ Spline IK (spines, tails, ropes) (done: scripts/spline_chain.gd:24, d3d79ba3)
 - [ ] J07 $$ Custom control shapes, colours, bone groups
 - [ ] J08 $$ Rig picker panel (click shapes on a 2D chart)
-- [ ] J09 $$ Quadruped / creature templates
+- [ ] J09 $$ Quadruped / creature templates (partial: 7879cb03 quadruped and tail quick-rig templates)
 - [ ] J10 $$ Prop rigs: bow (string pull), nunchaku chain, whip, shield straps
-- [ ] J11 $$ Space switching (hand in world / chest / weapon)
+- [ ] J11 $$ Space switching (hand in world / chest / weapon) (partial: 5fc3be6a IK space switching (world, chest, pelvis, weapon, target); no UI check)
 - [ ] J12 $$ Rig layers: deform, mechanism, controls
 - [ ] J13 $$ Rig export: bake constraints to bones for engines
-- [ ] J14 $$ Retarget between any two rigs (bone mapping UI, auto-guess by name and shape)
+- [ ] J14 $$ Retarget between any two rigs (bone mapping UI, auto-guess by name and shape) (partial: scripts/retarget_map.gd:5 bone mapping by name; no any-to-any UI)
 - [ ] J15 $$ Mechanical rigs: pistons, hinges, gears (weapons with moving parts)
-- [ ] J16 $$ Rig validate: missing parents, scale on bones, flipped rolls
+- [ ] J16 $$ Rig validate: missing parents, scale on bones, flipped rolls (partial: scripts/rig_precheck.gd:4 words-only pre-check; no validate-and-fix)
 - [ ] J17 $$ Facial rig controls bound to I's AUs
-- [ ] J18 $$ Finger rig with curl / spread / fist
+- [x] J18 $$ Finger rig with curl / spread / fist (done: scripts/hand_shape.gd:488, c52ac32d)
 - [ ] J19 ★ $$ Limits from the body: a new rig's joint limits come from body_limits by bone name / position, not left open
 - [ ] J20 ★ $$ Creature limits by analogy: a quadruped's joints get limits from measured animal ROM (dog / horse studies)
 - [ ] J21 ★ $$ Rig checked by motion: play the scene's moves on a new rig; joints that hit limits or flip show per frame
@@ -304,10 +304,10 @@ Merged: 106 / 400 (★ 29 / 119)
 - [x] K01 $ Shading modes: wire, solid, matcap, material, rendered; per-viewport
 - [x] K02 $ Studio lights presets (3-point, rim, top) with HDRI backgrounds
 - [ ] K03 $$ Real-time shadows, SSAO, SSR, bloom toggles (Godot's renderer)
-- [ ] K04 $$ Depth of field from the shot camera (rack focus exists: render it)
-- [ ] K05 $$ Motion blur in the render
-- [ ] K06 $$ Offline render: high samples, PNG sequence / MP4, alpha
-- [ ] K07 $$ Render queue (several shots overnight)
+- [x] K04 $$ Depth of field from the shot camera (rack focus exists: render it) (done: scripts/final_hq.gd:23, b56c532f)
+- [x] K05 $$ Motion blur in the render (done: scripts/final_hq.gd:4, b56c532f)
+- [ ] K06 $$ Offline render: high samples, PNG sequence / MP4, alpha (partial: scripts/final_hq.gd:4 high-sample final render; alpha and MP4 not verified)
+- [ ] K07 $$ Render queue (several shots overnight) (partial: scripts/render_queue.gd:6 queues scene files; shots are not queued)
 - [x] K08 $ Turntable render (360° of the character / prop, any length)
 - [ ] K09 $$ Light editor: point, spot, area, sun; temperature in kelvin
 - [ ] K10 $$ Volumetrics / fog
@@ -339,7 +339,7 @@ Merged: 106 / 400 (★ 29 / 119)
 - [ ] L03 $$ Graph editor: weighted tangents, buffer curves, curve snapshot compare
 - [ ] L04 $$ Euler filter + quaternion curves view
 - [ ] L05 $$ Time warp curve per clip
-- [ ] L06 $$ Motion paths editable for any bone (drag the path)
+- [x] L06 $$ Motion paths editable for any bone (drag the path) (done: scripts/trail_edit.gd:12, 84a5e4a0)
 - [ ] L07 $$ Onion skin per part with colours, ghosts every N frames
 - [ ] L08 $$ Pose library thumbnails rendered, blend from library at %
 - [ ] L09 $$ Breakdown slider (tween machine) on any selection
@@ -356,7 +356,7 @@ Merged: 106 / 400 (★ 29 / 119)
 - [ ] L20 $$ Sequencer: shots, cuts, transitions, audio on one timeline, export an edit
 - [ ] L21 ★ $$ Style transfer between clips: Nick's timing on someone else's poses (curve shape statistics per joint)
 - [ ] L22 ★ $$ Auto anticipation / follow-through proposals from the physics (how much wind-up the torque needs)
-- [ ] L23 ★ $$ "Make it heavier / lighter" one slider, mass-correct (timing and arcs from the momentum model)
+- [ ] L23 ★ $$ "Make it heavier / lighter" one slider, mass-correct (timing and arcs from the momentum model) (partial: scripts/weight_feel.gd:1 swing retime by inertia; no one heavier/lighter slider)
 - [ ] L24 ★ $$ Spacing chart from a real reference: overlay a tracked video's spacing on your curves
 - [ ] L25 ★ $$ Motion stitching: two clips joined at the most compatible frame (pose + velocity + contacts)
 - [x] L26 ★ $ Arc checker: joints whose paths break an arc (a kink) listed with the frame
@@ -367,13 +367,13 @@ Merged: 106 / 400 (★ 29 / 119)
 
 ## M. Physics + sim
 
-- [ ] M01 $$ Soft body on any mesh (mass-spring / XPBD)
+- [ ] M01 $$ Soft body on any mesh (mass-spring / XPBD) (partial: scripts/soft_body.gd:1 XPBD tet volume, opt-in, under the mannequin only)
 - [ ] M02 $$ Cloth on modeled garments (pinning, sewing from patterns R)
-- [ ] M03 $$ Rigid bodies for props with collision shapes from the mesh (convex decomposition)
-- [ ] M04 $$ Ragdoll on custom rigs (J) using G18 masses
+- [ ] M03 $$ Rigid bodies for props with collision shapes from the mesh (convex decomposition) (partial: scripts/rigid_drop.gd:1 rod capsule only; no convex decomposition)
+- [ ] M04 $$ Ragdoll on custom rigs (J) using G18 masses (partial: scripts/ragdoll.gd:1 PBD knockout ragdoll on the mannequin; no custom rigs)
 - [ ] M05 $$ Particles (dust, sparks, debris) with simple forces
 - [ ] M06 $$ Fracture (break a prop / wall on impact)
-- [ ] M07 $$ Cache and scrub any sim; bake to keys / mesh cache
+- [ ] M07 $$ Cache and scrub any sim; bake to keys / mesh cache (partial: scripts/sim_cache.gd:1 point cache per sim object (L35); not every sim)
 - [ ] M08 $$ Wind / turbulence fields
 - [ ] M09 $$ Ropes / chains (nunchaku, kusarigama)
 - [ ] M10 $$ Collision between characters' meshes (not just capsules)
@@ -392,8 +392,8 @@ Merged: 106 / 400 (★ 29 / 119)
 
 - [x] N01 $ OBJ import / export (mesh, UVs, normals)
 - [ ] N02 $$ FBX mesh + skin export (own writer; extend the animation fbx)
-- [ ] N03 $$ glTF mesh + materials + skin + shape keys export (extend gltf_export)
-- [ ] N04 $$ USD export (mesh, skel, anim)
+- [ ] N03 $$ glTF mesh + materials + skin + shape keys export (extend gltf_export) (partial: scripts/gltf_export.gd (skin via G12); shape keys not verified)
+- [ ] N04 $$ USD export (mesh, skel, anim) (partial: scripts/usd_export.gd:1 USD skeleton and animation; no mesh)
 - [ ] N05 $$ STL / 3MF export for 3D printing (watertight check)
 - [ ] N06 $$ Alembic-like mesh cache export
 - [ ] N07 $$ Import meshes from Blender / Maya via glTF / FBX with skin
@@ -419,7 +419,7 @@ Merged: 106 / 400 (★ 29 / 119)
 ## O. Scripting + addons
 
 - [ ] O01 $$ Script console (GDScript) with the Kine API: scene, body, mesh, commands
-- [ ] O02 $$ Addon format: a folder with a manifest; enable / disable; sandboxed file access
+- [ ] O02 $$ Addon format: a folder with a manifest; enable / disable; sandboxed file access (partial: scripts/plugins.gd:6 manifest, enable/disable; no sandbox (plugins_panel.gd:1 says so))
 - [ ] O03 $$ API docs generated from the code
 - [ ] O04 $$ Record macro → script
 - [ ] O05 $$ Custom panels from addons
@@ -439,17 +439,17 @@ Merged: 106 / 400 (★ 29 / 119)
 - [x] P01 $ Page onboarding: each new page (BODY / MODEL / SCULPT / SURFACE) has a 5-step first-use tour
 - [x] P02 $ Search finds mesh tools too, with hotkeys shown
 - [ ] P03 $$ Tool settings panel (last-op redo panel: change a bevel's width after doing it)
-- [ ] P04 $$ Pie menus (optional), radial for brushes
+- [ ] P04 $$ Pie menus (optional), radial for brushes (partial: scripts/ring_menu.gd:4 radial menu exists; brush use not verified)
 - [x] P05 $ Status bar shows what the mouse buttons do now
-- [ ] P06 $$ Customisable hotkeys per page
-- [ ] P07 $$ Workspaces: save a layout per page
-- [ ] P08 $ Theme: light / dark / high contrast for the new pages (Tok tokens)
+- [ ] P06 $$ Customisable hotkeys per page (partial: scripts/hotkeys.gd:150 set_key, save and load; not per page)
+- [ ] P07 $$ Workspaces: save a layout per page (partial: scripts/work_layouts.gd:1 saved layouts; not per page)
+- [ ] P08 $ Theme: light / dark / high contrast for the new pages (Tok tokens) (partial: scripts/tok.gd:35 LIGHT palette; no high contrast)
 - [ ] P09 $$ Tablet support (pressure, tilt) everywhere
 - [ ] P10 $$ Multi-object editing
 - [x] P11 $ "Why can't I?" explainer: any greyed tool tells why and the fix
 - [ ] P12 $$ Undo across pages (sculpt then animate, Ctrl+Z walks back both)
 - [x] P13 $ Recent files with thumbnails on the start screen
-- [ ] P14 $$ Unit system (cm / m / in) everywhere
+- [ ] P14 $$ Unit system (cm / m / in) everywhere (partial: scripts/units.gd:5 unit helper; not everywhere)
 - [ ] P15 $$ Large-file safety: saves in the background, never blocks
 - [ ] P16 $$ Accessibility: font scaling, colour-blind palettes for selection
 - [x] P17 ★ $ Next suggested tool: the page suggests the next step from what you just did (modeling's "next pose")
@@ -460,7 +460,7 @@ Merged: 106 / 400 (★ 29 / 119)
 - [x] P22 ★ $ One-page cheat sheet per page, printable, generated from the commands
 - [ ] P23 ★ $$ Time-lapse of a session (the edits replayed as a video)
 - [ ] P24 ★ $$ Undo by region: undo only the edits on the left hand, keep the rest
-- [ ] P25 $$ Crash report with the last 20 commands (local file, no upload)
+- [ ] P25 $$ Crash report with the last 20 commands (local file, no upload) (partial: scripts/crash_report.gd:9 local crash report; last-20-commands log not verified)
 
 ## Q. Performance
 
@@ -471,11 +471,11 @@ Merged: 106 / 400 (★ 29 / 119)
 - [ ] Q05 $$ Lazy evaluation of the modifier stack
 - [ ] Q06 $$ 60 fps playback of a skinned 100k-vert character
 - [ ] Q07 $$ Memory budget display + warnings
-- [ ] Q08 $$ GDExtension (C++) path for the hot loops (sculpt, skin, subdiv), with a GDScript fallback
+- [x] Q08 $$ GDExtension (C++) path for the hot loops (sculpt, skin, subdiv), with a GDScript fallback (done: native/src/kine_kmesh_native.cpp:545 (C++ subdivide), 5ce59a84)
 - [ ] Q09 $$ Profiling page (frame time by system)
 - [ ] Q10 $$ Benchmarks in the suite (perf regressions fail the run)
 - [ ] Q11 $$ Async texture loading
-- [ ] Q12 $$ Instanced crowds 200 at 60 fps
+- [ ] Q12 $$ Instanced crowds 200 at 60 fps (partial: scripts/crowd.gd:1 seeded crowd copies; no 200-at-60-fps bar)
 - [ ] Q13 $$ Sculpt stroke latency under 16 ms at 1M polys
 - [ ] Q14 ★ $$ Perf by what you see: only shots' visible meshes evaluate at full detail
 - [x] Q15 ★ $ Perf doctor: "why is it slow" names the heaviest thing with the fix
@@ -484,7 +484,7 @@ Merged: 106 / 400 (★ 29 / 119)
 
 - [ ] R01 $$ Hair guides (comb, cut, length, clump) on the head mesh
 - [ ] R02 $$ Hair cards generation from guides (game-ready)
-- [ ] R03 $$ Hair dynamics on guides (extends hair.gd)
+- [ ] R03 $$ Hair dynamics on guides (extends hair.gd) (partial: scripts/hair.gd:1 verlet ponytail strands; not on guides)
 - [ ] R04 $$ Garment patterns (2D panels sewn onto the body, like a tailor)
 - [ ] R05 $$ Garment fitting to any G body, with ease (looseness) in cm
 - [ ] R06 $$ Gi / hakama / boxing shorts / gloves pattern presets
