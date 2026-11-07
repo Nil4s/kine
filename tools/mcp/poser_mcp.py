@@ -68,6 +68,12 @@ TOOLS = {
                           {"type": "object", "properties": {"body": {"type": "object"}}, "additionalProperties": False}),
     "can_stand": ("can_stand", "Square-cube check (N058): bone stress (single-leg stance x 4 BW through the tibial cortical area) and quadriceps stress (half squat) against cited limits; flags legs too thin for the mass. {mass?, size?, leg_r?}. Read-only.",
                   {"type": "object", "properties": {"mass": N, "size": N, "leg_r": N}, "additionalProperties": False}),
+    "weight_split": ("weight_split", "Weight split (N069): the percent of weight on each foot from the centre of mass projected between the support points; 100/0 on one foot, shown=false when airborne. No args. Read-only.",
+                     {"type": "object", "properties": {}, "additionalProperties": False}),
+    "part_moves": ("part_moves", "Part-first actions (N068): the moves a body part offers (hand: punch/block, foot: kick, thigh: knee, arm: elbow, head: headbutt) and the words each builds from. {part}. Read-only.",
+                   {"type": "object", "properties": {"part": S}, "additionalProperties": False}),
+    "stance_fit": ("stance_fit", "Stances that fit the body (N070): boxer, karate, fencing stance width and length in metres from this body's leg length and shoulder width, with the ratios and their source (UNVERIFIED unless a PMID/DOI is given). {id?, body?}. Read-only.",
+                   {"type": "object", "properties": {"id": S, "body": {"type": "object"}}, "additionalProperties": False}),
     "looks_strong": ("looks_strong", "Does the muscle girth look able to make the torque (N060)? No args: the open clip's peak torque per arm joint vs the PCSA of the sculpted girth (35 N/cm2); or {joint, torque, girth} for one joint ('skinny upperarm_r: 200 N m ...'). Read-only.",
                      {"type": "object", "properties": {"joint": S, "torque": N, "girth": N}, "additionalProperties": False}),
     "jump_budget": ("jump_budget", "Take-off power the open clip's jump needs (COM apex, push rise, push time) vs countermovement-jump norms (Lin 2025, 29.72 W/kg elite mean): 'needs 2.1x an elite vertical jump', push frames, flag. Read-only.",
@@ -191,7 +197,7 @@ TOOLS = {
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets", "animtools", "anykey", "bake_any", "euler_warp", "react_time", "react_place", "weight_slider", "clip_print", "rig_anim", "fps_wave", "spacing", "jump_budget", "grip_hold", "floor", "injury", "sway_trace", "stance_map", "strength_curve", "proportion_breaks", "can_stand", "looks_strong"]
+MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets", "animtools", "anykey", "bake_any", "euler_warp", "react_time", "react_place", "weight_slider", "clip_print", "rig_anim", "fps_wave", "spacing", "jump_budget", "grip_hold", "floor", "injury", "sway_trace", "stance_map", "strength_curve", "proportion_breaks", "can_stand", "looks_strong", "weight_split", "part_moves", "stance_fit"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:

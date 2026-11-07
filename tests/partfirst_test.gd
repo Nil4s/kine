@@ -15,6 +15,8 @@
 ##    for boxer, karate (zenkutsu) and fencing (en garde) on a 1.66 m and a 1.91 m body: the planted feet's lateral gap equals
 ##    ratio x (shoulder width or leg length) within 1 cm, the fore-aft gap likewise; the taller body's width ratio tall/short equals
 ##    the basis ratio tall/short within 2 percent. CONTROL: a fixed-size stance (the short body's width on the tall body) FAILS the 1 cm bar.
+extends SceneTree
+
 var fails := 0
 var m: Node
 

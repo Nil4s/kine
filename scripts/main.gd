@@ -16562,7 +16562,50 @@ trail here", "run": _press.bind(KEY_T, true)},
 this part" if locked_parts.has(j) else "Lock
 this part"), "run": _toggle_lock.bind(j)},
 	]
+	if not PartFirst.offers(j).is_empty():
+		its.append({"name": "Moves
+with this", "run": _pf_open.bind(j, p)})   # N068 part-first actions
 	ui_ring.open(p, nice(j), its)
+
+
+## N068 PART-FIRST ACTIONS: the second ring, the moves this part can do. Picking one builds it (text-to-blocking, this part as the striker)
+func _pf_open(j: String, p: Vector2) -> void:
+	var its := []
+	for id in PartFirst.offers(j):
+		its.append({"name": PartFirst.MOVES[id][0], "run": _pf_build.bind(j, id)})
+	ui_ring.open(p, "Moves: " + part_words(j), its)
+
+
+var pf_last := {}   # the last part-first build: {part, id, text, ok, file}
+
+
+func _pf_build(j: String, id: String) -> void:
+	var text := PartFirst.words(j, id)
+	var lab: String = PartFirst.MOVES[id][0]
+	pf_last = {"part": j, "id": id, "text": text, "ok": false}
+	if text == "":
+		_say("%s from the %s: text-to-blocking has no %s generator yet, so nothing was built (the scene is unchanged)" % [lab, part_words(j), lab.to_lower()])
+		return
+	var W := Body.new()
+	W.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var r: Dictionary = load("res://scripts/text_blocking.gd").build(text, W)
+	if not r["ok"]:
+		_say("%s from the %s ('%s'): %s" % [lab, part_words(j), text, r["error"]])
+		return
+	var S2: Scene = r["scene"]
+	var path: String = load("res://scripts/text_blocking.gd").unique_path(UserPaths.w("res://scenes/_wip"), load("res://scripts/text_blocking.gd").slug(text))
+	var d := S2.to_dict(W)
+	d["plan"] = "Part-first: %s with the %s ('%s'): %s" % [lab, part_words(j), text, r["status"]]
+	_step_hint = "Part-first: %s (%s)" % [lab, part_words(j)]
+	_push_undo()   # ONE undo step: the whole-scene swap, as a template
+	undo[-1]["swap"] = true
+	_write(path, d)
+	_load_scene(path, true)
+	_rebuild_cards()
+	_refresh()
+	pf_last["ok"] = true
+	pf_last["file"] = path.get_file()
+	_say("%s with the %s: built as %s (%d cards). %s" % [lab, part_words(j), path.get_file(), S2.cards.size(), r["status"]])
 
 
 ## show one ribbon row. A page's row (SET is STAGE's) is a PAGE SWITCH; "VIEW" only shows the view row (tests, --ribbon)
