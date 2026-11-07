@@ -15,6 +15,7 @@ const DEFAULT_MAT := {"grip": "oak", "guard": "steel", "blade": "steel", "pommel
 const KIND_PREFIX := "model_"
 const ENTRY := "parts"
 static var model_name := "sword"   # the book kind the command writes: model_<this>
+static var mats := {}   # L135: role -> material name picked in the panel; a missing role uses DEFAULT_MAT
 
 
 static func id_of(role: String) -> int:

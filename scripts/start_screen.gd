@@ -937,7 +937,10 @@ func _access_rows() -> VBoxContainer:
 	pie.button_pressed = bool(m.pie_on)
 	pie.toggled.connect(func(on: bool):
 		m.pie_on = on
-		AccessPrefs.save("pie", on))
+		AccessPrefs.save("pie", on)
+		var sc := m.find_child("sculpt_pie", true, false) as CheckBox   # L135: the sculpt page's own box is the same setting
+		if sc != null:
+			sc.set_pressed_no_signal(on))
 	v.add_child(pie)
 	return v
 

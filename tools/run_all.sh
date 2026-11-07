@@ -1133,3 +1133,4 @@ EXTRA="$EXTRA sculptmotion:w"   # L132 C23 sculpt checked in motion: the 8 frame
 EXTRA="$EXTRA bodysliders:h"   # L133 C22 lean/bulk/soft region brushes bounded by ANSUR II girth, landmarks fixed, one undo (tests/bodysliders_test.gd, scripts/body_sliders.gd)
 EXTRA="$EXTRA ansurcheck:h"   # L138 ANSUR II constants vs the real public data (data/ansur2_summary.json, tools/ansur_stats.py); planted memory value refused (tests/ansurcheck_test.gd)
 EXTRA="$EXTRA seammotion:w"   # L136 D13 seams that avoid motion: seam edges whose local max |ln stretch| over the scene >= 0.15 are flagged in the UV editor, with a lower-stretch path suggestion; elbow vs upper arm vs static, planted fakes (tests/seammotion_test.gd; scripts/seam_motion.gd)
+EXTRA="$EXTRA pickers:w"   # L135 pen target/tilt pickers on the brush pages, weapon name + per-part material before the grip book, sculpt pie = Settings pie, all saved (tests/pickers_test.gd; scripts/pen_picker.gd)

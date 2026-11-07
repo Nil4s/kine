@@ -475,6 +475,8 @@ func _build_panel() -> void:
 		if not _syncing:
 			mirror = b)
 	vb.add_child(_mirror_chk)
+	PenPicker.load_into(self, "wpaint")
+	PenPicker.add(vb, self, "wpaint")
 	panel.add_child(vb)
 	m.ui_root.add_child(panel)
 

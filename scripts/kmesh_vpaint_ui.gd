@@ -524,6 +524,8 @@ func _build_panel() -> void:
 	ss.value_changed.connect(_panel_set.bind("softness"))
 	so.add_child(ss)
 	_w["softness"] = ss
+	PenPicker.load_into(self, "vpaint")
+	PenPicker.add(box, self, "vpaint")
 	_build_sticker_panel(box)
 	var row := HBoxContainer.new()
 	box.add_child(row)
