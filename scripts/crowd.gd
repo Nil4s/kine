@@ -6,8 +6,8 @@
 ##
 ## THE VARIATIONS, each with its number and its reason:
 ##   place    scattered in a square of half-width HALF (5 m) about the hero, no copy within HOLE (1.2 m) of it, and no two
-##            copies closer than SPACING (0.6 m) centre to centre: a bideltoid breadth of about 0.45 m (ANSUR II, see
-##            docs/research/PROPORTIONS.md) plus 0.15 m of clearance. Dart throwing with the seeded generator.
+##            copies closer than SPACING (0.6 m) centre to centre: a bideltoid breadth of 0.45 m (ANSUR II women's mean 450 mm;
+##            men's 510 mm, so men get 0.09 m of clearance; verified on the public files, L138) plus 0.15 m of clearance. Dart throwing with the seeded generator.
 ##   yaw      +-15 deg about the vertical: they do not stand in one line.
 ##   time     a clip-time offset uniform in +-0.3 s (TIME_DT).
 ##   speed    the copy plays at 1 +- 8 % of the fighter's speed (SPEED_VAR).
