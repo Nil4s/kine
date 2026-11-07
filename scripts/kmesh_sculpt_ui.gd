@@ -291,7 +291,7 @@ func input(ev: InputEvent) -> bool:
 		var ke := ev as InputEventKey
 		var k := ke.keycode
 		if ke.ctrl_pressed and k == KEY_Z:
-			undo_redo(not ke.shift_pressed)
+			m._redo() if ke.shift_pressed else m._undo()   # P12: through Main, the newest step of ALL pages (Main._pu_route)
 			return true
 		if _mask_key(ke) or fsets.key(self, ke):
 			return true
