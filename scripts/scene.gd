@@ -2257,7 +2257,7 @@ func check(B: Body) -> Array:
 ## body where check() left it, because the rest of to_dict reads it (held_recs: wep_on / wep_kind). check() itself is unchanged.
 static var check_hits := 0
 static var check_misses := 0
-const _SIG_SKIP := ["baker", "cons_hero", "cons_me", "ik_last", "plant_last", "cons_last", "free_memo", "memo_slopes", "props_skipped", "apply_calls", "sample_memo_linear", "stepped", "script", "Built-in script"]
+const _SIG_SKIP := ["name", "baker", "cons_hero", "cons_me", "ik_last", "plant_last", "cons_last", "free_memo", "memo_slopes", "props_skipped", "apply_calls", "sample_memo_linear", "stepped", "script", "Built-in script"]
 var _bad_memo: Array = []   # [{"sig", "lib", "bs", "post", "bad"}], newest first, at most 2
 
 

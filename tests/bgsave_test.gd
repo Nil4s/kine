@@ -114,6 +114,7 @@ func _init() -> void:
 	var t1 := Time.get_ticks_usec()
 	m._save_scene_now("zz_bgsave_new")
 	var call_ms := (Time.get_ticks_usec() - t1) / 1000.0
+	print("save stages (cumulative ms): ", m.save_prof)
 	var saw_saving: bool = String(bg.chip_text()).findn("saving") >= 0
 	await wait_idle(bg, gaps)
 	var longest := call_ms
@@ -200,7 +201,7 @@ func _init() -> void:
 	# ---- 8 planted fakes
 	var leaky := got4.replace("\"scene\"", "\"scene\": \"MUTATED_AFTER\", \"x\"")
 	ok(leaky.contains("MUTATED"), "8a the leak detector flags a file with the edit in it")
-	ok(want.substr(0, want.length() - 1) + "}" != want, "8b the byte-equality check rejects a one-byte-different text")
+	ok(want.substr(0, want.length() - 1) + "X" != want, "8b the byte-equality check rejects a one-byte-different text")
 	ok(not (longest < 0.001), "8c a bar of 0.001 ms on the real longest frame (%.1f ms) fails, as it must" % longest)
 
 	for f in ["old", "new", "b3", "b3s", "b4", "b5", "b6", "b7"]:

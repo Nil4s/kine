@@ -21827,6 +21827,7 @@ func _selfcheck_save() -> void:
 
 
 var _bgs: BgSave
+var save_prof := {}   # L124: ms since the start of the last _save_scene_now at each stage (cumulative)
 
 
 ## the background writer (scripts/bg_save.gd), made when first needed
@@ -21856,7 +21857,10 @@ func _save_scene_now(nm: String) -> void:
 	var H := _hero_scene()   # TC3: the file is the hero's scene, whoever is active
 	H.name = nm if nm != "" else "scene_" + _stamp()   # the name as typed: what the scene is called
 	BodyFile.before_save(self, safe_file(H.name).get_file())   # G07: an applied body with no file yet: a NEW .kbody first
+	var _t0 := Time.get_ticks_usec()
+	save_prof = {}
 	var d := _scene_dict()   # TC3: the hero's file with its actors (lossless: the body kept, round 8)
+	save_prof["dict"] = (Time.get_ticks_usec() - _t0) / 1000.0
 	var fname := safe_file(H.name) if safe_file(H.name) != "" else "scene_" + _stamp()
 	var tpv: Node = get_node_or_null(KMeshVPaintUI.NODE)   # L55: the painted texture goes beside the scene (PNG) and is recorded in its JSON
 	var tps: Dictionary = tpv.texture_source() if tpv != null else {}
@@ -21875,13 +21879,19 @@ func _save_scene_now(nm: String) -> void:
 		KMeshTPaintFile.write_png(tps, ProjectSettings.globalize_path(UserPaths.w("res://scenes/%s_tpaint.png" % fname)))
 	if np.loaded and not big:
 		np.update_file(UserPaths.w("res://scenes/%s.json" % fname))   # R27: the index of your habits learns the saved scene
+	save_prof["write"] = (Time.get_ticks_usec() - _t0) / 1000.0
 	_clean = _doc_key()
 	_autosave_drop()
+	save_prof["clean"] = (Time.get_ticks_usec() - _t0) / 1000.0
 	scene_path = UserPaths.w("res://scenes/%s.json" % fname)
 	_recent_note(scene_path, true)
+	save_prof["recent"] = (Time.get_ticks_usec() - _t0) / 1000.0
 	_journal_saved()
+	save_prof["journal"] = (Time.get_ticks_usec() - _t0) / 1000.0
 	_lists()
+	save_prof["lists"] = (Time.get_ticks_usec() - _t0) / 1000.0
 	_refresh()
+	save_prof["refresh"] = (Time.get_ticks_usec() - _t0) / 1000.0
 	if easy != null and easy.on:   # Easy: "Saved run 68 (3.3 seconds)." (the name as its words; the length to a tenth of a second)
 		_say("Saved %s (%.1f seconds)." % [H.name.replace("_", " "), roundf(H.length() * 10.0 + 0.001) / 10.0])   # the 0.001: 3.25 s reads 3.3, not 3.2 (float)
 		if easy.home != null:   # the toast says where it went: the file's name and its folder (the status line keeps its words)
