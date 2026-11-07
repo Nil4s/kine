@@ -93,7 +93,7 @@ func input(ev: InputEvent) -> bool:
 		return false
 	var k := ev as InputEventKey
 	if k.ctrl_pressed or k.alt_pressed or k.shift_pressed or k.meta_pressed:
-		if on and k.ctrl_pressed and k.keycode == KEY_Z and _mesh_on() and m.kmed.undo.steps.size() > 0:   # layer on only: the GRS undo steps
+		if on and k.ctrl_pressed and not k.shift_pressed and k.keycode == KEY_Z and _mesh_on() and m.kmed.undo.steps.size() > 0:   # layer on only: the GRS undo steps
 			m._undo()   # L126: through the one ordered log (it used to take the mesh list first, whatever was newest)
 			return true
 		return false
