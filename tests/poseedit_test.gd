@@ -104,10 +104,12 @@ func _init() -> void:
 	# 0 instrument
 	await pose(0.0, Vector3.ZERO)
 	var d0 := bone_global("hand_r").origin - bone_global("lowerarm_r").origin
+	var u0 := bone_global("lowerarm_r").origin - bone_global("upperarm_r").origin
 	var el0 := bone_global("lowerarm_r").origin
-	await pose(90.0, Vector3(0.0, 0.0, -50.0))
+	await pose(90.0, Vector3(70.0, 0.0, 0.0))
 	var d90 := bone_global("hand_r").origin - bone_global("lowerarm_r").origin
-	var turn := rad_to_deg(d0.angle_to(d90))
+	var u90 := bone_global("lowerarm_r").origin - bone_global("upperarm_r").origin
+	var turn := rad_to_deg(u90.angle_to(d90)) - rad_to_deg(u0.angle_to(d0))   # the bend AT the elbow, whatever the shoulder does
 	var lift := bone_global("lowerarm_r").origin.distance_to(el0)
 	sp.set_pose(0.0)
 	sp.reskin()
@@ -120,7 +122,7 @@ func _init() -> void:
 			var w := sp.w[v * 4 + q]
 			if w > 0.0 and SkinPaint.bind_bone(skin, sk, sp.bo[v * 4 + q]) == la:
 				fw += w
-		if fw > 0.5:
+		if fw >= 0.3:
 			edited.append(v)
 		if fw > 0.9999:
 			pure.append(v)
@@ -168,7 +170,7 @@ func _init() -> void:
 	for v in pure:
 		dist_a[v] = axis_dist(sA[v], ax0a, ax0b)
 		unedited_a[v] = axis_dist(sU[v], ax0a, ax0b)
-	await pose(20.0, Vector3(0.0, 0.0, 30.0))
+	await pose(20.0, Vector3(-25.0, 0.0, 0.0))
 	sp.set_pose(0.0)
 	var mats2: Array = sp.mats
 	var ax1a := bone_global("lowerarm_r").origin
@@ -199,7 +201,7 @@ func _init() -> void:
 	un.redo()
 	ok(R.verts == after, "5 redo brings the edit back bit-exact")
 	# 6 planted fake: no inverse
-	await pose(90.0, Vector3(0.0, 0.0, -50.0))
+	await pose(90.0, Vector3(70.0, 0.0, 0.0))
 	sp.set_pose(0.0)
 	var fake := before.duplicate()
 	for v in edited:
