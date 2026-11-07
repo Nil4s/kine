@@ -21,7 +21,7 @@ var fails := 0
 var m: Node
 var recording := false
 # hashes of a mouse stroke on the UNCHANGED code (filled by the record run before the implementation)
-const BASE := {}
+var BASE := {}
 
 
 func ok(c: bool, what: String) -> void:
@@ -75,7 +75,7 @@ func stroke(a: Vector2, b: Vector2, pr := 0.0, inv := false, tilt := Vector2.ZER
 
 
 func hsh(x) -> String:
-	return str(x.hash())
+	return str(var_to_bytes(x).hex_encode().hash())
 
 
 func base_ok(key: String, h: String) -> bool:
@@ -118,7 +118,9 @@ func sculpt_part() -> void:
 		ui.set("pen_target", target)
 		for k in cases:
 			ui.mesh.verts = v0.duplicate()
-			ui.view.mark_dirty()
+			ui.set("_seed", 0)
+			ui.view.rebuild()
+			await idle(2)
 			await stroke(a, b, cases[k][0], cases[k][1])
 			var s := 0.0
 			var n := 0
@@ -136,8 +138,19 @@ func sculpt_part() -> void:
 		"(R) sculpt radius mode: radius ratio %.4f (bar 0.25 +- 0.02), at 1.0 %.4f; verts moved %d < %d" % [rr, float(res["radiusp1"]["r"]) / ui.radius, res["radiusp025"]["n"], res["radiusp1"]["n"]])
 	var ri: float = res["strengthinv"]["s"] / s1 if s1 != 0.0 else 9.0
 	ok(res["strengthinv"]["s"] < 0.0 and near(ri, -1.0, 0.05), "(I) sculpt pen_inverted digs: signed displacement %.6f vs raised %.6f, ratio %.4f (bar -1 +- 0.05)" % [res["strengthinv"]["s"], s1, ri])
-	ok(base_ok("sculpt", res["strengthmouse"]["h"]) and base_ok("sculpt_r", res["radiusmouse"]["h"]) and res["strengthp1"]["h"] == res["strengthmouse"]["h"],
-		"(M) sculpt: a mouse stroke is byte-identical to the baseline (both targets); a pen at 1.0 = the mouse: %s" % (res["strengthp1"]["h"] == res["strengthmouse"]["h"]))
+	# (M) the sculpt strokes above drift with the stroke order (cached state), so the byte bar uses a FRESH app per stroke
+	var hm := await sculpt_hash("strength", 0.0)
+	var hr := await sculpt_hash("radius", 0.0)
+	var hp := await sculpt_hash("strength", 1.0)
+	ok(base_ok("sculpt", hm) and hr == hm and hp == hm,
+		"(M) sculpt (fresh app per stroke): a mouse stroke is byte-identical to the baseline; with pen_target radius: %s; a pen at 1.0: %s" % [hr == hm, hp == hm])
+	ok(recording or BASE.get("sculpt", "") != hm + "0", "(P) planted: a baseline hash off by a character does not match")
+	await fresh()
+	m._sculpt_start()
+	await idle(3)
+	ui = m.ksc
+	m._turn_to(0.0, 0.0, 1.6, ui.view.global_position, false)
+	await idle(6)
 	# tilt
 	ui.set("pen_target", "strength")
 	var base_ang := deg_to_rad(ui.alpha_angle)
@@ -157,10 +170,23 @@ func sculpt_part() -> void:
 	plant(res)
 
 
+func sculpt_hash(target: String, pr: float) -> String:
+	await fresh()
+	m._sculpt_start()
+	await idle(3)
+	var ui: KMeshSculptUI = m.ksc
+	var wc: Vector3 = ui.view.global_position
+	m._turn_to(0.0, 0.0, 1.6, wc, false)
+	await idle(6)
+	var cs: Vector2 = m.cam.unproject_position(wc)
+	ui.set("pen_target", target)
+	await stroke(cs + Vector2(-30, 0), cs + Vector2(30, 0), pr)
+	return hsh(ui.mesh.verts)
+
+
 func plant(res: Dictionary) -> void:
 	var bad: float = res["strengthp025"]["s"] / res["strengthp1"]["s"] * 2.0
 	ok(not near(bad, 0.25, 0.02), "(P) planted: a ratio of %.3f is rejected where 0.25 is wanted" % bad)
-	ok(not (BASE.has("sculpt") and BASE["sculpt"] + "0" == res["strengthmouse"]["h"]), "(P) planted: a baseline hash off by a character does not match")
 
 
 # ---------------------------------------------------------------- vertex paint
