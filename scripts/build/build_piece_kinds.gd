@@ -43,5 +43,5 @@ static func ensure(piece: String) -> String:
 	var e := {"label": "%s (from BUILD)" % String(def["label"]), "solids": solids, "supports": supports, "piece": true}
 	if not wedges.is_empty():
 		e["wedges"] = wedges
-	Props.EXTRA[kind] = e
+	Props._put(kind, e)
 	return kind
