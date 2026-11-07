@@ -83,6 +83,10 @@ TOOLS = {
                    {"type": "object", "properties": {"tag": S, "y": N, "head_y": N, "impulse": N, "side": S}, "required": ["tag"], "additionalProperties": False}),
     "body_collide": ("body_collide", "Shoulder charge / tackle: momentum shared between two bodies by de Leva upper-body mass; the lighter one changes speed more. Returns after-velocities, momentum before/after, and pelvis keys for both bodies.",
                      {"type": "object", "properties": {"m_a": N, "v_a": {"type": "array"}, "m_b": N, "v_b": {"type": "array"}, "sex": S, "e": N}, "required": ["m_a", "v_a", "m_b"], "additionalProperties": False}),
+    "disarm_check": ("disarm_check", "Does a disarm work? Lever torque on the wrist (force x lever arm) against the grip hold (hands x friction x grip force x handle radius, from the grip book). Verdict: grip holds / works / wrist breaks first, with the torques. Give kind + grip (a grip-book name) or hands + lever_m; force_n, grip_n optional.",
+                     {"type": "object", "properties": {"kind": S, "grip": S, "hands": {"type": "integer"}, "lever_m": N, "force_n": N, "grip_n": N}, "additionalProperties": False}),
+    "group_fight": ("group_fight", "One vs many: schedule attackers around the hero by reach and line of sight. Returns a timed attack schedule (no two from the same side at once, none starting out of reach, every attacker a window), a wait position each, and the check counts. attackers = [{id, x, z, reach}] metres from the hero (facing +z).",
+                    {"type": "object", "properties": {"attackers": {"type": "array"}}, "required": ["attackers"], "additionalProperties": False}),
     "lock_check": ("lock_check", "Does the lock reach his limit, or go past it? Two bodies judged frame by frame: the partner's elbow, wrist and shoulder angles the clip asks, against his joint limits, on the arm the locker touches. "
                    "Verdict: lock not on / at limit (within 5 deg) / past limit: injury (joint, axis, degrees past) / no contact; the key frame; per frame margin_deg. clip = a scene file with a partner (else the live scene); locker 0 = hero, 1 = partner.",
                    {"type": "object", "properties": {"clip": S, "fps": N, "locker": {"type": "integer"}}, "additionalProperties": False}),
@@ -119,7 +123,7 @@ TOOLS = {
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo"]
+MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:
