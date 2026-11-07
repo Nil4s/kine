@@ -3365,6 +3365,8 @@ func _ready() -> void:
 	BootProfile.mark("vx")
 	hk = Hotkeys.new(self)   # HOTKEYS: the saved keys, applied by _commands() (scripts/hotkeys.gd)
 	hk.load_from(settings)
+	hk.scoped.load_file()   # P06: the page keys (user://kine_pagekeys.json); the run counts and dismissals (P18) load with hk.learn
+	pg_spaces = PageSpaces.new()   # P07: each page's panel layout (user://kine_page_spaces.json)
 	camnav = CamNav.new(self)   # W01: camera navigation settings (scripts/cam_nav.gd)
 	camnav.load_from(settings)
 	camnav_ui = CamNavUI.new(self, camnav)
@@ -3653,6 +3655,7 @@ var intro: KineIntro   # the opening intro while it plays (null after, or when o
 
 ## a test's own settings file goes with it (ribbon_test clicks VIEW > Light like any button: one file per run piled up)
 func _exit_tree() -> void:
+	_pw_save()
 	SlicerSend.shutdown()   # C79: the start-up slicer lookup (a `reg query` on a worker) must not hold the quit
 	if nb_ui != null:
 		nb_ui.finish()   # I44: the fatigue worker ends before the scenes it reads go
@@ -16992,7 +16995,11 @@ func _page_set(p: String, save := true) -> void:
 			dummy_on = true
 			_dummy_hits()
 	_pp("leave")
+	if p != was_page:
+		_pw_leave(was_page)
 	cur_page = p
+	if p != was_page:
+		_pw_enter(p)
 	if bld != null:
 		bld.page_changed(was_page, p)
 	_pp("pre_show")
@@ -17547,6 +17554,117 @@ var campiv: CamPivot   # C07
 var camx: CamExtras   # C01
 var kt: KeymapTranslate   # P20: Blender / Maya key helper
 var blk: BlKeys           # B16: Blender-style modal G / R / S layer
+var pg_spaces: PageSpaces   # P07: per-page panel layouts
+var _learn_toast: PanelContainer
+var _learn_shown := {}   # command id -> true: its suggestion toast was shown this session (once each)
+const PAGE_WS := {"ANIMATE": "animate", "MODEL": "part", "SCULPT": "part", "SURFACE": "part"}   # the app page -> the workspace page (scripts/work_layouts.gd) whose layout it keeps
+
+
+func _pw_ws() -> WorkLayouts:
+	return bld.shell.ws if bld != null and bld.shell != null else null
+
+
+func _pw_leave(pg: String) -> void:
+	var w := _pw_ws()
+	if pg_spaces != null and w != null and PAGE_WS.has(pg):
+		pg_spaces.leave(w, String(PAGE_WS[pg]))
+
+
+func _pw_enter(pg: String) -> void:
+	var w := _pw_ws()
+	if pg_spaces != null and w != null and PAGE_WS.has(pg) and pg_spaces.enter(w, String(PAGE_WS[pg])):
+		w.touch()
+		bld.shell.ws_changed()
+
+
+func _pw_save_keys() -> void:
+	if hk != null:
+		hk.scoped.save_file()
+
+
+## the page keys, the run counts with the dismissals, and the page layouts: on a change and on quit
+func _pw_save() -> void:
+	if hk == null:
+		return
+	hk.scoped.save_file()
+	hk.learn.save_file()
+	if pg_spaces != null:
+		pg_spaces.save_file()
+
+
+## a command ran: count it; a habit (3+ runs, no key) gets one small non-modal suggestion per session
+func _learn_after(id: String) -> void:
+	if hk == null:
+		return
+	hk.learn.record(id)
+	if _learn_shown.has(id) or hk.learn.runs(id) < CmdLearn.MIN_RUNS or hk.learn.is_dismissed(id) or ui_cmd == null:
+		return
+	for r in hk.learn.suggest(ui_cmd.commands, hk.scoped, CmdLearn.MIN_RUNS, 100000):
+		if String(r["id"]) == id:
+			_learn_shown[id] = true
+			_learn_toast_show(r)
+			return
+
+
+func _learn_toast_show(r: Dictionary) -> void:
+	if _learn_toast == null:
+		_learn_toast = PanelContainer.new()
+		_learn_toast.name = "learn_toast"
+		_learn_toast.z_index = 90
+		_learn_toast.anchor_left = 1.0
+		_learn_toast.anchor_right = 1.0
+		_learn_toast.anchor_top = 1.0
+		_learn_toast.anchor_bottom = 1.0
+		_learn_toast.offset_left = -430
+		_learn_toast.offset_right = -16
+		_learn_toast.offset_top = -190
+		_learn_toast.offset_bottom = -110
+		var st := StyleBoxFlat.new()
+		st.bg_color = Tok.c("float")
+		st.set_corner_radius_all(8)
+		st.set_content_margin_all(10)
+		_learn_toast.add_theme_stylebox_override("panel", st)
+		var v := VBoxContainer.new()
+		_learn_toast.add_child(v)
+		var lb := Label.new()
+		lb.name = "learn_text"
+		lb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lb.custom_minimum_size.x = 380
+		v.add_child(lb)
+		var h := HBoxContainer.new()
+		v.add_child(h)
+		var a := Button.new()
+		a.name = "learn_accept"
+		h.add_child(a)
+		var d := Button.new()
+		d.name = "learn_dismiss"
+		d.text = "Dismiss"
+		h.add_child(d)
+		ui_root.add_child(_learn_toast)
+	var id := String(r["id"])
+	var key := String(r["key"])
+	(_learn_toast.find_child("learn_text", true, false) as Label).text = "You run \"%s\" a lot (%d times). Give it the key %s?" % [r["name"], int(r["runs"]), key]
+	var ab := _learn_toast.find_child("learn_accept", true, false) as Button
+	ab.text = "Accept %s" % key
+	for c in ab.pressed.get_connections():
+		ab.pressed.disconnect(c["callable"])
+	ab.pressed.connect(func():
+		var res := hk.learn.accept(id, key, hk.scoped)
+		_pw_save_keys()
+		_learn_toast.visible = false
+		_say(String(res.get("msg", ""))))
+	var db := _learn_toast.find_child("learn_dismiss", true, false) as Button
+	for c in db.pressed.get_connections():
+		db.pressed.disconnect(c["callable"])
+	db.pressed.connect(func():
+		hk.learn.dismiss(id)
+		_learn_toast.visible = false)
+	_learn_toast.visible = true
+	get_tree().create_timer(30.0).timeout.connect(func():
+		if is_instance_valid(_learn_toast) and _learn_toast.visible and not hk.learn.is_dismissed(id):
+			_learn_toast.visible = false)
+
+
 var hk: Hotkeys   # HOTKEYS: rebinding, the saved keys, the editor (scripts/hotkeys.gd)
 
 
@@ -18257,9 +18375,11 @@ func _commands() -> Array:
 		var f: Callable = d["run"]
 		var nm: String = d["name"]
 		d["raw"] = f   # the command's own callable (tests and tools ask what a command is bound to)
+		var cid: String = String(d["id"])
 		d["run"] = func():
 			_nt_note(nm)
 			f.call()
+			_learn_after(cid)   # P18: every run (palette, menu, key, chip) is counted; a habit gets a suggestion toast
 	return rows   # the keys the user chose (scripts/hotkeys.gd) replace the built-in ones
 
 
@@ -21299,6 +21419,7 @@ func _close_asked() -> void:
 
 
 func _quit_app() -> void:
+	_pw_save()
 	if quit_fn.is_valid():
 		quit_fn.call()
 		return
