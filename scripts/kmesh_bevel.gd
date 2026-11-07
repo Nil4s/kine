@@ -413,6 +413,8 @@ static func _apply(ui, lv: Dictionary, width: float, segments: int, profile: flo
 			ui.remove_meta(LIVE)
 	else:
 		ui.set_meta(LIVE, {"edges": es, "mode": lv["mode"], "width": float(r["width"]), "segments": segments, "profile": profile, "step": st})
+		if ui.get("redo_panel") != null:   # P03
+			ui.redo_panel.note("bevel", {"width": float(r["width"]), "segments": segments, "profile": profile}, st, {})
 		said = "Model: bevelled %d edge%s by %s, %d segment%s, profile %.2f%s. [ / ] segments, Shift+[ / ] width, Alt+[ / ] profile; Ctrl+Z takes it back" % [
 			es.size(), "" if es.size() == 1 else "s", Units.len(float(r["width"])), segments, "" if segments == 1 else "s", profile,
 			" (width clamped: the edges are short)" if r["clamped"] else ""]
