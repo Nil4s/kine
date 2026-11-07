@@ -1086,3 +1086,4 @@ EXTRA="$EXTRA propsgrid:w"   # L58 PROPSGRID: Props.settle in C++ with a grid (G
 EXTRA="$EXTRA wrinkle:w"   # L62 I09: expression wrinkles on the geometry face from measured per-vertex compression (tests/wrinkle_test.gd, scripts/face_wrinkle.gd)
 EXTRA="$EXTRA gamedel2:h"   # N083/N086/N087/N090 game delivery per clip (scripts/game_clip.gd, addons/kine_body_check)
 EXTRA="$EXTRA fight2:w"   # L72 FIGHT2: N034 impact alignment (bent wrist / locked knee flagged), N042 hit reaction by body region (4 of 4, monotone in impulse, inside body_limits), N046 shoulder-charge momentum sharing (<5%) (tests/fight2_test.gd)
+EXTRA="$EXTRA rigown:w"   # L69 RIGOWN: non-human glTF skeleton kept as its own rig, FK, keys, export, bone edit (tests/rigown_test.gd)
