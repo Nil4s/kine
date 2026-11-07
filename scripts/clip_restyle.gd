@@ -31,7 +31,7 @@ static func blocked(S: Scene) -> String:
 	return ""
 
 
-static func remap(t: float, old: Array, nw: Array) -> float:
+static func tmap(t: float, old: Array, nw: Array) -> float:
 	var po := []
 	var pn := []
 	for i in old.size():
@@ -48,7 +48,7 @@ static func remap(t: float, old: Array, nw: Array) -> float:
 	return t - float(po[-1]) + float(pn[-1])
 
 
-static func _set(S: Scene, mv0: Array, h0: Array, km: float, kh: float, kind: String, bias: float, nat: bool) -> void:
+static func _put(S: Scene, mv0: Array, h0: Array, km: float, kh: float, kind: String, bias: float, nat: bool) -> void:
 	for i in S.cards.size():
 		var c: Dictionary = S.cards[i]
 		if i > 0:
@@ -128,9 +128,9 @@ static func plan(S: Scene, fpA: Dictionary) -> Dictionary:
 		if tried.has(key):
 			continue
 		tried[key] = true
-		_set(S, mv0, h0, 1.0, 1.0, cb[0], cb[1], cb[2])
+		_put(S, mv0, h0, 1.0, 1.0, cb[0], cb[1], cb[2])
 		var km := _km_fix(_eval(S, fpA), fpA, 1.0)
-		_set(S, mv0, h0, km, 1.0, cb[0], cb[1], cb[2])
+		_put(S, mv0, h0, km, 1.0, cb[0], cb[1], cb[2])
 		var e := _eval(S, fpA)
 		cands.append({"kind": cb[0], "bias": cb[1], "nat": cb[2], "km": km, "soft": float(e["soft"])})
 		if ci == combos.size() and combos.size() == KINDS.size() * BIASES.size() * 2:
@@ -150,7 +150,7 @@ static func plan(S: Scene, fpA: Dictionary) -> Dictionary:
 		var hi := log(20.0)
 		for it in 7:
 			kh = exp(0.5 * (lo + hi))
-			_set(S, mv0, h0, km2, kh, cd["kind"], cd["bias"], cd["nat"])
+			_put(S, mv0, h0, km2, kh, cd["kind"], cd["bias"], cd["nat"])
 			var eh := _eval(S, fpA)
 			var h := float(eh["fp"]["global"]["hold"])
 			if h > hA:
@@ -158,9 +158,9 @@ static func plan(S: Scene, fpA: Dictionary) -> Dictionary:
 			else:
 				lo = 0.5 * (lo + hi)
 		kh = exp(0.5 * (lo + hi))
-		_set(S, mv0, h0, km2, kh, cd["kind"], cd["bias"], cd["nat"])
+		_put(S, mv0, h0, km2, kh, cd["kind"], cd["bias"], cd["nat"])
 		km2 = _km_fix(_eval(S, fpA), fpA, km2)
-		_set(S, mv0, h0, km2, kh, cd["kind"], cd["bias"], cd["nat"])
+		_put(S, mv0, h0, km2, kh, cd["kind"], cd["bias"], cd["nat"])
 		var ef := _eval(S, fpA)
 		var df := float(ef["c"]["distance"])
 		if df < best_d:
@@ -170,7 +170,7 @@ static func plan(S: Scene, fpA: Dictionary) -> Dictionary:
 		S.cards = orig
 		S.natural = orig_nat
 		return none
-	_set(S, mv0, h0, best["km"], best["kh"], best["kind"], best["bias"], best["nat"])
+	_put(S, mv0, h0, best["km"], best["kh"], best["kind"], best["bias"], best["nat"])
 	var new_t: Array = S.times().duplicate(true)
 	var cards_out := []
 	for c in S.cards:
@@ -185,10 +185,10 @@ static func plan(S: Scene, fpA: Dictionary) -> Dictionary:
 	S.natural = orig_nat
 	var plants := []
 	for p in S.plants:
-		plants.append([snappedf(remap(float(p["t0"]), old_t, new_t), 0.001), snappedf(remap(float(p["t1"]), old_t, new_t), 0.001)])
+		plants.append([snappedf(tmap(float(p["t0"]), old_t, new_t), 0.001), snappedf(tmap(float(p["t1"]), old_t, new_t), 0.001)])
 	var marks := []
 	for mk in S.markers:
-		marks.append(snappedf(remap(float(mk["t"]), old_t, new_t), 0.001))
+		marks.append(snappedf(tmap(float(mk["t"]), old_t, new_t), 0.001))
 	return {"ok": true, "changed": true, "before": d0, "after": best_d, "cards": cards_out, "natural": natural_out, "plants": plants,
 		"markers": marks, "move_scale": best["km"], "hold_scale": best["kh"], "ease": best["kind"], "ease_bias": best["bias"]}
 
