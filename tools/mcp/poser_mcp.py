@@ -79,6 +79,12 @@ TOOLS = {
                     {"type": "object", "properties": {"clip": S, "fps": N, "thrower": {"type": "integer"}, "brief": {"type": "boolean"}}, "additionalProperties": False}),
     "impact_align": ("impact_align", "Impact alignment at the contact frame: flags a bent wrist on a punch, a wrist past the safe load line, a locked knee on a kick, an elbow snapped straight on a miss, each with the angle and a fix pose. clip = a scene file (else the live scene), or give ang {joint: [bend, side, twist]} with kind punch|kick, side l|r, miss.",
                      {"type": "object", "properties": {"clip": S, "fps": N, "ang": {"type": "object"}, "kind": S, "side": S, "miss": {"type": "boolean"}}, "additionalProperties": False}),
+    "bake_reaction": ("bake_reaction", "Bake the hit reaction onto the struck partner at the contact frame: the region (from the fist's height, or tag/y/head_y/region) and impulse give region_react's joint deltas, written as one card that arrives at contact + drop delay. Frames before the contact do not change. One undo step on the live scene; with clip a copy is baked and the numbers returned.",
+                      {"type": "object", "properties": {"clip": S, "frame": {"type": "integer"}, "tag": S, "y": N, "head_y": N, "region": S, "impulse": N, "side": S}, "additionalProperties": False}),
+    "fix_impact": ("fix_impact", "Fix the flagged impact (bent wrist, locked knee) at the contact frame by writing impact_align's fix pose into the cards around it. One undo step; an error when the impact is clean.",
+                   {"type": "object", "properties": {"clip": S, "fps": N}, "additionalProperties": False}),
+    "bake_momentum": ("bake_momentum", "Key body_collide's after-hit velocities onto both bodies' roots (pelvis offset cards at 0.1/0.2/0.4/0.8 s after the contact). v_a/v_b [x,y,z] m/s, m_a/m_b kg override the measured root speeds and masses; t forces a contact time. One undo step.",
+                      {"type": "object", "properties": {"clip": S, "frame": {"type": "integer"}, "t": N, "v_a": {"type": "array"}, "v_b": {"type": "array"}, "m_a": N, "m_b": N, "sex": S, "e": N}, "additionalProperties": False}),
     "hit_region": ("hit_region", "Hit reaction by body region: from an anatomy tag (obliques_r = liver, face low = chin, quadriceps = thigh, abdominals high = solar plexus) and the impulse (N s) it returns the region and joint deltas (liver folds to the hit side with a delayed drop, chin snaps the head and buckles both knees, thigh buckles the hit leg, solar plexus folds forward), inside body limits, growing with impulse.",
                    {"type": "object", "properties": {"tag": S, "y": N, "head_y": N, "impulse": N, "side": S}, "required": ["tag"], "additionalProperties": False}),
     "body_collide": ("body_collide", "Shoulder charge / tackle: momentum shared between two bodies by de Leva upper-body mass; the lighter one changes speed more. Returns after-velocities, momentum before/after, and pelvis keys for both bodies.",
@@ -123,7 +129,7 @@ TOOLS = {
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo"]
+MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "bake_reaction", "fix_impact", "bake_momentum", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:

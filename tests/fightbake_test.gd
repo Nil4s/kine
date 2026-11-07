@@ -20,7 +20,7 @@
 extends SceneTree
 
 var fails := 0
-const FPS := 30
+const FPS := 60   # FrameData.FPS: combo3 only clears the 8 m/s active bar when sampled at 60
 
 
 func ok(c: bool, what: String) -> void:
@@ -53,6 +53,17 @@ func load_scene(p: String) -> Scene:
 	return s
 
 
+## combo3 holds a bat in every card (its striker is "weapon"); the fight bake judges the hand / foot, so the fixture is combo3 with the hands empty
+func combo_bare() -> Scene:
+	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://scenes/combo3.json"))
+	for c in d["cards"]:
+		c["pose"]["weapon"] = {}
+		c["pose"].erase("weapon2")
+	var s := Scene.new()
+	s.from_dict(d)
+	return s
+
+
 func held(hold: float) -> Scene:
 	var s := Scene.new()
 	s.add("stand", stand_pose())
@@ -69,6 +80,11 @@ func with_partner(hero: Scene, px: float, pz: float, hold := 4.0) -> Scene:
 ## the hero's fist at the contact frame of a hero-only scene (the test's own routine: the maths it is compared with are ImpactAlign.scene_check's)
 func fist_at_contact(hero: Scene) -> Array:
 	var r := ImpactAlign.scene_check(hero, FPS)
+	print("     scene_check: ", r.get("frame"), " ", r.get("striker"))
+	if int(r.get("frame", -1)) < 0:
+		print("FIGHTBAKE FAIL fixture has no strike")
+		quit(1)
+		return [r, Vector3.ZERO]
 	var b := stand_body()
 	hero.apply(b, float(r["frame"]) / float(FPS))
 	return [r, b.E[r["striker"]]]
@@ -83,6 +99,11 @@ func save(s: Scene, name: String) -> String:
 	return p
 
 
+func mx(v: Vector3) -> float:
+	var a := v.abs()
+	return maxf(a.x, maxf(a.y, a.z))
+
+
 func ang_at(s: Scene, t: float) -> Dictionary:
 	return s.sample(t)["ang"]
 
@@ -93,7 +114,7 @@ func pose_diff(a: Scene, b: Scene, t: float) -> float:
 	var y := ang_at(b, t)
 	var worst := 0.0
 	for j in x:
-		worst = maxf(worst, ((x[j] as Vector3) - (y.get(j, Vector3.ZERO) as Vector3)).abs().max_axis_value())
+		worst = maxf(worst, mx((x[j] as Vector3) - (y.get(j, Vector3.ZERO) as Vector3)))
 	return worst
 
 
@@ -111,7 +132,7 @@ func delta_err(orig: Scene, baked: Scene, t_contact: float, t_arrive: float, wan
 	var worst := 0.0
 	for j in want:
 		var d: Vector3 = (n[j] as Vector3) - (o[j] as Vector3)
-		worst = maxf(worst, (d - (want[j] as Vector3)).abs().max_axis_value())
+		worst = maxf(worst, mx(d - (want[j] as Vector3)))
 	return worst
 
 
@@ -131,8 +152,11 @@ func inside_limits(s: Scene, joints: Array) -> int:
 
 
 func _init() -> void:
+	create_timer(240.0).timeout.connect(func():
+		print("FIGHTBAKE WATCHDOG: the test did not finish")
+		quit(2))
 	# ---- the fixture: combo3, the partner 0.25 m past the fist
-	var hero := load_scene("res://scenes/combo3.json")
+	var hero := combo_bare()
 	var fc := fist_at_contact(hero)
 	var r0: Dictionary = fc[0]
 	var fist: Vector3 = fc[1]
@@ -237,7 +261,7 @@ func _init() -> void:
 	ok(all3, "f4 bake_reaction, fix_impact, bake_momentum are in MCP_EXTRA and poser_mcp.py")
 
 	# ---- d. fix impact
-	var planted := load_scene("res://scenes/combo3.json")
+	var planted := combo_bare()
 	var side := String(r0["striker"]).right(1)
 	for card in planted.cards:
 		var np: Dictionary = (card["pose"] as Dictionary).duplicate(true)
@@ -271,7 +295,7 @@ func _init() -> void:
 	ok(inside_limits(m.S, ["hand_" + side, "calf_" + side, "lowerarm_" + side]) == 0, "d4 fixed joints inside body_limits")
 	m._undo()
 	ok(JSON.stringify(m.S.to_dict(m.B, false)) == fb0 and m.undo.size() == fu0, "d5 one undo restores the clip byte for byte")
-	var clean := with_partner(load_scene("res://scenes/combo3.json"), fist.x, fist.z + 0.25)
+	var clean := with_partner(combo_bare(), fist.x, fist.z + 0.25)
 	await T.request(rid + 4, "open", {"path": save(clean, "clean")})
 	var cu0: int = m.undo.size()
 	var cres: Dictionary = await T.request(rid + 5, "fix_impact", {})

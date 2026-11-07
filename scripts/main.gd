@@ -4371,6 +4371,73 @@ func _throw_toggle() -> void:
 	_refresh()
 
 
+# ---------------------------------------------------------------- FIGHT BAKE (L76; scripts/fight_bake.gd, fight_panel.gd, fight_bake_serve.gd)
+var fight_on := false
+var fight_panel: FightPanel = null
+var fight_key := 0
+var fight_done := false
+
+
+## every refresh: nothing while off; while on, the contacts are found again only when the cards / the partner changed
+func _fight_refresh() -> void:
+	if not fight_on:
+		if fight_panel != null and fight_panel.visible:
+			fight_panel.visible = false
+		return
+	if fight_panel == null:
+		fight_panel = FightPanel.new()
+		fight_panel.z_index = 40
+		fight_panel.bake_pressed.connect(func(i): _fight_run("bake_reaction", i))
+		fight_panel.fix_pressed.connect(func(i): _fight_run("fix_impact", i))
+		fight_panel.momentum_pressed.connect(func(i): _fight_run("bake_momentum", i))
+		fight_panel.frame_picked.connect(func(f):
+			playing = false
+			playhead = float(f) / float(FightBake.FPS)
+			_ps().apply(B, playhead)
+			_refresh())
+		ui_root.add_child(fight_panel)
+		fight_done = false
+	fight_panel.visible = true
+	_actors_sync()
+	var H := _hero_scene()
+	var key: int = hash([H.cards, H.actors.map(func(a): return [a["xf"], (a["scene"] as Scene).cards])])
+	fight_panel.anchor_top = 1.0
+	fight_panel.anchor_bottom = 1.0
+	fight_panel.offset_left = LEFT_W + 12
+	fight_panel.offset_right = LEFT_W + 12 + FightPanel.W
+	var up := ((ThrowPanel.H + 6.0) if throw_on else 0.0) + ((LockPanel.H + 6.0) if lock_on else 0.0)
+	var h := fight_panel.height()
+	fight_panel.offset_bottom = -bottom_h - 8 - up
+	fight_panel.offset_top = fight_panel.offset_bottom - h
+	if fight_done and key == fight_key:
+		return
+	fight_done = true
+	fight_key = key
+	fight_panel.set_contacts(FightBake.contacts(H, FightBake.FPS), "" if not H.actors.is_empty() else "needs two bodies: this scene has one fighter")
+
+
+func _fight_run(tool: String, i: int) -> void:
+	if fight_panel == null or i >= fight_panel.rows().size():
+		return
+	var r := FightBakeServe.serve(tool, self, {"frame": int(fight_panel.rows()[i]["frame"])})
+	_say(("%s done (one undo step)" % tool) if bool(r.get("ok", false)) else String(r.get("error", "refused")))
+
+
+## after a bake edited the scenes in place: the actors are posed again, the cards redrawn
+func _fight_done() -> void:
+	for a in actors_rt:
+		a["t"] = NAN
+	fight_done = false
+	_rebuild_cards()
+	_refresh()
+
+
+func _fight_toggle() -> void:
+	fight_on = not fight_on
+	fight_done = false
+	_refresh()
+
+
 # ---------------------------------------------------------------- LOCK CHECK (INNOVATIONS N041 wired; scripts/lock_panel.gd, lock_serve.gd)
 var lock_on := false                  # the Lock check panel is showing
 var lock_panel: LockPanel = null
@@ -5639,6 +5706,7 @@ func _refresh() -> void:
 	_sync_weapon()
 	_throw_refresh()   # THROW CHECK (N040, L34)
 	_lock_refresh()   # LOCK CHECK (N041)
+	_fight_refresh()   # L76 FIGHT BAKE
 	_fd_refresh()   # FRAME DATA (ROADMAP 12): the strip and the boxes on active frames
 	if ui_browser != null and ui_browser.visible:
 		ui_browser.follow()
@@ -13883,6 +13951,7 @@ func _ui() -> void:
 	tog.call("CHECK", "Frame data", _fd_toggle, func(): return fd_on, "frame data: startup (green) / active (red) / recovery (blue) on the timeline, with the counts (ROADMAP 12)")
 	tog.call("CHECK", "Throw check", _throw_toggle, func(): return throw_on, "throw check (N040): for a scene with two bodies, whether the throw works frame by frame (throw works / no kuzushi / thrower falls / no contact), the key frame, how far the partner's balance is outside his feet and the thrower's own margin; click a frame to jump to it")
 	tog.call("CHECK", "Lock check", _lock_toggle, func(): return lock_on, "lock check (N041): for a scene with two bodies, whether an armbar, wristlock or kimura reaches the partner's joint limit (at limit) or goes past it (past limit: injury), frame by frame, with the joint and the degrees; click a frame to jump to it")
+	tog.call("CHECK", "Fight bake", _fight_toggle, func(): return fight_on, "fight bake (L76): the contact frames of a two-body clip, with Bake reaction (the struck partner reacts by body region, a card, one undo step), Fix impact (a bent wrist / locked knee at the contact is straightened) and Momentum (both bodies pushed by the collision)")
 	tog.call("CHECK", "Frame boxes", _fd_boxes_toggle, func(): return fd_boxes, "hitboxes (red) on active frames and hurtboxes (grey) on every frame, in the view")
 	fd_btn = _button("Frame rate", _fd_cycle_fps, "the frame rate the frame data counts in (24, 30, 60, 120 fps): now %d fps" % fd_fps)
 	ui_ribbon["CHECK"].add_child(fd_btn)
