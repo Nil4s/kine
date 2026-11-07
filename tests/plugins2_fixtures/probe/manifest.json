@@ -1,0 +1,8 @@
+{"name": "Probe", "version": "1.0.0", "author": "test", "api": 2, "permissions": ["files", "export", "tools"],
+ "commands": [
+  {"id": "all", "name": "All"},
+  {"id": "m_set_joint", "name": "set_joint"}, {"id": "m_add_card", "name": "add_card"}, {"id": "m_remove_card", "name": "remove_card"},
+  {"id": "m_set_timing", "name": "set_timing"}, {"id": "m_rename_card", "name": "rename_card"}, {"id": "m_move_object", "name": "move_object"},
+  {"id": "m_add_object", "name": "add_object"}, {"id": "m_remove_object", "name": "remove_object"}, {"id": "m_set_key", "name": "set_key"},
+  {"id": "m_remove_key", "name": "remove_key"}, {"id": "m_tool", "name": "tool"}
+ ]}
