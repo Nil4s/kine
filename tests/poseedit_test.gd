@@ -151,8 +151,8 @@ func _init() -> void:
 	var worst2 := 0.0
 	var differs := 0
 	for v in edited:
-		var inv := blended(v, mats).basis.inverse() * dd[v]
-		var got := after[v] - before[v]
+		var inv: Vector3 = blended(v, mats).basis.inverse() * dd[v]
+		var got: Vector3 = after[v] - before[v]
 		worst2 = maxf(worst2, got.distance_to(inv))
 		if got.distance_to(dd[v]) > 0.001:
 			differs += 1
