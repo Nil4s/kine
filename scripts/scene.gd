@@ -987,6 +987,27 @@ static func key_curve(wk: Array, t: float) -> float:
 	return clampf(float(wk[-1][1]), 0.0, 1.0)
 
 
+## L79 BONE MASK of a layer: "mask" (a Clips mask name) and/or "bones" (an explicit list; when both, the bones are the
+## ones in the mask list too). {} = no mask = every bone. "offset" (the hips' position) is in when the mask drives the root
+static func layer_mask_set(L: Dictionary) -> Dictionary:
+	var mask := String(L.get("mask", "all"))
+	var bones: Array = L.get("bones", [])
+	if mask == "all" and bones.is_empty():
+		return {}
+	var out := {}
+	for j in Clips.mask_joints(mask):
+		out[j] = true
+	if Clips.mask_root(mask):
+		out["offset"] = true
+	if not bones.is_empty():
+		var o2 := {}
+		for j in bones:
+			if mask == "all" or out.has(j):
+				o2[String(j)] = true
+		return o2 if not o2.is_empty() else {"": true}
+	return out
+
+
 func any_solo() -> bool:
 	for L in layers:
 		if bool(L.get("solo", false)):
@@ -1006,7 +1027,10 @@ func add_layers(B: Body, t: float) -> void:
 		var w := layer_weight(L, t)
 		if w <= 0.0:
 			continue
+		var allow := layer_mask_set(L)   # L79: {} = every bone; else only these (and the hips' offset when the mask has the root)
 		for j in L.get("v", {}):
+			if not allow.is_empty() and not allow.has(j):
+				continue
 			if j == "offset":
 				var o: Vector3 = L["v"][j]
 				B.offset = B.offset + o * w if String(L.get("mode", "add")) == "add" else B.offset.lerp(o, w)
@@ -1037,6 +1061,10 @@ static func layer_to_file(L: Dictionary) -> Dictionary:
 	for f in ["mute", "solo", "lock"]:
 		if bool(L.get(f, false)):
 			out[f] = true
+	if String(L.get("mask", "all")) != "all":
+		out["mask"] = String(L["mask"])
+	if not (L.get("bones", []) as Array).is_empty():
+		out["bones"] = (L["bones"] as Array).map(func(b): return String(b))
 	if not (L.get("wk", []) as Array).is_empty():
 		out["wk"] = (L["wk"] as Array).map(func(k): return [snappedf(float(k[0]), 0.0001), snappedf(float(k[1]), 0.0001)])
 	return out
@@ -1051,6 +1079,10 @@ static func layer_from_file(d: Dictionary) -> Dictionary:
 	var out := {"name": String(d.get("name", "layer")), "mode": mode if mode in ["add", "over"] else "add",
 		"w": clampf(float(d.get("w", 1.0)), 0.0, 1.0), "v": v, "mute": bool(d.get("mute", false)),
 		"solo": bool(d.get("solo", false)), "lock": bool(d.get("lock", false)), "wk": []}
+	if String(d.get("mask", "all")) in Clips.MASK_NAMES and String(d.get("mask", "all")) != "all":
+		out["mask"] = String(d["mask"])
+	if not (d.get("bones", []) as Array).is_empty():
+		out["bones"] = (d["bones"] as Array).map(func(b): return String(b))
 	for k in d.get("wk", []):
 		out["wk"].append([float(k[0]), clampf(float(k[1]), 0.0, 1.0)])
 	out["wk"].sort_custom(func(a, b): return a[0] < b[0])

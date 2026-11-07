@@ -64,6 +64,11 @@ TOOLS = {
     "texture_paint": ("texture_paint", "Texture paint: one brush stamp in SCREEN px (x, y, radius) projected onto a built-in UV-mapped shape (sphere or cylinder, camera 3 m back) and written into the texture's texels on every UV island it covers, "
                       "with seam bleed (pad texels) so no seam shows; back-facing and occluded surface is left alone. Returns texels written, screen_pct, engine (native / gdscript), ms, tex_hash.",
                       {"type": "object", "properties": {"shape": S, "x": N, "y": N, "radius": N, "size": N, "color": S, "strength": N, "hardness": N, "pad": N, "w": N, "h": N}, "additionalProperties": False}),
+    "anim_stack": ("anim_stack", "Animation layers and NLA strips of the open scene. op: list | layer_add | layer_set | layer_mute | layer_remove | clip_add | clip_set | clip_mute | clip_remove (index picks the layer / strip). "
+                   "Layer: mode add|over, v {joint: [x,y,z] deg}, w 0..1, mask (all/legs/upper/arms/arm_l/arm_r) or bones [joints], mute/solo/lock. "
+                   "Strip: src scene file, start s, scale (2 = twice as long), repeat, bin/bout blend seconds, curve linear|smooth|ease_in|ease_out, type replace|add, mask, extra, w, mute. Each edit is one undo step.",
+                   {"type": "object", "properties": {"op": S, "index": N, "name": S, "mode": S, "v": {"type": "object"}, "w": N, "mask": S, "bones": {"type": "array", "items": S}, "mute": {"type": "boolean"}, "solo": {"type": "boolean"}, "lock": {"type": "boolean"},
+                                                    "src": S, "start": N, "scale": N, "repeat": N, "bin": N, "bout": N, "curve": S, "type": S, "extra": S}, "additionalProperties": False}),
     "blend_matrix": ("blend_matrix", "Blend matrix of a moveset: every clip crossfaded into every other (the end of A into the start of B over blend_s) and checked for limit breaks (deg, with the joint), "
                      "self-clash (mm) and planted-foot skate (mm), plus the pose distance at the seam; a grid (B bad, w watch, . ok) and the ranked bad pairs with their numbers. clips = scene files "
                      "(else every scene and move with motion); a and b name one pair to get its cell; full adds the whole matrix.",
@@ -113,7 +118,7 @@ TOOLS = {
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo"]
+MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "anim_stack", "texture_paint", "dyntopo"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:

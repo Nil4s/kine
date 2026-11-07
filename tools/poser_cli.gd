@@ -431,6 +431,11 @@ func _init() -> void:
 			var tpo := TPaintServe.serve(m, tpp)
 			say(JSON.stringify(tpo))
 			done(tpo)
+		"anim_stack":   # L79: anim_stack '{"op": "layer_add", ...}' (JSON), or just anim_stack for the list (scripts/anim_stack.gd)
+			var asp = JSON.parse_string(String(a[1])) if a.size() > 1 else {"op": "list"}
+			var aso := AnimStack.serve(m, asp if asp is Dictionary else {})
+			say(JSON.stringify(aso))
+			done(aso)
 		"blend_matrix":   # N084: blend_matrix [scene.json ...] [blend=S] [a=NAME b=NAME] (scripts/blend_matrix_serve.gd)
 			var bp := {}
 			var bfiles := []

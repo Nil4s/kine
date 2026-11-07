@@ -15,7 +15,7 @@ const POINTS := ["head", "pelvis", "spine_03", "upperarm_l", "upperarm_r", "lowe
 const METHODS := ["commands", "open", "new", "run", "pose", "state", "measure", "describe", "ask", "check", "diff", "validate", "save", "quit", "assert", "events", "where", "place", "facts", "brief", "dry", "text_view", "lint", "frame_data"]
 ## C06: the methods the MCP server advertises on top of METHODS. They are NOT in METHODS: its list is the "ready" line and the -32601 text of the
 ## byte-for-byte transcript (refs/agent/serve_transcript.jsonl), which tests/agent_tools_test.gd replays. tools/mcp/poser_mcp.py names each of these (advertised with --math / POSER_MCP_MATH=1)
-const MCP_EXTRA := ["cancel_windows", "reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo"]
+const MCP_EXTRA := ["cancel_windows", "reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "anim_stack", "texture_paint", "dyntopo"]
 ## MCPFAST: the CAD tools (scripts/build/mcp_cad.gd); advertised with --cad
 const MCP_CAD := ["cad_part", "cad_asm", "check_fit", "bom", "eval_gd", "cad_reset"]
 
@@ -475,6 +475,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"texture_paint":   # L53 TPAINT: a screen-space brush stamp onto a UV-mapped shape {shape?, x?, y?, radius?, size?, color?, strength?, hardness?, pad?, w?, h?} (scripts/tpaint_serve.gd). Not in METHODS
 			var tpr := TPaintServe.serve(m, p)
 			return _ok(id, tpr) if tpr["ok"] else _err(id, -32602, String(tpr["error"]))
+		"anim_stack":   # L79: animation layers (bone masks, add / over, weight, mute) and NLA strips (scale, repeat, blend curves, mute) {op, index?, ...}; each edit ONE undo step (scripts/anim_stack.gd). Not in METHODS
+			var asr := AnimStack.serve(m, p)
+			return _ok(id, asr["result"]) if asr["ok"] else _err(id, -32602, String(asr["error"]))
 		"blend_matrix":   # N084: every clip-to-clip crossfade of a moveset checked for limit breaks, self-clash and foot skate {clips?, blend_s?, a?, b?, full?, top?} (scripts/blend_matrix_serve.gd). Not in METHODS
 			var bmr := BlendMatrixServe.serve(m, p)
 			return _ok(id, bmr["result"]) if bmr["ok"] else _err(id, -32602, String(bmr["error"]))

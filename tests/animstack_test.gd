@@ -186,7 +186,7 @@ func _init() -> void:
 	var seam := 0.0
 	for k in [1, 2]:
 		var tb: float = 0.5 + Dd * k / 3.0
-		seam = maxf(seam, worst_all(pose(S, tb - 1e-5), pose(S, tb + 1e-5)))
+		seam = maxf(seam, worst_all(pose(S, tb - 1e-7), pose(S, tb + 1e-7)))
 	var S2 := base_scene()
 	S2.clips = [Clips.make(SRC_OPEN, 0.0, {"repeat": 3})]
 	var eo := Clips.source(SRC_OPEN)

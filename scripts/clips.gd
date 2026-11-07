@@ -42,6 +42,8 @@ class_name Clips
 extends RefCounted
 
 const TYPES := ["replace", "add"]
+## L79: the shape of a blend-in / blend-out ramp (x 0..1 -> 0..1, monotone, 0 and 1 fixed); linear is the old ramp
+const CURVES := ["linear", "smooth", "ease_in", "ease_out"]
 const EXTRA := ["nothing", "hold", "hold_forward"]
 const MASK_NAMES := ["all", "legs", "upper", "arms", "arm_l", "arm_r"]
 ## the warp presets (the picked clip's knots); linear = none. Values read off the curve shapes they name
@@ -96,6 +98,18 @@ static func mask_arms(mask: String) -> bool:
 	return mask != "legs"
 
 
+static func ramp(curve: String, x: float) -> float:
+	x = clampf(x, 0.0, 1.0)
+	match curve:
+		"smooth":
+			return x * x * (3.0 - 2.0 * x)
+		"ease_in":
+			return x * x
+		"ease_out":
+			return 1.0 - (1.0 - x) * (1.0 - x)
+	return x
+
+
 ## a clip with every field, from what a caller or a file gives
 static func make(src: String, start: float, opts := {}) -> Dictionary:
 	var c := {"src": src, "start": maxf(0.0, start), "repeat": 1, "speed": 1.0, "bin": 0.0, "bout": 0.0, "type": "replace",
@@ -117,6 +131,8 @@ static func clean(c: Dictionary) -> Dictionary:
 	var mt := match_norm(c.get("match", {}))
 	if not mt.is_empty():
 		out["match"] = mt
+	if String(c.get("curve", "linear")) in CURVES and String(c.get("curve", "linear")) != "linear":
+		out["curve"] = String(c["curve"])   # L79: written only when not linear
 	if bool(c.get("inplace", false)):
 		out["inplace"] = true   # W08: IN PLACE, the hips' floor travel taken out (written only when on)
 	if not out["type"] in TYPES:
@@ -475,9 +491,9 @@ static func at(c: Dictionary, L: float, t: float) -> Dictionary:
 		lt = fposmod(u, L)
 	var w := inf
 	if bi > 0.0:
-		w *= clampf((t - s0) / bi, 0.0, 1.0)
+		w *= ramp(String(c.get("curve", "linear")), (t - s0) / bi)
 	if bo > 0.0:
-		w *= clampf((E - t) / bo, 0.0, 1.0)
+		w *= ramp(String(c.get("curve", "linear")), (E - t) / bo)
 	return {"lt": lt, "k": k, "w": w}
 
 
