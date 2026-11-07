@@ -108,9 +108,11 @@ func max_diff(a: Array, b: Array) -> float:
 
 
 func xf_diff(a: Transform3D, b: Transform3D) -> float:
-	var m := (a.origin - b.origin).abs().max_value()
+	var d := (a.origin - b.origin).abs()
+	var m: float = maxf(maxf(d.x, d.y), d.z)
 	for i in 3:
-		m = maxf(m, (a.basis[i] - b.basis[i]).abs().max_value())
+		var e := (a.basis[i] - b.basis[i]).abs()
+		m = maxf(m, maxf(maxf(e.x, e.y), e.z))
 	return m
 
 
