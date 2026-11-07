@@ -75,6 +75,7 @@ func worst(p: Dictionary) -> float:
 
 ## colours read off a real page: every tint label, the Button theme, a rail's panel fill
 func sample() -> Dictionary:
+	m._say_plain(m.WELCOME)   # fixture: the status line's colour follows its message, so every sample shows the same one
 	var s := {"labels": [], "theme": {}}
 	for x in m.ui_tinted:
 		if is_instance_valid(x[0]):
@@ -213,6 +214,16 @@ func _init() -> void:
 	await process_frame
 	await process_frame
 	ok(Tok.mode() == "light" and same(sample(), light0), "B6 button on, button off: back to light, identical")
+	# planted: one token changed by 0.02 in light must make the same comparison fail, and putting it back must pass
+	var h0: Color = Tok._lt["heading"]
+	Tok._lt["heading"] = Color(h0.r + 0.02, h0.g, h0.b)
+	m._retheme()
+	await process_frame
+	ok(not same(sample(), light0), "B6 planted: heading token +0.02 in light is caught by the byte-identical comparison")
+	Tok._lt["heading"] = h0
+	m._retheme()
+	await process_frame
+	ok(same(sample(), light0), "B6 planted: token put back, identical again")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	ok(FileAccess.get_file_as_string("user://poser.cfg") == real, "B7 the user's user://poser.cfg untouched")
 	print("THEMEHC TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
