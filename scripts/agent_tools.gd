@@ -15,7 +15,7 @@ const POINTS := ["head", "pelvis", "spine_03", "upperarm_l", "upperarm_r", "lowe
 const METHODS := ["commands", "open", "new", "run", "pose", "state", "measure", "describe", "ask", "check", "diff", "validate", "save", "quit", "assert", "events", "where", "place", "facts", "brief", "dry", "text_view", "lint", "frame_data"]
 ## C06: the methods the MCP server advertises on top of METHODS. They are NOT in METHODS: its list is the "ready" line and the -32601 text of the
 ## byte-for-byte transcript (refs/agent/serve_transcript.jsonl), which tests/agent_tools_test.gd replays. tools/mcp/poser_mcp.py names each of these (advertised with --math / POSER_MCP_MATH=1)
-const MCP_EXTRA := ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets", "animtools", "anykey", "bake_any", "euler_warp", "react_time", "react_place", "weight_slider", "clip_print", "rig_anim", "fps_wave", "spacing", "jump_budget", "grip_hold", "floor", "injury", "sway_trace", "stance_map", "strength_curve"]
+const MCP_EXTRA := ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets", "animtools", "anykey", "bake_any", "euler_warp", "react_time", "react_place", "weight_slider", "clip_print", "rig_anim", "fps_wave", "spacing", "jump_budget", "grip_hold", "floor", "injury", "sway_trace", "stance_map", "strength_curve", "proportion_breaks", "can_stand", "looks_strong"]
 ## MCPFAST: the CAD tools (scripts/build/mcp_cad.gd); advertised with --cad
 const MCP_CAD := ["cad_part", "cad_asm", "check_fit", "bom", "eval_gd", "cad_reset"]
 
@@ -487,6 +487,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"spacing":   # L96: spacing chart from a tracked reference {action: read|match, joint, ref, landmark?}; match = ONE undo step, keys fixed (scripts/spacing_chart.gd). Not in METHODS
 			var spr := SpacingChart.serve(m, p)
 			return _ok(id, spr["result"]) if spr["ok"] else _err(id, -32602, String(spr["error"]))
+		"proportion_breaks", "can_stand", "looks_strong":   # L102: N056 style breaks, N058 square-cube stand check, N060 muscle girth vs torque; read-only (scripts/body_check.gd). Not in METHODS
+			var bcr := BodyCheck.serve(String(method), m, p)
+			return _ok(id, bcr["result"]) if bcr["ok"] else _err(id, -32602, String(bcr["error"]))
 		"jump_budget", "grip_hold":   # L97: N030 take-off power vs CMJ norms, N032 grip force vs grip norms; read-only (scripts/body_limits.gd). Not in METHODS
 			var blr := BodyLimits.serve(String(method), m, p)
 			return _ok(id, blr["result"]) if blr["ok"] else _err(id, -32602, String(blr["error"]))
