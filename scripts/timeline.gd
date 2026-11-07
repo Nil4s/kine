@@ -730,6 +730,12 @@ func _draw_audio_lanes(S: Scene, font: Font) -> void:
 		_draw_beats(S, y0 + mi * LANE_H, LANE_H - 1.0, float(S.audio_tracks[mi]["offset"]))
 
 
+## L14: the lane's (x, peak) columns, the ones _draw_lane draws; the graph editor's waveform reads the same AudioTrack.columns
+func lane_columns(S: Scene, i: int, env: Dictionary) -> PackedVector2Array:
+	var off := float(S.audio_tracks[i].get("offset", 0.0))
+	return AudioTrack.columns(env, off, maxf(x_of(off), 0.0), minf(x_of(off + float(env.get("length", 0.0))), size.x), t_of)
+
+
 func _draw_lane(S: Scene, font: Font, i: int, y: float, h: float) -> void:
 	var t: Dictionary = S.audio_tracks[i]
 	var env: Dictionary = m.audio_envs[i] if i < m.audio_envs.size() else {}
@@ -742,13 +748,9 @@ func _draw_lane(S: Scene, font: Font, i: int, y: float, h: float) -> void:
 	if env.get("ok", false) and not muted:
 		var mid := y + h * 0.5
 		var col := Tok.of("ink:0.55")
-		var x := maxf(x0, 0.0)
-		var x1 := minf(x_of(off + len_s), size.x)
-		while x < x1:
-			var p := AudioTrack.peak(env, t_of(x) - off, t_of(x + 1.0) - off)
-			var hh := maxf(p * h * 0.5, 0.5)
-			draw_line(Vector2(x, mid - hh), Vector2(x, mid + hh), col, 1.0)
-			x += 1.0
+		for c in lane_columns(S, i, env):
+			var hh := maxf(c.y * h * 0.5, 0.5)
+			draw_line(Vector2(c.x, mid - hh), Vector2(c.x, mid + hh), col, 1.0)
 	elif not muted:
 		var wbar := maxf(x_of(off + len_s) - x0, 40.0) if len_s > 0.0 else 40.0
 		draw_rect(Rect2(maxf(x0, 0.0), y + h * 0.5 - 1.0, minf(wbar, size.x), 2.0), Tok.of("ink:0.4"))

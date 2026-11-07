@@ -291,6 +291,23 @@ static func peak(env: Dictionary, t0: float, t1: float) -> float:
 	return p
 
 
+## the columns of a waveform: (x, peak 0..1) for each pixel x0 <= x < x1 inside the sound (starting at `off` s, as long as env says),
+## t_of maps a pixel x to timeline seconds. The timeline's sound lane and the graph editor both draw from this.
+static func columns(env: Dictionary, off: float, x0: float, x1: float, t_of: Callable) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	if not env.get("ok", false):
+		return out
+	var len_s := float(env.get("length", 0.0))
+	var x := floorf(x0)
+	while x < x1:
+		var ta: float = t_of.call(x)
+		var tb: float = t_of.call(x + 1.0)
+		if tb >= off and ta <= off + len_s:
+			out.append(Vector2(x, peak(env, ta - off, tb - off)))
+		x += 1.0
+	return out
+
+
 ## a 1 kHz-style test tone: 16-bit mono PCM bytes with a silent gap (the test writes it as a WAV)
 static func sine_wav_bytes(rate: int, seconds: float, hz: float, amp: float, gap_a: float, gap_b: float) -> PackedByteArray:
 	var n := int(seconds * rate)

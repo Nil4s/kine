@@ -47,6 +47,9 @@ const VIEWS := ["plain", "normal", "stacked"]
 const VIEW_NAMES := {"plain": "View: degrees", "normal": "View: -1..1", "stacked": "View: lanes"}
 var _rng := [Vector2(-1, 1), Vector2(-1, 1), Vector2(-1, 1)]   # DD3: each angle's range (lo, hi) in the fitted views
 var _view_btn: Button
+var _wave_btn: Button
+var wave_on := false          # L14: the sound's waveform drawn under the curves (a view toggle; nothing is saved)
+var wave_envs: Array = []     # L14: per audio track, AudioTrack.envelope of its file (main.audio_envs); the track list is scene.audio_tracks
 var _mods: MenuButton       # DD2: the curve modifiers (Blender's F-Curve modifiers: noise, stepped, limits)
 const MOD_ITEMS := ["Add noise", "Add stepped (on twos)", "Add limits (the keys' range)", "Mix of the last = factor (0..1)", "Remove the last"]
 var last_shape := {}        # DD1: the last tool's report {"tool", "changed", "skipped"}
@@ -128,6 +131,16 @@ func _init() -> void:
 		_view_btn.add_theme_stylebox_override(st, flat_box)
 	_view_btn.pressed.connect(func(): set_view(VIEWS[(VIEWS.find(view) + 1) % VIEWS.size()]))
 	add_child(_view_btn)
+	_wave_btn = Button.new()
+	_wave_btn.text = "Wave"
+	_wave_btn.toggle_mode = true
+	_wave_btn.tooltip_text = "draw the sound track's waveform under the curves (the same peaks as the timeline's sound lane)"
+	_wave_btn.focus_mode = Control.FOCUS_NONE
+	_wave_btn.add_theme_font_size_override("font_size", 11)
+	for st in ["normal", "hover", "pressed", "focus"]:
+		_wave_btn.add_theme_stylebox_override(st, flat_box)
+	_wave_btn.toggled.connect(func(on): wave_on = on; queue_redraw())
+	add_child(_wave_btn)
 	_unify = _tan_button("Unify", "the picked key's two tangent handles share one slope per angle (a smooth pass through the key); drag a handle's end to set its angle and its length (how long the curve keeps the slope)", true)
 	_break = _tan_button("Break", "the picked key's two tangent handles move apart: a corner at the key (angle and length of each side on its own)", false)
 
@@ -210,10 +223,48 @@ func _notification(what: int) -> void:
 			_factor.position = Vector2(_shape.position.x + _shape.size.x + 4, 1)
 			_mods.position = Vector2(_factor.position.x + _factor.size.x + 8, 1)
 			_view_btn.position = Vector2(_mods.position.x + _mods.size.x + 8, 1)
+			_wave_btn.reset_size()
+			_wave_btn.position = Vector2(_view_btn.position.x + _view_btn.size.x + 8, 1)
 			_unify.reset_size()
 			_break.reset_size()
-			_unify.position = Vector2(_view_btn.position.x + _view_btn.size.x + 8, 1)
+			_unify.position = Vector2(_wave_btn.position.x + _wave_btn.size.x + 8, 1)
 			_break.position = Vector2(_unify.position.x + _unify.size.x + 2, 1)
+
+
+## L14 THE SOUND UNDER THE CURVES: one (x, peak 0..1) per pixel column of the plot, the loudest of the audible tracks there, from the
+## same AudioTrack.peak the timeline's sound lane reads (AudioTrack.columns), so the two line up. Empty when the toggle is off or there is no sound.
+func wave_columns() -> PackedVector2Array:
+	var out := PackedVector2Array()
+	if not wave_on or scene == null or scene.audio_tracks.is_empty():
+		return out
+	var p := plot()
+	var aud := AudioTrack.audible(scene.audio_tracks)
+	var any := false
+	for i in scene.audio_tracks.size():
+		if i >= wave_envs.size() or not aud[i] or not (wave_envs[i] as Dictionary).get("ok", false):
+			continue
+		var cols := AudioTrack.columns(wave_envs[i], float(scene.audio_tracks[i].get("offset", 0.0)), p.position.x, p.end.x, x_to_t)
+		if not any:
+			out = cols
+			any = true
+		else:
+			for k in mini(out.size(), cols.size()):
+				out[k].y = maxf(out[k].y, cols[k].y)
+	return out
+
+
+## the segments (pairs of ends) wave_columns() is drawn as: a vertical bar about the plot's middle per loud column, inside the plot
+func wave_lines() -> PackedVector2Array:
+	var out := PackedVector2Array()
+	var p := plot()
+	var mid := p.position.y + p.size.y * 0.5
+	for c in wave_columns():
+		if c.y <= 0.0:
+			continue
+		var h := minf(c.y, 1.0) * p.size.y * 0.5
+		out.append(Vector2(c.x, mid - h))
+		out.append(Vector2(c.x, mid + h))
+	return out
 
 
 ## DD1: reshape the selected dots with a Key > Blend tool (KeyBlend), one undo step; the angles kept legal
@@ -553,6 +604,8 @@ func _draw() -> void:
 		draw_line(Vector2(ph, p.position.y), Vector2(ph, p.end.y), Tok.c("say"), 1.5)
 	draw_string(f, Vector2(p.position.x, size.y - 5), "%.2f s" % t0, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Tok.dim(0.7))
 	draw_string(f, Vector2(p.end.x - 40, size.y - 5), "%.2f s" % t1, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Tok.dim(0.7))
+	if wave_on:
+		draw_multiline(wave_lines(), Color(ink, 0.2), 1.0)
 	_draw_band()
 	_draw_why()
 	if ks.is_empty() and band.get("ok", false):

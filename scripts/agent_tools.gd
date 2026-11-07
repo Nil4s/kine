@@ -15,7 +15,7 @@ const POINTS := ["head", "pelvis", "spine_03", "upperarm_l", "upperarm_r", "lowe
 const METHODS := ["commands", "open", "new", "run", "pose", "state", "measure", "describe", "ask", "check", "diff", "validate", "save", "quit", "assert", "events", "where", "place", "facts", "brief", "dry", "text_view", "lint", "frame_data"]
 ## C06: the methods the MCP server advertises on top of METHODS. They are NOT in METHODS: its list is the "ready" line and the -32601 text of the
 ## byte-for-byte transcript (refs/agent/serve_transcript.jsonl), which tests/agent_tools_test.gd replays. tools/mcp/poser_mcp.py names each of these (advertised with --math / POSER_MCP_MATH=1)
-const MCP_EXTRA := ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets", "animtools", "anykey", "bake_any", "euler_warp", "react_time", "react_place", "weight_slider", "clip_print", "rig_anim"]
+const MCP_EXTRA := ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets", "animtools", "anykey", "bake_any", "euler_warp", "react_time", "react_place", "weight_slider", "clip_print", "rig_anim", "fps_wave"]
 ## MCPFAST: the CAD tools (scripts/build/mcp_cad.gd); advertised with --cad
 const MCP_CAD := ["cad_part", "cad_asm", "check_fit", "bom", "eval_gd", "cad_reset"]
 
@@ -475,6 +475,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"rig_anim":   # L91: animation tools + mirror on the scene's own (custom) rig {action: key|breakdown|retime|curve|pairs|mirror} (scripts/rig_anim_serve.gd). Not in METHODS
 			var rar := RigAnimServe.serve(m, p)
 			return _ok(id, rar["result"]) if rar["ok"] else _err(id, -32602, String(rar["error"]))
+		"fps_wave":   # L92: frame-rate conversion that keeps every key's exact time (convert fps snap?; one undo step) and the graph editor's waveform toggle (wave on?) (scripts/fps_wave.gd). Not in METHODS
+			var fwr := FpsWave.serve(m, p)
+			return _ok(id, fwr["result"]) if fwr["ok"] else _err(id, -32602, String(fwr["error"]))
 		"sockets":   # N089: the five engine sockets (weapon_r, weapon_l, back_sheath, hip_holster_r, head_fx) placed from the anatomy of a preset body {preset?, mass?} (scripts/sockets_serve.gd). Not in METHODS
 			var skr := SocketsServe.serve(m, p)
 			return _ok(id, skr["result"]) if skr["ok"] else _err(id, -32602, String(skr["error"]))
