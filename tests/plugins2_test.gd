@@ -137,7 +137,7 @@ func _init() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(PROJ))
 	m.plugins.configure([ROOT, "res://examples/plugins"], STATE, DATA)
 	m.plugins.project_root = PROJ
-	m.plugins.timeout_ms = 700
+	m.plugins.timeout_ms = 20000   # generous: the machine is shared; the loop cases below set 700
 	m.plugins.scan()
 	fresh_scene()
 
@@ -224,6 +224,7 @@ func _init() -> void:
 	ok(scene_json() == before and m.undo.size() == u0, "its 2 edits are rolled back: scene bytes and undo count (%d) as before" % u0)
 
 	for spin in ["spin", "spinapi"]:
+		m.plugins.timeout_ms = 700
 		install_enable(spin, FIX + spin)
 		before = scene_json()
 		u0 = m.undo.size()
@@ -245,6 +246,7 @@ func _init() -> void:
 		ok(m.undo.size() == u0 + 1 and String(m.ui_status.text).contains("one undo step"), "%s: the next command still runs and is one undo step" % spin)
 		m._undo()
 		ok(scene_json() == before, "%s: and Ctrl+Z still works" % spin)
+	m.plugins.timeout_ms = 20000
 	ok(m.is_inside_tree() and m.S.cards.size() == 3, "the app is still running with its scene")
 
 	# ---- PERMISSIONS -------------------------------------------------------------------------------------------------------
