@@ -5660,6 +5660,8 @@ func _place(mi: MeshInstance3D, a: Vector3, b: Vector3, r: float, capsule := tru
 
 
 func _refresh() -> void:
+	if uiw != null:
+		uiw.refresh()   # L95: the quaternion readout follows the playhead and the picked part
 	var _rf := PerfDoc.t()
 	var _rx := _rf
 	if ic_ui != null:
@@ -10015,6 +10017,7 @@ func _kmesh_edit_start() -> void:
 		return
 	_mesh_page_for("MODEL")
 	kmed.start()
+	UiWire.register(self)   # L95: the cube is a registered mesh for AnyKey
 	_mesh_show_sync()
 
 
@@ -10058,7 +10061,9 @@ func _sculpt_start() -> void:
 		_say("The test sphere is already open: drag on it to sculpt, or press Esc to leave")
 		return
 	_mesh_page_for("SCULPT")
-	ksc.start()   # the test cube, if it is open, is kept and hidden on this page (set_showing): the sphere gets the strokes
+	ksc.start()
+	UiWire.register(self)   # L95
+	# the test cube, if it is open, is kept and hidden on this page (set_showing): the sphere gets the strokes
 	_mesh_show_sync()
 
 
@@ -11110,12 +11115,24 @@ func _bake() -> void:
 
 ## ANY KEY (L13/L15, scripts/any_key.gd): key a shape-key weight or any registered property at the playhead, one undo step
 func _anykey_put(id: String, v: Variant) -> void:
+	UiWire.register(self)   # L95: the registries follow the stage's real objects
 	_step_hint = "Key " + AnyKey.label(id)
 	_push_undo()
 	AnyKey.put(S, id, playhead, v)
 	AnyKey.play(S, playhead)
 	_refresh()
 	_say("keyed %s = %s at %.2f s (Ctrl+Z takes it back)" % [AnyKey.label(id), str(v), playhead])
+	_uiw().after_key(id)   # L95: an id with no registered target is said out loud, not silently dropped
+
+
+## L95 UIWIRE (scripts/ui_wire.gd): the wire panel and its palette commands, made on first use
+var uiw: UiWire
+
+
+func _uiw() -> UiWire:
+	if uiw == null:
+		uiw = UiWire.new(self)
+	return uiw
 
 
 ## BAKE FROM ANYTHING (L16): constraints / drivers sampled per frame f0..f1 into plain part keys, optionally removing the source, ONE undo step
@@ -11316,9 +11333,10 @@ var _why_all := []   # DD5: every HITCH / TIP SPEED span of the open scene (Why.
 func _curve_sync() -> void:
 	if ui_curve == null or not ui_curve.visible:
 		return
-	var moved: bool = ui_curve.scene != S or ui_curve.joint != sel
+	var moved: bool = ui_curve.scene != S or (ui_curve.joint != sel and not ui_curve.au)
 	ui_curve.scene = S
-	ui_curve.joint = sel
+	if not ui_curve.au:   # L94/L95: in au mode the editor stays on the picked face channel
+		ui_curve.joint = sel
 	ui_curve.playhead = playhead
 	ui_curve.fps = S.fps
 	ui_curve.card_times = S.times().map(func(x): return float(x[1]))   # DD0: Ctrl-snap to the cards
@@ -11334,7 +11352,11 @@ func _curve_sync() -> void:
 		_why_sig = wsig
 		_why_all = Why.spans(S, ov.GB)
 	ui_curve.why = Why.for_joint(_why_all, sel)
+	if ui_curve.au:
+		ui_curve.band = {}
+		ui_curve.why = []
 	if moved:
+		ui_curve.ghost_clear()   # L95: a ghost belongs to the curve it was taken from
 		ui_curve.sel_i = -1
 		ui_curve.picked = []   # DD0: a new part, a new set of dots (the old [angle, index] pairs meant the old part's keys)
 		ui_curve.frame_all()
@@ -17639,6 +17661,7 @@ func _commands() -> Array:
 	add.call("Secondary: clear", "", _sec_clear, "secondary clear remove off delete chain", true, "takes every secondary item and its keys off the scene (Ctrl+Z puts them back)")
 	add.call("Driver: factor -1", "", _drv_factor.bind(-1.0), "driver factor negative mirror invert opposite", true, "the picked part's driver: it moves the opposite way to its source")
 	add.call("Driver: remove the picked part's driver", "", _drv_remove, "driver delete remove clear", true, "the picked part stops following its source (its angle is the card's again)")
+	_uiw().commands(add)   # L95 UIWIRE: Key this property, rig mirror, react, mass slider, quaternion readout (scripts/ui_wire.gd)
 	_shot_commands(add)   # THE SHOT CAMERA (shot_camera.gd)
 	if clips_ui == null:
 		clips_ui = ClipsUI.new(self)
@@ -26118,6 +26141,9 @@ func _open_scene_dict(path: String, d: Dictionary, work: bool, built := false) -
 		if journal_on:
 			journal.trim()   # ... and its journal goes with it
 	_props_show()   # the opened scene's set is drawn now (a load used to leave the props out of the view until the next edit)
+	UiWire.register(self)   # L95: the stage's lights / floor / skin are AnyKey targets for the scene just opened
+	if not S.anykeys.is_empty() or uiw != null:
+		_uiw().after_open()
 	S.apply(B, 0.0)
 	_home_refit()   # C62: a scene opened under the untouched home view is framed for ITS body
 	_home_refit.call_deferred()   # ... and again once its first pose has settled

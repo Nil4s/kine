@@ -63,6 +63,9 @@ var say: Callable = Callable()      # (text) -> void: the status line (the Unify
 var _hd := []           # ROADMAP 65: the handle being dragged [angle, key index, "in" | "out"], [] = none
 var _unify: Button
 var _break: Button
+var _ghost_btn: Button      # L95: shows the buffer curve behind the live one (ghost_keys)
+var _au_pick: OptionButton  # L95: "Part keys" | a face AU channel (puts the editor in au mode)
+var _interp: MenuButton     # L95: key interpolation (bezier / constant / linear / slerp) and slerp on the whole part
 var band := {}   # YY7: GaitBand.for_part() of the picked part (the people's band + the body's own line), {} = none
 
 
@@ -142,6 +145,41 @@ func _init() -> void:
 		_wave_btn.add_theme_stylebox_override(st, flat_box)
 	_wave_btn.toggled.connect(func(on): wave_on = on; queue_redraw())
 	add_child(_wave_btn)
+	_ghost_btn = Button.new()
+	_ghost_btn.text = "Ghost"
+	_ghost_btn.toggle_mode = true
+	_ghost_btn.tooltip_text = "show a buffer copy of this curve faintly behind it (the newest buffer of this part, else one taken now) so you can compare while you edit; off hides it"
+	_ghost_btn.focus_mode = Control.FOCUS_NONE
+	_ghost_btn.add_theme_font_size_override("font_size", 11)
+	for st in ["normal", "hover", "pressed", "focus"]:
+		_ghost_btn.add_theme_stylebox_override(st, flat_box)
+	_ghost_btn.toggled.connect(ghost_toggle)
+	add_child(_ghost_btn)
+	_interp = MenuButton.new()
+	_interp.text = "Interp"
+	_interp.flat = false
+	_interp.tooltip_text = "how the picked keys leave toward the next key (bezier / constant / linear / slerp = the shortest quaternion arc), or slerp on the whole part"
+	_interp.focus_mode = Control.FOCUS_NONE
+	_interp.add_theme_font_size_override("font_size", 11)
+	for st in ["normal", "hover", "pressed", "focus"]:
+		_interp.add_theme_stylebox_override(st, flat_box)
+	for k in PartKeys.INTERPS.size():
+		_interp.get_popup().add_item(PartKeys.INTERPS[k], k)
+	_interp.get_popup().add_item("Slerp the whole part: on", 10)
+	_interp.get_popup().add_item("Slerp the whole part: off", 11)
+	_interp.get_popup().id_pressed.connect(interp_item)
+	add_child(_interp)
+	_au_pick = OptionButton.new()
+	_au_pick.tooltip_text = "which curve: the picked part's keys, or one face channel (an AU: brows, jaw, eyes, visemes), drawn clamped to its range"
+	_au_pick.focus_mode = Control.FOCUS_NONE
+	_au_pick.add_theme_font_size_override("font_size", 11)
+	for st in ["normal", "hover", "pressed", "focus"]:
+		_au_pick.add_theme_stylebox_override(st, flat_box)
+	_au_pick.add_item("Part keys")
+	for ch in Face.CHANNELS:
+		_au_pick.add_item(String(ch))
+	_au_pick.item_selected.connect(func(i): set_au("" if i <= 0 else _au_pick.get_item_text(i)))
+	add_child(_au_pick)
 	_unify = _tan_button("Unify", "the picked key's two tangent handles share one slope per angle (a smooth pass through the key); drag a handle's end to set its angle and its length (how long the curve keeps the slope)", true)
 	_break = _tan_button("Break", "the picked key's two tangent handles move apart: a corner at the key (angle and length of each side on its own)", false)
 
@@ -163,6 +201,89 @@ func _tan_button(txt: String, tip: String, unify: bool) -> Button:
 	b.pressed.connect(tangent_cmd.bind(unify))
 	add_child(b)
 	return b
+
+
+## L95: Ghost, Interp and the channel picker in a row from x
+func place_extra(x: float) -> float:
+	for c in [_ghost_btn, _interp, _au_pick]:
+		if c == null:
+			continue
+		c.reset_size()
+		c.position = Vector2(x, 1)
+		x += c.size.x + 8
+	return x
+
+
+## L95: the Ghost toggle. On: the newest buffer curve of this joint (CurveBuffer, the same slots the curve_graph tool fills), else one taken now
+## (no undo step: the scene does not change). Off: hidden.
+func ghost_toggle(on: bool) -> void:
+	if not on or scene == null or keys().is_empty():
+		ghost_keys = []
+		if on:
+			_ghost_btn.set_pressed_no_signal(false)
+			if say.is_valid():
+				say.call("Ghost: there are no keys on this curve to copy yet")
+		queue_redraw()
+		return
+	var slot := -1
+	for i in range(CurveBuffer.slots.size() - 1, -1, -1):
+		if CurveBuffer.slots[i]["joint"] == joint and not (CurveBuffer.slots[i]["keys"] as Array).is_empty():
+			slot = i
+			break
+	if slot < 0:
+		slot = CurveBuffer.snapshot(_store(), joint)
+	ghost_keys = (CurveBuffer.keys_of(slot) as Array).duplicate(true)
+	queue_redraw()
+
+
+func ghost_clear() -> void:
+	ghost_keys = []
+	if _ghost_btn != null:
+		_ghost_btn.set_pressed_no_signal(false)
+
+
+## L95: the channel picker: "" = the picked part's keys (main sets joint), else a face channel (au mode, scene.face)
+func set_au(ch: String) -> void:
+	au = ch != ""
+	if au:
+		joint = ch
+	picked = []
+	sel_i = -1
+	sel_ch = -1
+	ghost_clear()
+	frame_all()
+	queue_redraw()
+
+
+## L95: the Interp menu. 0..3 = PartKeys.INTERPS on the picked keys; 10 / 11 = slerp on / off on every key of the part (the tool euler_warp slerp). One undo step
+func interp_item(id: int) -> void:
+	if scene == null or joint == "" or keys().is_empty():
+		if say.is_valid():
+			say.call("Interp: this curve has no keys")
+		return
+	if id >= 10:
+		if au or keys().size() < 2:
+			if say.is_valid():
+				say.call("Slerp: needs a body part with two keys or more (not a face channel)")
+			return
+		if begin.is_valid():
+			begin.call()
+		QuatCurve.set_slerp(_store(), [joint], id == 10)
+	else:
+		var idxs := picked_keys()
+		if idxs.is_empty() and sel_i >= 0:
+			idxs = [sel_i]
+		if idxs.is_empty():
+			if say.is_valid():
+				say.call("Interp: pick keys first (click a dot), then choose how they leave")
+			return
+		if begin.is_valid():
+			begin.call()
+		for i in idxs:
+			PartKeys.set_interp(_store(), joint, i, PartKeys.INTERPS[id])
+	queue_redraw()
+	if changed.is_valid():
+		changed.call()
 
 
 ## ROADMAP 65: Unify / Break on the picked key (the key under the last click, else the first picked dot), one undo step
@@ -230,6 +351,7 @@ func _notification(what: int) -> void:
 			_break.reset_size()
 			_unify.position = Vector2(_wave_btn.position.x + _wave_btn.size.x + 8, 1)
 			_break.position = Vector2(_unify.position.x + _unify.size.x + 2, 1)
+			place_extra(_break.position.x + _break.size.x + 8)
 
 
 ## L14 THE SOUND UNDER THE CURVES: one (x, peak 0..1) per pixel column of the plot, the loudest of the audible tracks there, from the
@@ -724,7 +846,7 @@ func _gui_input(ev: InputEvent) -> void:
 			var hh := pick_handle(mb.position)
 			if not hh.is_empty() and hit[1] < 0:
 				_hd = hh
-				_mode = "handle"
+				_mode = "weight" if mb.alt_pressed else "handle"   # L95: Alt-drag sets the tangent weight
 				queue_redraw()
 				accept_event()
 				return
@@ -776,6 +898,8 @@ func _gui_input(ev: InputEvent) -> void:
 				begin.call()
 		if _mode == "handle":
 			drag_handle(mm.position)
+		elif _mode == "weight":
+			drag_weight(mm.position)
 		elif _mode == "scale":
 			scale_picked(1.0 + (mm.position.x - _press.x) / 150.0, 1.0 - (mm.position.y - _press.y) / 150.0)
 		else:
@@ -821,6 +945,28 @@ func drag_handle(at: Vector2) -> void:
 	if (x_to_t(at.x) < float(k["t"])) != (side == "in"):
 		len = 0.0   # a handle dragged across its key has no length: it stops at the shortest
 	PartKeys.set_tangent(_store(), joint, i, side, c, len, dv)
+	queue_redraw()
+	if changed.is_valid():
+		changed.call()
+
+
+## L95: Alt-drag on a handle: its end's distance in time from the key, as a multiple of a third of the segment, is the WEIGHT (win / wout; the
+## slope stays). Same maths as the tool curve_graph weight (PartKeys.set_weight)
+func drag_weight(at: Vector2) -> void:
+	if _hd.is_empty() or scene == null:
+		return
+	var i: int = _hd[1]
+	var side: String = _hd[2]
+	var ks := keys()
+	var nb := i - 1 if side == "in" else i + 1
+	if i < 0 or i >= ks.size() or nb < 0 or nb >= ks.size():
+		return
+	var tk := float(ks[i]["t"])
+	var seg := absf(float(ks[nb]["t"]) - tk)
+	var len := absf(x_to_t(at.x) - tk)
+	if (x_to_t(at.x) < tk) != (side == "in"):
+		len = 0.0
+	PartKeys.set_weight(_store(), joint, i, side, len / maxf(seg / 3.0, 1e-9))
 	queue_redraw()
 	if changed.is_valid():
 		changed.call()

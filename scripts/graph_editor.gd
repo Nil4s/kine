@@ -96,6 +96,7 @@ func _place() -> void:
 	_keys_menu.reset_size()
 	_multi_btn.position = Vector2(_break.position.x + _break.size.x + 8, 1)   # ROADMAP 65: after Unify / Break
 	_keys_menu.position = Vector2(_multi_btn.position.x + _multi_btn.size.x + 8, 1)
+	place_extra(_keys_menu.position.x + _keys_menu.size.x + 8)   # L95: Ghost, Interp, channel picker
 
 
 func set_multi(on: bool) -> void:
