@@ -45,6 +45,8 @@ var over := {}              # command id -> key ("" = unbound), only where it di
 var capture := ""           # the command id waiting for its new key ("" = not editing a key)
 var pending := ""           # a key that conflicted: the same key again moves it
 var synth := ""             # the built-in key of the command being run from a key: main's own match runs it
+var scoped := PageKeys.new()   # P06: keys bound globally or to one page (scripts/page_keys.gd), consulted first by dispatch
+var learn := CmdLearn.new()    # P18: how often each command runs (scripts/cmd_learn.gd)
 var hold := -1              # keycode of the ? that is down (the cheat sheet hides when it is released)
 var ui: PanelContainer      # the editor (built on first open)
 var search: LineEdit
@@ -291,6 +293,13 @@ func dispatch(k: InputEventKey) -> bool:
 	if combo == "" or combo == synth:
 		return false
 	var cmds: Array = m.ui_cmd.commands
+	var sid := scoped.resolve(combo, String(m.cur_page).to_lower())
+	if sid != "":
+		var sc := _find(cmds, sid)
+		if not sc.is_empty():
+			learn.record(sid)
+			(sc["run"] as Callable).call()
+			return true
 	var c := holder(cmds, combo)
 	if c.is_empty():
 		return not built_in(cmds, combo).is_empty()   # its key moved away or was unbound: the built-in key does nothing
