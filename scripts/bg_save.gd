@@ -151,8 +151,7 @@ func _finish() -> void:
 func wait_all() -> void:
 	while busy():
 		if _task >= 0:
-			WorkerThreadPool.wait_for_task_completion(_task)
-			_finish()
+			_finish()   # waits for the task itself
 		else:
 			_start_next()
 
