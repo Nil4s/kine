@@ -337,6 +337,7 @@ func show_screen(at_boot := false) -> void:
 		build()
 	_fit()
 	_refresh()
+	_access_sync()
 	visible = true
 	_relayout()
 	move_to_front()
@@ -939,6 +940,22 @@ func _access_rows() -> VBoxContainer:
 		AccessPrefs.save("pie", on))
 	v.add_child(pie)
 	return v
+
+
+## the Settings rows show the live state (the remembered choices are applied at boot, maybe after this screen was built)
+func _access_sync() -> void:
+	var fs := find_child("settings_font_scale", true, false) as OptionButton
+	if fs != null:
+		fs.select(maxi(0, AccessPrefs.SCALES.find(Access.scale)))
+	var cb := find_child("settings_colourblind", true, false) as CheckBox
+	if cb != null:
+		cb.set_pressed_no_signal(Access.cb)
+	var un := find_child("settings_unit", true, false) as OptionButton
+	if un != null:
+		un.select(maxi(0, Units.UNITS.find(Units.unit)))
+	var pie := find_child("settings_pie", true, false) as CheckBox
+	if pie != null:
+		pie.set_pressed_no_signal(bool(m.pie_on))
 
 
 func _lang_row() -> HBoxContainer:
