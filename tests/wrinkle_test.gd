@@ -190,6 +190,15 @@ func _init() -> void:
 		var e := energy_in(d, wc[k], masks[k])
 		var lit := max_delta(d, wc[k], masks[k])
 		ok(float(e["frac"]) >= 0.80 and lit >= 0.15, "W2 %s: %.1f %% of the wrinkle energy inside its region (>= 80), max normal delta there %.3f (>= 0.15)" % [k, float(e["frac"]) * 100.0, lit])
+	for k in cases:
+		var zs := [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+		var zt: PackedByteArray = FaceWrinkle.zones(d)["zt"]
+		var am: PackedFloat32Array = wc[k]["amp"]
+		var tt := 0.0
+		for i in zt.size():
+			zs[zt[i]] += am[i] * am[i]
+			tt += am[i] * am[i]
+		print("diag %s energy by zone (fh gl crow nl bunny, none): %s" % [k, str(zs.map(func(x): return snappedf(x / maxf(tt, 1e-9), 0.01)))])
 	var other := {"AU1": "AU12", "AU4": "AU1", "AU6": "AU9", "AU12": "AU6", "AU9": "AU4"}
 	for k in cases:
 		var ec := energy_in(d, wc[k], masks[other[k]])
@@ -233,6 +242,19 @@ func _init() -> void:
 	var cans := [Vector2(hx + 0.015 * s, ey), Vector2(-(hx + 0.015 * s), ey)]
 	var oc := orient(d, wc["AU6"], masks["AU6"], 0.0, cans)
 	ok(deg(float(oc["rad"])) <= 20.0, "W3 crow's feet: mean angle to the radial from the lateral canthus %.1f deg (<= 20)" % deg(float(oc["rad"])))
+	var sec := {"lat": [0.0, 0.0], "ver": [0.0, 0.0]}
+	for i in (d["verts"] as PackedVector3Array).size():
+		var am2 := float((wc["AU6"]["amp"] as PackedFloat32Array)[i])
+		var p3: Vector3 = (d["verts"] as PackedVector3Array)[i]
+		if am2 < 0.05 or not masks["AU6"].call(p3):
+			continue
+		var cn: Vector2 = cans[0] if p3.x > 0.0 else cans[1]
+		var rv := Vector2(p3.x - cn.x, p3.y - cn.y)
+		var dr: Vector3 = (wc["AU6"]["dir"] as PackedVector3Array)[i]
+		var key := "lat" if absf(rv.x) > absf(rv.y) else "ver"
+		sec[key][0] += am2 * deg(axial_diff(atan2(dr.y, dr.x), atan2(rv.y, rv.x)))
+		sec[key][1] += am2
+	print("diag crow's feet deviation lateral sector %.1f deg (weight %.1f), vertical sectors %.1f deg (weight %.1f)" % [sec["lat"][0] / maxf(sec["lat"][1], 1e-9), sec["lat"][1], sec["ver"][0] / maxf(sec["ver"][1], 1e-9), sec["ver"][1]])
 	var occ := orient(d, wc["AU6"], masks["AU6"], PI * 0.5, cans)
 	ok(deg(float(occ["rad"])) > 20.0, "W3 CONTROL crow's feet turned 90 deg: %.1f deg (> 20), caught" % deg(float(occ["rad"])))
 	# nasolabial: the line wing -> corner, mirrored to the left side (x > 0); the right side is its mirror, so fold both onto one axis
@@ -276,10 +298,32 @@ func _init() -> void:
 		dc = maxf(dc, absf(float((wn["comp"] as PackedFloat32Array)[i]) - float((wg["comp"] as PackedFloat32Array)[i])))
 		if float((wg["comp"] as PackedFloat32Array)[i]) > 0.01:
 			dd2 = maxf(dd2, ((wn["dir"] as PackedVector3Array)[i] - (wg["dir"] as PackedVector3Array)[i]).length())
+	var dv := 0.0
+	for i in (wn["verts"] as PackedVector3Array).size():
+		dv = maxf(dv, ((wn["verts"] as PackedVector3Array)[i] - (wg["verts"] as PackedVector3Array)[i]).length())
+	ok(dv <= 1.0e-7, "W9 the native blend of the AUs == FaceWrinkle.posed (GDScript): max vertex difference %.10f m (<= 1e-7)" % dv)
 	ok(bool(WR.call("native_available")) and bool(wn["native"]) and not bool(wg["native"]), "W6 native present and used (native %s, gd %s)" % [str(wn["native"]), str(wg["native"])])
-	ok(dc <= 1.0e-5 and dd2 <= 1.0e-4, "W6 native == GDScript twin: strain max diff %.2e (<= 1e-5), direction max diff %.2e (<= 1e-4)" % [dc, dd2])
+	ok(dc <= 1.0e-5 and dd2 <= 1.0e-4, "W6 native == GDScript twin: strain max diff %.8f (<= 1e-5), direction max diff %.8f (<= 1e-4)" % [dc, dd2])
 
 	# ---- W4 (CPU)
+	# diagnostics only (no bar): where the CPU time goes
+	var zz: Dictionary = WR.call("zones", d)
+	var door: GDScript = load("res://scripts/face_wrinkle_door.gd")
+	var rest0: PackedVector3Array = d["verts"]
+	var exa: Dictionary = WR.call("extra_au", d)
+	var dls := [(d["au"] as Dictionary)["AU1"], (d["au"] as Dictionary)["AU4"], (d["au"] as Dictionary)["AU6"], (d["au"] as Dictionary)["AU12"], exa["AU9"]]
+	var wts := PackedFloat32Array([0.5, 0.2, 0.5, 0.4, 0.2])
+	var prp: Dictionary = door.call("prep", rest0, zz["nrm"], d["tris"], zz["zt"])
+	var td0 := Time.get_ticks_usec()
+	var vv: PackedVector3Array
+	for k in 100:
+		vv = door.call("blend", rest0, dls, wts)
+	var td1 := Time.get_ticks_usec()
+	var par := PackedFloat64Array([0.0035, 0.02, 0.12, 1, 1, 1, 1, 1, 0.5])
+	for k in 100:
+		door.call("wrinkle", prp, vv, exa["AU6p"], zz["zt"], zz["zw"], par)
+	var td2 := Time.get_ticks_usec()
+	print("diag W4 native blend %.3f ms, native wrinkle %.3f ms, active vertices %d of %d" % [float(td1 - td0) / 100000.0, float(td2 - td1) / 100000.0, (prp["act"] as PackedInt32Array).size(), rest0.size()])
 	var cpu := []
 	for rep in 5:
 		var t0 := Time.get_ticks_usec()
@@ -319,6 +363,7 @@ func _init() -> void:
 	ok(float(rr["ratio"]) >= 2.0, "W8 forehead high-frequency energy AU1+2 / neutral = %.2f (>= 2.0)" % float(rr["ratio"]))
 	ok(float(rr["control"]) <= 1.2, "W8 CONTROL wrinkles off at AU1+2: ratio %.2f (<= 1.2)" % float(rr["control"]))
 
+	ok(float(rr["ratio"]) / maxf(float(rr["control"]), 1.0e-9) >= 3.0, "W8b (added after the W8 CONTROL result: that control counts the lit geometry of the raised brow too) wrinkles on / wrinkles off at the same AU1+2 geometry = %.2f (>= 3.0)" % (float(rr["ratio"]) / maxf(float(rr["control"]), 1.0e-9)))
 	print("WRINKLE TEST %s" % ["PASS" if fails == 0 else "FAIL %d" % fails])
 	print("wrinkle: %d fail" % fails)
 	quit(fails)
@@ -379,10 +424,10 @@ func make_studio(d: Dictionary, head_pts: PackedVector3Array, size: Vector2i, fo
 func set_state(st: Dictionary, d: Dictionary, state: Dictionary, wr_on: bool, amp_scale: float = 1.0) -> void:
 	var w: Dictionary = WR.call("compute", d, state)
 	if amp_scale != 1.0:
-		var a: PackedFloat32Array = w["amp"]
-		for i in a.size():
+		var a: PackedFloat32Array = w["c0"]
+		for i in range(3, a.size(), 4):
 			a[i] *= amp_scale
-		w["amp"] = a
+		w["c0"] = a
 	var vsp: PackedVector3Array = w["verts"]
 	(st["mask"] as MeshInstance3D).mesh = WR.call("mask_mesh", d, vsp, w)
 
@@ -449,6 +494,7 @@ func render_bars(d: Dictionary, head_pts: PackedVector3Array) -> Dictionary:
 		var sheet := Image.create(990, 330, false, Image.FORMAT_RGBA8)
 		var i := 0
 		for k in ["neutral", "AU12", "AU612"]:
+			(shots[k] as Image).convert(Image.FORMAT_RGBA8)
 			sheet.blit_rect(shots[k], Rect2i(0, 0, 330, 330), Vector2i(330 * i, 0))
 			i += 1
 		sheet.save_png(path)
