@@ -95,6 +95,8 @@ func same(a: Dictionary, b: Dictionary) -> bool:
 		return false
 	for i in a["labels"].size():
 		if a["labels"][i] != b["labels"][i] or (a["labels"][i] as Color).to_html(true) != (b["labels"][i] as Color).to_html(true):
+			var lx: Array = m.ui_tinted.filter(func(x): return is_instance_valid(x[0]))[i]
+			print("  label %d path=%s token=%s text='%s' is_status=%s" % [i, (lx[0] as Node).get_path(), lx[1], (lx[0] as Label).text.left(50), lx[0] == m.ui_status])   # diagnostic only
 			print("  diff label %d: %s -> %s" % [i, a["labels"][i], b["labels"][i]])   # diagnostic only
 			return false
 	for k in a["theme"]:
@@ -180,7 +182,10 @@ func _init() -> void:
 	var lab_ratio := 99.0
 	for x in m.ui_tinted:
 		if is_instance_valid(x[0]) and x[1] in ["text", "heading", "info", "say"]:
-			lab_ratio = minf(lab_ratio, wcag((x[0] as Label).get_theme_color("font_color"), over(t["rail"], t["world"])))
+			var rr := wcag((x[0] as Label).get_theme_color("font_color"), over(t["rail"], t["world"]))
+			if rr < 7.0:
+				print("  low label path=%s token=%s colour=%s override=%s text='%s' ratio=%.2f" % [(x[0] as Node).get_path(), x[1], (x[0] as Label).get_theme_color("font_color"), (x[0] as Label).has_theme_color_override("font_color"), (x[0] as Label).text.left(40), rr])   # diagnostic only
+			lab_ratio = minf(lab_ratio, rr)
 	ok(lab_ratio >= 7.0, "B5 real labels (text/heading/info/say tints) vs the rail fill: worst %.2f" % lab_ratio)
 	ok(m.undo.size() == u0, "B7 no undo step")
 	var cf := ConfigFile.new()
@@ -189,6 +194,7 @@ func _init() -> void:
 	# B6 back to dark, then light round trip
 	m._set_light(false)
 	await process_frame
+	print("  dbg status text='%s' welcome=%s col=%s dim=%s" % [m.ui_status.text, m.is_welcome(m.ui_status.text), m.ui_status.get_theme_color("font_color"), Tok.of("text:0.7")])   # diagnostic only
 	ok(Tok.mode() == "dark" and same(sample(), dark0), "B6 hc -> dark: every sampled colour byte-identical (%d labels + theme)" % dark0["labels"].size())
 	m._set_light(true)
 	await process_frame

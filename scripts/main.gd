@@ -13518,6 +13518,8 @@ func _retheme() -> void:
 	ui_tinted = ui_tinted.filter(func(x): return is_instance_valid(x[0]))
 	for x in ui_tinted:
 		(x[0] as Label).add_theme_color_override("font_color", Tok.of(x[1]))
+	if ui_status != null:
+		_status_look()   # P08: the status line's colour follows what it says; the tint loop above just set its creation token
 	for t in ui_ribbon_tabs:
 		(ui_ribbon_tabs[t] as Button).add_theme_color_override("font_pressed_color", Tok.c("heading") if Tok.dark else Tok.c("on_accent"))
 	ui_say_box.bg_color = Tok.c("say_bg")
@@ -15636,7 +15638,7 @@ func _panel_part() -> void:
 	if locked_parts.has(sel):
 		ui_title.text += "   (LOCKED)"
 	if side_col(sel) != SIDE_MID:
-		ui_title.add_theme_color_override("font_color", side_col(sel))
+		ui_title.add_theme_color_override("font_color", (Tok.c("ch_x") if sel.ends_with("_l") else Tok.c("ch_z")) if Tok.hc else side_col(sel))   # P08: the 3:1 side blue is not readable on the HC panel
 	else:
 		ui_title.remove_theme_color_override("font_color")
 	ui_title.modulate = LIMIT if not lims.is_empty() else Color.WHITE
