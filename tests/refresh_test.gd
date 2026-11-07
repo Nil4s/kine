@@ -37,12 +37,14 @@ func idle(n := 2) -> void:
 
 func load_line() -> String:
 	var out := []
-	OS.execute("powershell", ["-NoProfile", "-Command", "$c=(Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average; $g=(Get-Process -Name Godot* -ErrorAction SilentlyContinue | Measure-Object).Count; \"cpu $c%, godot processes $g\""], out, true)
+	OS.execute("powershell", ["-NoProfile", "-Command", "$c=(Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average; $g=(Get-Process -Name Godot* -ErrorAction SilentlyContinue | Measure-Object).Count; ('cpu ' + $c + '%, godot processes ' + $g)"], out, true)
 	return String(out[0]).strip_edges() if not out.is_empty() else "load unknown"
 
 
 func boot(w: int, h: int) -> void:
 	if m != null:
+		m.undo.clear()
+		m.redo.clear()
 		m.queue_free()
 		await idle(3)
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
@@ -200,12 +202,34 @@ func steps(full: bool) -> Array:
 	return out
 
 
+## INFO only: the PerfDoc brackets (ms per frame) of the playing frames, top 14
+func profile(tag: String) -> void:
+	PerfDoc.on = true
+	PerfDoc.acc = {}
+	m.set_process(false)
+	m.playing = true
+	for f in 60:
+		m._process(DT)
+	m.playing = false
+	PerfDoc.on = false
+	var rows := []
+	for k in PerfDoc.acc:
+		rows.append([float(PerfDoc.acc[k]) / 60000.0, k])
+	rows.sort_custom(func(a, b): return a[0] > b[0])
+	var sres := []
+	for r in rows.slice(0, 14):
+		sres.append("%s %.2f" % [r[1], r[0]])
+	print("INFO profile %s: %s" % [tag, ", ".join(sres)])
+	PerfDoc.acc = {}
+
+
 func _init() -> void:
 	await idle(2)
 	print("load before: " + load_line())
 	# ---- 1 fighter
 	await boot(1280, 720)
 	var ld1 := load_line()
+	profile("1 fighter")
 	var old1 := speed(true)
 	var new1 := speed(false)
 	var old1b := speed(true)
@@ -215,6 +239,7 @@ func _init() -> void:
 	print("INFO R1 1 fighter _process median-of-5: reference %.2f / %.2f ms, new %.2f / %.2f ms; load %s" % [old1, old1b, new1, new1b, ld1])
 	ok(n1 < R1_BAR, "R1 1 fighter playing: _process %.2f ms (worst of 2 rounds) < %.1f ms (reference %.2f ms)" % [n1, R1_BAR, o1])
 	# ---- R3
+	hash_frames("new")   # warm-up pass: the first pass leaves the dock cache and the first-frame state behind
 	var href := hash_frames("full")
 	var hnew := hash_frames("new")
 	var hpl := hash_frames("plant")
