@@ -137,6 +137,16 @@ func pin_labels() -> void:
 		m.ui_status.text = "status line"
 
 
+## R6: the vertex positions of every corrective piece's current mesh (read back from the engine)
+func mesh_bytes() -> PackedByteArray:
+	var out := PackedByteArray()
+	for e in m.corr._entries:
+		var mi: MeshInstance3D = e[0]
+		if mi.mesh is ArrayMesh and (mi.mesh as ArrayMesh).get_surface_count() > 0:
+			out.append_array(((mi.mesh as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_VERTEX] as PackedVector3Array).to_byte_array())
+	return out
+
+
 func hash_frames(mode: String) -> Dictionary:
 	PerfDoc.refresh_full = mode == "full"
 	PerfDoc.refresh_plant = mode == "plant"
@@ -156,6 +166,7 @@ func hash_frames(mode: String) -> Dictionary:
 		m._process(DT)
 		hc.update(var_to_bytes(m.B.state()))
 		hc.update(block_bytes())
+		hc.update(mesh_bytes())   # R6: the corrective pieces' vertices as the GPU holds them
 		hp.update(var_to_bytes(m.B.state()))
 		hb.update(block_bytes())
 		if m.ui_hands_panel != null and m.ui_hands_panel.visible:
@@ -298,7 +309,7 @@ func _init() -> void:
 	print("INFO R3 parts: pose %s block %s" % [href["hp"], href["hb"]])
 	print("INFO R3 hashes: ref %s new %s plant %s shown %d frames, %d distinct card spots" % [href["h"], hnew["h"], hpl["h"], href["shown"], href["spots"]])
 	ok(int(href["shown"]) >= 25, "R3 anti-vacuity: the hands card is on screen in %d of 30 frames" % href["shown"])
-	ok(String(href["h"]) == String(hnew["h"]), "R3 new path == reference path over 30 frames")
+	ok(String(href["h"]) == String(hnew["h"]), "R3/R6 new path == reference path over 30 frames (pose, card, and the corrective meshes read back; %d in-place rewrites)" % m.corr.reused)
 	ok(String(href["hp"]) == GOLDEN_POSE and String(hnew["hp"]) == GOLDEN_POSE, "R3 pose part of the new path == GOLDEN (the code before this lane): %s" % hnew["hp"])
 	ok(String(hpl["h"]) != String(href["h"]), "R3 CONTROL: a skipped hands refresh changes the hash (the hash sees a stale card)")
 	if OS.get_environment("REFRESH_ONLY") == "r3":
