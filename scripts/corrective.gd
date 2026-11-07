@@ -30,6 +30,10 @@ var on := true             # View > Display > Corrective shapes
 var weld := true           # one push per rest position (tests turn it off to show the seam crack it fixes)
 var _entries := []         # [mesh instance, rest ArrayMesh, rest surface arrays, flags, materials, dirs, aff] per mesh
 var _last := {}            # joint key -> the drive last written (no rebuild when nothing changed)
+var reuse := false         # L64: set by the app each frame: the corrective may rewrite its meshes in place (nothing else reads them by identity)
+var reuse_ok := true       # cleared when the first in-place rewrite did not read back equal
+var _verified := false
+var reused := 0            # tests: in-place rewrites
 var rebuilds := 0          # how many mesh rebuilds the last updates made (tests: 0 at straight joints)
 var _wcache := {}          # skin + vertex count -> weights(): the body's pieces share one skin and one vertex set
 var _gcache := {}          # the same key -> girth_shapes() (R11)
@@ -394,7 +398,6 @@ func update(B: Body) -> void:
 				mi.mesh = e[1]
 				rebuilds += 1
 			continue
-		var am := ArrayMesh.new()
 		var arrs: Array = e[2]
 		var built := []   # the surface arrays of the mesh made here (arrays_of: the soft flesh reads them instead of the engine)
 		for si in arrs.size():
@@ -415,8 +418,30 @@ func update(B: Body) -> void:
 				vs = push(vs, dv, ai, AMP * k)
 			arr[Mesh.ARRAY_VERTEX] = vs
 			built.append(arr)
-			am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr, [], {}, int(e[3][si]))
+		# L64: THE MESH IS KEPT. Only the positions changed, so the piece's own mesh gets its vertex buffer rewritten (the surface keeps
+		# its format, indices, normals and materials) instead of a new ArrayMesh with add_surface_from_arrays per piece per frame
+		# (about 2.5 ms of a playing frame). Only while nothing else reads the mesh by identity (reuse: no DQ / stretch / soft flesh),
+		# and only after the first rewrite read back equal to what was written (reuse_ok); otherwise the rebuild below.
+		var old = e[10] if e.size() > 10 else null
+		if reuse and reuse_ok and old != null and mi.mesh == old[0] and (old[0] as ArrayMesh).get_surface_count() == arrs.size():
+			var kept := old[0] as ArrayMesh
+			for si in arrs.size():
+				kept.surface_update_vertex_region(si, 0, ((built[si] as Array)[Mesh.ARRAY_VERTEX] as PackedVector3Array).to_byte_array())
+			if not _verified:
+				_verified = true
+				var back: Array = kept.surface_get_arrays(0)
+				if back[Mesh.ARRAY_VERTEX] != (built[0] as Array)[Mesh.ARRAY_VERTEX]:
+					reuse_ok = false
+			if reuse_ok:
+				e[10] = [kept, built]
+				reused += 1
+				continue
+		var am := ArrayMesh.new()
+		for si in arrs.size():
+			am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, built[si], [], {}, int(e[3][si]))
 			am.surface_set_material(si, e[4][si])
+		if reuse and reuse_ok:
+			am.custom_aabb = am.get_aabb().grow(0.03)   # the kept mesh is rewritten in place: its box must hold the pushes of later frames
 		mi.mesh = am
 		e[10] = [am, built]
 		rebuilds += 1

@@ -5632,6 +5632,7 @@ func _refresh() -> void:
 	PerfDoc.add("rx02", _rx)
 	_rx = PerfDoc.t()
 	var _ck := PerfDoc.t()
+	corr.reuse = not PerfDoc.refresh_full and S.dq_skin <= 0.0 and not B.has_meta("spline_body") and not B.has_stretch() and S.soft.is_empty() and not soft_live.engaged   # L64
 	corr.update(B)
 	PerfDoc.add("sk_corr", _ck)
 	_ck = PerfDoc.t()
