@@ -15,7 +15,7 @@
 ##             and a book that held the good entry still holds it unchanged
 ##   6 UNDO    each tag command is exactly one undo step; Ctrl+Z-style undo takes that tag off (face count 0 again), redo puts it back
 ##   7 PLANTED a deliberately wrong volume (the cylinder's bounding box, 27% over) is run through the SAME 0.5% check and must FAIL it
-##   8 COMMANDS the five commands are in MeshTools.LIST (the palette) with a description
+##   8 COMMANDS the five commands are in MeshTools.TOOLS (the palette) with a description
 extends SceneTree
 
 const BOOK := "user://wp_book"
@@ -126,7 +126,7 @@ func _init() -> void:
 
 	# 8 commands in the palette
 	var listed := 0
-	for e in MeshTools.LIST:
+	for e in MeshTools.TOOLS:
 		if String(e.get("do", "")) in ["op:wpart_grip", "op:wpart_guard", "op:wpart_blade", "op:wpart_pommel", "op:wpart_book"] and String(e.get("desc", "")) != "":
 			listed += 1
 	ok(listed == 5, "(8) the five weapon-part commands are in the palette with a description: %d of 5" % listed)
@@ -141,9 +141,9 @@ func _init() -> void:
 		st_ok = st_ok and ed.undo.steps.size() == s0 + 1
 		undo_ok = undo_ok and WeaponParts.faces_of(km, role).size() == (faces_of[role] as PackedInt32Array).size()
 		if role == "pommel":
-			ed.undo.undo(km)
+			ed.undo.undo()
 			var off := WeaponParts.faces_of(km, role).size()
-			ed.undo.redo(km)
+			ed.undo.redo()
 			var back := WeaponParts.faces_of(km, role).size()
 			undo_ok = undo_ok and off == 0 and back == (faces_of[role] as PackedInt32Array).size()
 	ok(st_ok and undo_ok, "(6) each of the 4 tag commands is exactly one undo step %s; tags hold the right face counts, undo takes the pommel's off and redo puts it back %s" % [st_ok, undo_ok])
@@ -184,12 +184,8 @@ func _init() -> void:
 	# 5 an open part is refused with a reason
 	var before := FileAccess.get_file_as_string(GripBook.path_of(kind))
 	var bf: PackedInt32Array = faces_of["blade"]
-	var open := KMesh.new().from_arrays(km.verts.duplicate(), km.faces.duplicate())
-	open.attrs = {}
-	KMeshFaceSets.ensure(open)   # any attr channel layout must survive; the tags are copied below
-	open.add_attr(WeaponParts.ATTR, KMesh.AD_FACE, TYPE_FLOAT, 0.0)
-	var tags := km.attr_data(WeaponParts.ATTR).duplicate()
-	open.set_attr_data(WeaponParts.ATTR, tags)
+	var tags: PackedFloat32Array = km.attr_data(WeaponParts.ATTR)
+	var open := km
 	var keep: Array = []
 	for fi in open.face_count():
 		if fi != int(bf[0]):
