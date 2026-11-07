@@ -1093,3 +1093,4 @@ EXTRA="$EXTRA rigown:w rigown_app:w"   # L69 RIGOWN: non-human glTF skeleton kep
 EXTRA="$EXTRA rigown:w rigown_app:w rigown_ik:w"   # L69 RIGOWN: non-human glTF skeleton kept as its own rig, FK, keys, export, bone edit (tests/rigown_test.gd)
 EXTRA="$EXTRA fightbake:w"   # L76 FIGHTBAKE: region_react / impact_align / body_collide baked onto a two-body clip as cards, one undo step each, FIGHT panel + tools bake_reaction, fix_impact, bake_momentum (tests/fightbake_test.gd)
 EXTRA="$EXTRA graphed:h"   # L84 weighted tangents, buffer curves, curve modifiers via curve_graph tool (tests/graphed_test.gd)
+EXTRA="$EXTRA sockets:w"   # N089: engine sockets from anatomy: regions, proportions, export round trip, controls (tests/sockets_test.gd)

@@ -55,6 +55,7 @@ static func export(S: Scene, B: Body, id: String, dir: String, report := Callabl
 	var an := S.name if S.name != "" else "scene"
 	var root := GltfExport.build(S, B, an, true, bool(p.get("root_motion", false)))
 	var lines := _checks(root, S, B, id, an)
+	var socks := Sockets.compute_root(root)   # N089: the engine sockets, placed on this body's anatomy
 	var wrong := 0
 	for l in lines:
 		if (l as String).begins_with("WRONG"):
@@ -65,6 +66,8 @@ static func export(S: Scene, B: Body, id: String, dir: String, report := Callabl
 	var abs_path := ProjectSettings.globalize_path(path) if path.begins_with("res://") or path.begins_with("user://") else path
 	DirAccess.make_dir_recursive_absolute(abs_path.get_base_dir())
 	var err := GltfExport._write(root, path)   # frees root
+	if err == OK:
+		err = Sockets.patch_glb(abs_path, socks)
 	# WEAPON TRAILS (ROADMAP 35): the bat's two edge points per frame, next to the .glb, when the scene holds a weapon
 	var trail := ""
 	if err == OK:
