@@ -4920,7 +4920,7 @@ func dummy_settle() -> void:
 
 
 static func _dummy_head(dist: float, so: bool) -> String:
-	return "dummy %.2f m out, %s" % [dist, "SOLID: the weapon stops on it" if so else "see-through"]
+	return "dummy %s out, %s" % [Units.len(dist), "SOLID: the weapon stops on it" if so else "see-through"]
 
 
 ## the measurement itself, on ITS OWN scene, dummy and body (so it can run on any thread): {"txt", "SL"}
@@ -4935,7 +4935,7 @@ static func _dummy_measure(sc: Scene, dist: float, yaw: float, so: bool) -> Dict
 	if hs.is_empty():
 		txt += "\nthe scene: no hit at this range"
 	for x in hs:
-		txt += "\n%.2fs  %s  %.1f m/s  (%.2f m up)" % [x["t"], x["zone"], x["speed"], x["u"]]
+		txt += "\n%.2fs  %s  %.1f m/s  (%s up)" % [x["t"], x["zone"], x["speed"], Units.len(float(x["u"]))]
 	if so and not hs.is_empty():
 		var r: Array = td.landed(sc, HB)
 		sl = r[0]
@@ -4984,7 +4984,7 @@ static func _fighters_measure(hs: Scene, others: Array) -> Dictionary:
 		var what: String = "weapon" if Body.is_wep(h["part"]) else String(h["part"])
 		txt += "\n%.2fs  %s  %s: %s's %s on %s's %s  %.1f m/s  %.1f cm deep" % [h["t"], h["zone"], h["kind"], who, what, whom, h["on"], h["speed"], float(h["depth"]) * 100.0]
 		if float(h["u"]) >= 0.0:
-			txt += "  (%.2f m up)" % h["u"]
+			txt += "  (%s up)" % Units.len(float(h["u"]))
 	return {"txt": txt, "hits": all}
 
 
@@ -15645,7 +15645,7 @@ func _panel_part() -> void:
 		ui_hips[k][0].min_value = -1.0 if k != 1 else -0.9
 		ui_hips[k][0].max_value = 1.0 if k != 1 else 0.4
 		ui_hips[k][0].value = B.offset[k]
-		_set_prop(ui_hips[k][1], names[k], "%.2f m" % B.offset[k])
+		_set_prop(ui_hips[k][1], names[k], Units.len(B.offset[k]))
 	if ui_math.visible:
 		var A := B.compose(sel, v)
 		var con: Array = B.contacts()
@@ -15685,7 +15685,7 @@ func _panel_bat() -> void:
 		ui_hips[k][0].min_value = -span if (k != 1 or locked) else -0.2
 		ui_hips[k][0].max_value = span
 		ui_hips[k][0].value = pos[k]
-		_set_prop(ui_hips[k][1], names[k], "%.3f m" % pos[k], "inside the hand" if locked else "")
+		_set_prop(ui_hips[k][1], names[k], Units.len_fine(pos[k]), "inside the hand" if locked else "")
 	if ui_math.visible:
 		var x := B.wep_xform()
 		ui_math.text = "knob %s  tip %s\nrotation %s\nin the hand: pos %s rot %s" % [_vs(x[0]), _vs(B.wep_point(B.wep_len)), _qs(x[1]), _vs(B.wep_lpos), _qs(B.wep_lrot)]
@@ -17949,10 +17949,10 @@ func _commands() -> Array:
 		add.call("Style: make it " + st + "...", "", _style_dialog.bind(st), "style transfer make it %s heavier older tired angrier walk" % st, false, "a copy of this scene in the style (timing, spacing, posture; ROADMAP 25), with an intensity 0-100 %; saved in scenes/_wip and opened (yours untouched)")
 	add.call("Body: proportions...", "", _proportions_dialog, "proportions height stature tall short size body limbs arm leg length character ansur woman man female male", false, "a small dialog: a preset (ANSUR II 5th / 50th / 95th, woman or man) or a stature; the cards keep their angles, the feet stay on the floor (PR1)")
 	for pk in Proportions.PRESETS:
-		add.call("Body: " + Proportions.PRESET_NAMES[pk], "", func(): proportions_set(Proportions.preset(pk)), "proportions height stature body " + pk.replace("_", " "), true, "the body's proportions: %s (ANSUR II stature %.1f cm), the cards retargeted (PR1)" % [Proportions.PRESET_NAMES[pk], float(Proportions.PRESETS[pk]["stature"]) * 100.0])
+		add.call("Body: " + Proportions.PRESET_NAMES[pk], "", func(): proportions_set(Proportions.preset(pk)), "proportions height stature body " + pk.replace("_", " "), true, "the body's proportions: %s (ANSUR II stature %s), the cards retargeted (PR1)" % [Proportions.PRESET_NAMES[pk], Units.stature(float(Proportions.PRESETS[pk]["stature"]))])
 	add.call("Body: fighter archetype...", "", _archetype_dialog, "archetype fighter boxer sumo judo sprinter marathon gymnast kendo mma athlete weight class reach ape index body", false, "a list of athletes' published measurements (stature, mass, arm span / height) put on the body; the cards keep their angles (G23)")
 	add.call("Body: from height, weight, sex, age, build", "", _body_nums_dialog, "body five numbers height weight sex age build bmi person make character", false, "a small dialog: height cm, weight kg, sex, age, build -> a whole body (ANSUR II + Winter ratios) and your percentile; one undo step (G13)")
-	add.call("Body: the mannequin's own proportions", "", func(): proportions_set({}), "proportions default reset height body", true, "the body back to the mannequin as shipped (%.1f cm), the cards retargeted (PR1)" % (Proportions.DEFAULT_STATURE * 100.0))
+	add.call("Body: the mannequin's own proportions", "", func(): proportions_set({}), "proportions default reset height body", true, "the body back to the mannequin as shipped (%s), the cards retargeted (PR1)" % Units.stature(Proportions.DEFAULT_STATURE))
 	add.call("Actor: add a second fighter (mirror of this one, facing it)", "", _actor_add, "actor fighter character opponent two second partner duel versus", true, "a second fighter in the scene: this scene mirrored, 150 cm in front, turned to face this one (TC3; Save scene keeps both)")
 	add.call("Crowd: make 20 copies of this fighter", "", _crowd_make, "crowd copies many fighters army group mob extras background spread", true, "20 copies of the current fighter's clip, scattered without overlap, each with its own time, speed, slight joint noise, mirror and stature (ANSUR II); one Ctrl+Z")
 	add.call("Crowd: re-roll (new seed)", "", _crowd_reroll, "crowd reroll seed random new variation", true, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures; one Ctrl+Z")
@@ -26893,7 +26893,7 @@ func _archetype_dialog() -> void:
 		ui_arch_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		for id in Archetypes.ORDER:
 			var a: Dictionary = Archetypes.TABLE[id]
-			ui_arch_list.add_item("%s   %.0f cm, %.0f kg" % [a["name"], float(a["stature"]) * 100.0, float(a["mass"])])
+			ui_arch_list.add_item("%s   %s, %.0f kg" % [a["name"], Units.stature(float(a["stature"])), float(a["mass"])])
 			ui_arch_list.set_item_tooltip(ui_arch_list.item_count - 1, String(a["src"]))
 		ui_arch_list.item_activated.connect(func(i):
 			ui_arch_dlg.hide()
@@ -26926,22 +26926,27 @@ func _proportions_dialog() -> void:
 		ui_prop_preset = OptionButton.new()
 		ui_prop_preset.name = "opt_preset"
 		for k in PROP_KEYS:
-			ui_prop_preset.add_item("the mannequin as shipped (%.1f cm)" % (Proportions.DEFAULT_STATURE * 100.0) if k == "" else ("custom stature" if k == "custom"
-				else "%s (ANSUR II, %.1f cm)" % [Proportions.PRESET_NAMES[k], float(Proportions.PRESETS[k]["stature"]) * 100.0]))
+			ui_prop_preset.add_item("the mannequin as shipped (%s)" % Units.stature(Proportions.DEFAULT_STATURE) if k == "" else ("custom stature" if k == "custom"
+				else "%s (ANSUR II, %s)" % [Proportions.PRESET_NAMES[k], Units.stature(float(Proportions.PRESETS[k]["stature"]))]))
 		ui_prop_preset.item_selected.connect(func(i):
 			var k: String = PROP_KEYS[i]
 			if k != "custom":
-				ui_prop_stature.set_value_no_signal((Proportions.DEFAULT_STATURE if k == "" else float(Proportions.PRESETS[k]["stature"])) * 100.0))
+				ui_prop_stature.set_value_no_signal(Units.to_unit(Proportions.DEFAULT_STATURE if k == "" else float(Proportions.PRESETS[k]["stature"])))
 		v.add_child(ui_prop_preset)
 		var h := HBoxContainer.new()
 		var l := Label.new()
-		l.text = "stature (cm)"
+		l.text = "stature (%s)" % Units.suffix()
 		h.add_child(l)
 		ui_prop_stature = SpinBox.new()
 		ui_prop_stature.name = "spin_stature"
-		ui_prop_stature.min_value = 100.0
-		ui_prop_stature.max_value = 230.0
-		ui_prop_stature.step = 0.1
+		ui_prop_stature.min_value = Units.to_unit(1.0)
+		ui_prop_stature.max_value = Units.to_unit(2.3)
+		ui_prop_stature.step = Units.to_unit(0.001)
+		ui_prop_stature.get_line_edit().text_submitted.connect(func(t: String):   # P14: "6 ft", "70 in", "178 cm" typed into the field
+			var mm := Units.parse_m(t)
+			if not is_nan(mm):
+				ui_prop_stature.set_value_no_signal(Units.to_unit(mm))
+				ui_prop_preset.select(PROP_KEYS.size() - 1))
 		ui_prop_stature.value_changed.connect(func(_x): ui_prop_preset.select(PROP_KEYS.size() - 1))
 		h.add_child(ui_prop_stature)
 		v.add_child(h)
@@ -26953,7 +26958,7 @@ func _proportions_dialog() -> void:
 			elif k == "custom":
 				var d := S.body.duplicate(true)
 				d.erase("preset")
-				d["stature"] = ui_prop_stature.value / 100.0
+				d["stature"] = Units.from_unit(ui_prop_stature.value)
 				proportions_set(d)
 			else:
 				proportions_set(Proportions.preset(k)))

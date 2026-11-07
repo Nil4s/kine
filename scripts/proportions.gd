@@ -544,3 +544,8 @@ static func bake_mannequin(man: Node3D, sk: Skeleton3D, b: Body) -> void:
 			var bb: int = bone_of_bind[k]
 			ns.set_bind_pose(k, sk.get_bone_global_rest(bb).affine_inverse() * (rest_old[bb] as Transform3D) * skin.get_bind_pose(k))
 		m.skin = ns
+
+
+## P14: a stature (m) as the user's unit shows it: "178.0 cm" (the old text in cm), "70.0787 in", "1.78 m"
+static func stature_text(m: float) -> String:
+	return Units.stature(m)

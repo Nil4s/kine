@@ -5,13 +5,68 @@
 class_name Units
 
 
-## metres -> "50 cm", "4 mm", "123 cm". Under 1 cm it is millimetres ("4 mm"); under 10 cm one decimal ("8.5 cm").
+## The user's length unit: "cm" (default), "m" or "in". Metres inside, always; this only changes what is shown and what a bare number means.
+static var unit := "cm"
+const UNITS := ["cm", "m", "in"]
+const M_PER := {"mm": 0.001, "cm": 0.01, "m": 1.0, "in": 0.0254, "ft": 0.3048}
+
+
+static func set_unit(u: String) -> bool:
+	if not UNITS.has(u):
+		return false
+	unit = u
+	return true
+
+
+## metres -> a number in unit u (default: the user's unit); from_unit is the exact inverse
+static func to_unit(m: float, u: String = "") -> float:
+	return m / float(M_PER[u if u != "" else unit])
+
+
+static func from_unit(v: float, u: String = "") -> float:
+	return v * float(M_PER[u if u != "" else unit])
+
+
+## metres in a named unit with its suffix, 4 decimals trimmed: "70.0787 in", "12 in", "0.3048 m"
+static func fmt_as(m: float, u: String) -> String:
+	return "%s %s" % [String.num(to_unit(m, u), 4), u]
+
+
+## a length typed by the user -> metres; "12 in", "30 cm", 12" , 1.5ft; a bare number is in the user's unit. NAN when it is no length.
+static func parse_m(text: String) -> float:
+	var sp := LengthParse.split_unit(text)
+	var n := LengthParse.number_of(String(sp[1]))
+	if is_nan(n):
+		return NAN
+	var u: String = sp[0] if String(sp[0]) != "" else unit
+	return n * float(M_PER.get(u, M_PER[unit]))
+
+
+## the suffix a length field shows next to its number
+static func suffix() -> String:
+	return unit
+
+
+## metres -> "50 cm", "4 mm", "123 cm" (cm unit). Under 1 cm it is millimetres ("4 mm"); under 10 cm one decimal ("8.5 cm").
+## In "m" and "in" the number is the length in that unit, 4 decimals trimmed: "1.78 m", "70.0787 in".
 static func len(m: float) -> String:
+	if unit != "cm":
+		return fmt_as(m, unit)
 	if absf(m) < 0.01:
 		return "%d mm" % roundi(m * 1000.0)
 	if absf(m) < 0.1:
 		return "%.1f cm" % (m * 100.0)
 	return "%.0f cm" % (m * 100.0)
+
+
+## a stature (m) as the user's unit shows it: "178.0 cm", "70.0787 in", "1.78 m"
+static func stature(m: float) -> String:
+	return "%.1f cm" % (m * 100.0) if unit == "cm" else Units.len(m)
+
+
+## a position (m) with a millimetre of detail in cm: "12.3 cm"; m and in as len()
+static func len_fine(m: float) -> String:
+	return "%.1f cm" % (m * 100.0) if unit == "cm" else Units.len(m)
 
 
 ## degrees -> "12.3°" (one decimal under 10 degrees, else whole degrees: "45°")

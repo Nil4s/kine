@@ -150,6 +150,8 @@ static func mass(m3: float, kg_m3: float) -> float:
 # ---------------------------------------------------------------- text
 
 static func fmt_len(m: float) -> String:
+	if Units.unit != "cm":   # P14: m / in through units.gd
+		return Units.len(m)
 	return "%.2f cm" % (m * CM) if m < 0.1 else "%.1f cm" % (m * CM)
 
 
