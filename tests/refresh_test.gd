@@ -18,7 +18,9 @@ extends SceneTree
 var fails := 0
 var m: Node
 const DT := 1.0 / 60.0
-const GOLDEN := ""   # R3: filled from the run on the unchanged code (a measured identity, not a threshold)
+## the pose part of the 30-frame hash on the code before this lane (3 runs, 3 loads: identical). The block part (the card) follows the status
+## label, which follows the real clock, so its absolute hash is not a golden: it is compared with the reference path in the same process.
+const GOLDEN_POSE := "3bdfd48fe68d"   # R3: filled from the run on the unchanged code (a measured identity, not a threshold)
 const R1_BAR := 5.0
 const RUNS := 5
 const FR := 60
@@ -129,6 +131,13 @@ func block_bytes() -> PackedByteArray:
 	return out
 
 
+## the status and mouse-hint labels are blockers of the card and follow the real clock: the same text for every pass
+func pin_labels() -> void:
+	for lb in [m.ui_status, m.ui_mouse]:
+		if lb != null:
+			lb.text = "status line"
+
+
 func hash_frames(mode: String) -> Dictionary:
 	PerfDoc.refresh_full = mode == "full"
 	PerfDoc.refresh_plant = mode == "plant"
@@ -137,19 +146,26 @@ func hash_frames(mode: String) -> Dictionary:
 	m.playing = true
 	var hc := HashingContext.new()
 	hc.start(HashingContext.HASH_SHA256)
+	var hp := HashingContext.new()   # (INFO) the pose part and the block part apart, to see which one moves between processes
+	hp.start(HashingContext.HASH_SHA256)
+	var hb := HashingContext.new()
+	hb.start(HashingContext.HASH_SHA256)
 	var shown := 0
 	var pos := {}
 	for f in 30:
+		pin_labels()
 		m._process(DT)
 		hc.update(var_to_bytes(m.B.state()))
 		hc.update(block_bytes())
+		hp.update(var_to_bytes(m.B.state()))
+		hb.update(block_bytes())
 		if m.ui_hands_panel != null and m.ui_hands_panel.visible:
 			shown += 1
 			pos[str(m.ui_hands_panel.position)] = true
 	m.playing = false
 	PerfDoc.refresh_full = false
 	PerfDoc.refresh_plant = false
-	return {"h": hc.finish().hex_encode(), "shown": shown, "spots": pos.size()}
+	return {"h": hc.finish().hex_encode(), "hp": hp.finish().hex_encode().substr(0, 12), "hb": hb.finish().hex_encode().substr(0, 12), "shown": shown, "spots": pos.size()}
 
 
 func step_hash() -> String:
@@ -217,18 +233,82 @@ func profile(tag: String) -> void:
 		rows.append([float(PerfDoc.acc[k]) / 60000.0, k])
 	rows.sort_custom(func(a, b): return a[0] > b[0])
 	var sres := []
-	for r in rows.slice(0, 14):
+	for r in rows.slice(0, 40):
 		sres.append("%s %.2f" % [r[1], r[0]])
 	print("INFO profile %s: %s" % [tag, ", ".join(sres)])
 	PerfDoc.acc = {}
+	print("INFO dock stats: cached_calls %d rebuilds %d recomputes %d memo_hits %d none %d key %d held %d" % [HandsDock.cached_calls, HandsDock.rebuilds, HandsDock.recomputes, HandsDock.memo_hits, HandsDock.memo_none, HandsDock.memo_key, HandsDock.memo_held])
+
+
+## R5: the two C++ loops equal their GDScript twins, bit for bit, on random inputs
+func equality() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 6464
+	ok(HandsDock.native_ok() and Corrective.native_ok(), "R5 anti-vacuity: KineDockNative is loaded")
+	var bad_ff := 0
+	var found := 0
+	var none := 0
+	for c in 400:
+		var n := rng.randi_range(0, 500)
+		var spots := PackedFloat64Array()
+		for i in n:
+			spots.append(float(rng.randi_range(0, 200)) * 6.0 + (0.5 if c % 7 == 0 else 0.0))
+			spots.append(float(rng.randi_range(0, 120)) * 6.0)
+		var ps := Vector2(rng.randf_range(100, 560), rng.randf_range(40, 300))
+		var body := Rect2(rng.randf_range(0, 1200), rng.randf_range(0, 700), rng.randf_range(0, 900), rng.randf_range(0, 600))
+		var pts := []
+		for k in rng.randi_range(0, 80):
+			pts.append(Vector2(rng.randf_range(0, 1400), rng.randf_range(0, 800)))
+		for avoid in [true, false]:
+			var a := HandsDock._first_free_gd(spots, ps, body, avoid, pts)
+			var b := KineDockNative.first_free(spots, ps.x, ps.y, body, avoid, PackedVector2Array(pts), 2.0)
+			if a != b:
+				bad_ff += 1
+			if a >= 0:
+				found += 1
+			else:
+				none += 1
+	ok(bad_ff == 0 and found > 100 and none > 100, "R5 first_free: native == GDScript twin on 800 cases (%d found a spot, %d none), %d differ" % [found, none, bad_ff])
+	var bad_p := 0
+	for c in 200:
+		var n := rng.randi_range(1, 3000)
+		var vs := PackedVector3Array()
+		var dv := PackedVector3Array()
+		for i in n:
+			vs.append(Vector3(rng.randf_range(-1, 1), rng.randf_range(-2, 2), rng.randf_range(-1, 1)))
+			dv.append(Vector3(rng.randf_range(-1, 1), rng.randf_range(-1, 1), rng.randf_range(-1, 1)))
+		var ai := PackedInt32Array()
+		for i in rng.randi_range(0, n):
+			ai.append(rng.randi_range(0, n - 1))
+		var amp := 0.013 * rng.randf_range(0.0, 1.0)
+		if Corrective._push_gd(vs, dv, ai, amp) != KineDockNative.push(vs, dv, ai, amp):
+			bad_p += 1
+	ok(bad_p == 0, "R5 push: native == GDScript twin on 200 random meshes (bit for bit), %d differ" % bad_p)
 
 
 func _init() -> void:
 	await idle(2)
 	print("load before: " + load_line())
-	# ---- 1 fighter
+	# ---- 1 fighter (R3 first: a fresh app, so the golden does not depend on what ran before it)
 	await boot(1280, 720)
+	hash_frames("full")   # warm-up pass: the first pass leaves the dock cache and the first-frame state behind
+	var href := hash_frames("full")
+	var hnew := hash_frames("new")
+	var hpl := hash_frames("plant")
+	print("INFO R3 parts: pose %s block %s" % [href["hp"], href["hb"]])
+	print("INFO R3 hashes: ref %s new %s plant %s shown %d frames, %d distinct card spots" % [href["h"], hnew["h"], hpl["h"], href["shown"], href["spots"]])
+	ok(int(href["shown"]) >= 25, "R3 anti-vacuity: the hands card is on screen in %d of 30 frames" % href["shown"])
+	ok(String(href["h"]) == String(hnew["h"]), "R3 new path == reference path over 30 frames")
+	ok(String(href["hp"]) == GOLDEN_POSE and String(hnew["hp"]) == GOLDEN_POSE, "R3 pose part of the new path == GOLDEN (the code before this lane): %s" % hnew["hp"])
+	ok(String(hpl["h"]) != String(href["h"]), "R3 CONTROL: a skipped hands refresh changes the hash (the hash sees a stale card)")
+	if OS.get_environment("REFRESH_ONLY") == "r3":
+		quit(0)
+		return
 	var ld1 := load_line()
+	if OS.get_environment("REFRESH_ONLY") == "prof":
+		profile("1 fighter")
+		quit(0)
+		return
 	profile("1 fighter")
 	var old1 := speed(true)
 	var new1 := speed(false)
@@ -238,16 +318,7 @@ func _init() -> void:
 	var n1 := maxf(new1, new1b)
 	print("INFO R1 1 fighter _process median-of-5: reference %.2f / %.2f ms, new %.2f / %.2f ms; load %s" % [old1, old1b, new1, new1b, ld1])
 	ok(n1 < R1_BAR, "R1 1 fighter playing: _process %.2f ms (worst of 2 rounds) < %.1f ms (reference %.2f ms)" % [n1, R1_BAR, o1])
-	# ---- R3
-	hash_frames("new")   # warm-up pass: the first pass leaves the dock cache and the first-frame state behind
-	var href := hash_frames("full")
-	var hnew := hash_frames("new")
-	var hpl := hash_frames("plant")
-	print("INFO R3 hashes: ref %s new %s plant %s shown %d frames, %d distinct card spots" % [href["h"], hnew["h"], hpl["h"], href["shown"], href["spots"]])
-	ok(int(href["shown"]) >= 25, "R3 anti-vacuity: the hands card is on screen in %d of 30 frames" % href["shown"])
-	ok(String(href["h"]) == String(hnew["h"]), "R3 new path == reference path over 30 frames")
-	ok(GOLDEN == "" or String(hnew["h"]) == GOLDEN, "R3 new path == GOLDEN (the code before this lane)%s" % (" [GOLDEN not set]" if GOLDEN == "" else ""))
-	ok(String(hpl["h"]) != String(href["h"]), "R3 CONTROL: a skipped hands refresh changes the hash (the hash sees a stale card)")
+	equality()
 	# ---- R4
 	await boot(1280, 720)
 	var sa := steps(true)
