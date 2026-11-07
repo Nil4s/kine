@@ -97,6 +97,7 @@ var hair := {}         # HAIR STRANDS (ROADMAP 87): the ponytail's parameters (h
 var rigx := []         # RIG FROM WORDS (J24; scripts/rig_words.gd): extra bone chains (tail, ears, cape); in the file as "rigx" only when there is one
 var spline_chains := []   # SPLINE IK (L28; scripts/spline_chain.gd): bone chains that follow a curve; in the file as "spline_chains" only when there is one
 var spline_body := []   # SPLINE IK ON THE BODY (L33; scripts/spline_chain.gd drive_body): chains of Kine joints (the back) that follow a curve; in the file as "spline_body" only when there is one
+var own_rig := {}      # OWN RIG (J, custom_rig.gd): a non-human skeleton with its keys; in the file as "own_rig" only when there is one
 var bones := []        # BONE EDITOR (J01; scripts/bone_editor.gd): the user's extra bones; in the file as "bones" only when there is one
 var cons := []         # USER CONSTRAINTS (round 51, CN): the stack, played in order after IK; scripts/constraints.gd
 var cons_last := []    # what the last apply()'s constraint pass did (Constraints.play's reports); [] = nothing
@@ -1760,6 +1761,7 @@ func clone() -> Scene:
 	c.outl = outl.duplicate(true)   # outliner record (outliner.gd)
 	c.hair = hair.duplicate(true)   # hair strands (hair.gd)
 	c.rigx = rigx.duplicate(true)   # the words-made rig (rig_words.gd)
+	c.own_rig = own_rig.duplicate(true)
 	c.bones = bones.duplicate(true)   # the user's extra bones (bone_editor.gd)
 	c.spline_chains = spline_chains.duplicate(true)   # their spline-IK chains (spline_chain.gd)
 	c.spline_body = spline_body.duplicate(true)   # L33: the body's spline chains
@@ -2445,6 +2447,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["hair"] = Hair.to_file(hair)   # hair strands: the same, only when set
 	if not rigx.is_empty():
 		out["rigx"] = rigx.duplicate(true)   # the words-made rig: only when there is one
+	if not own_rig.is_empty():
+		out["own_rig"] = CustomRig.to_file(own_rig)   # an own (non-human) rig: only when there is one
 	if not bones.is_empty():
 		out["bones"] = BoneEdit.to_file(bones)   # J01: the user's extra bones, only when there is one
 	if not spline_body.is_empty():
@@ -2663,6 +2667,7 @@ func from_dict(d: Dictionary) -> void:
 	secondary = SecondaryMotion.from_file(d.get("secondary", {}))   # secondary motion: absent = none
 	hair = Hair.from_file(d.get("hair", {}))   # hair strands: absent = none
 	rigx = RigWords.from_file(d.get("rigx", []))   # the words-made rig: absent = none
+	own_rig = CustomRig.from_file(d.get("own_rig", {}))   # absent = none
 	bones = BoneEdit.from_file(d.get("bones", []))   # J01: the user's extra bones: absent = none
 	spline_body = SplineChain.body_from_file(d.get("spline_body", {}))   # L33: absent = none
 	spline_chains = SplineChain.from_file(d.get("spline_chains", {}))   # L28: absent = none

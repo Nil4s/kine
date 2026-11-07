@@ -269,6 +269,48 @@ static func _topo(rig: Dictionary) -> Array:
 	return out
 
 
+## ---- the scene file: a rig as plain JSON numbers (doubles hold the floats exactly, so the round trip is exact)
+static func to_file(rig: Dictionary) -> Dictionary:
+	var rest := []
+	for x in rig["rest"]:
+		var t: Transform3D = x
+		rest.append([t.basis.x.x, t.basis.x.y, t.basis.x.z, t.basis.y.x, t.basis.y.y, t.basis.y.z, t.basis.z.x, t.basis.z.y, t.basis.z.z, t.origin.x, t.origin.y, t.origin.z])
+	var keys := []
+	for f in key_frames(rig):
+		var row := {}
+		for b in rig["keys"][f]:
+			var q: Quaternion = rig["keys"][f][b]
+			row[b] = [q.x, q.y, q.z, q.w]
+		keys.append({"f": f, "q": row})
+	return {"names": (rig["names"] as Array).duplicate(), "parent": (rig["parent"] as Array).duplicate(), "rest": rest, "keys": keys, "fps": float(rig.get("fps", 30.0))}
+
+
+static func from_file(d: Variant) -> Dictionary:
+	if not (d is Dictionary) or not d.has("names") or not d.has("parent") or not d.has("rest"):
+		return {}
+	var rest := []
+	for r in d["rest"]:
+		rest.append(Transform3D(Basis(Vector3(r[0], r[1], r[2]), Vector3(r[3], r[4], r[5]), Vector3(r[6], r[7], r[8])), Vector3(r[9], r[10], r[11])))
+	var parent := []
+	for p in d["parent"]:
+		parent.append(int(p))
+	var keys := {}
+	for k in d.get("keys", []):
+		var row := {}
+		for b in k["q"]:
+			var q: Array = k["q"][b]
+			row[b] = Quaternion(q[0], q[1], q[2], q[3])
+		keys[int(k["f"])] = row
+	var names: Array = (d["names"] as Array).map(func(n): return String(n))
+	var rig := {"ok": true, "why": "", "names": names, "parent": parent, "rest": rest, "pose": {}, "keys": keys, "fps": float(d.get("fps", 30.0)),
+		"core_matched": _core_matched(names), "clip": ""}
+	rig["human"] = is_human(rig)
+	var fr := key_frames(rig)
+	if not fr.is_empty():
+		rig["pose"] = (keys[fr[0]] as Dictionary).duplicate()
+	return rig
+
+
 ## ---- the tools for human rigs only
 static func human_tool(rig: Dictionary, tool: String) -> Dictionary:
 	if not is_human(rig):

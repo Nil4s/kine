@@ -107,6 +107,22 @@ func max_diff(a: Array, b: Array) -> float:
 	return m
 
 
+func key_frames_eq(a: Dictionary, b: Dictionary) -> bool:
+	return CustomRig.key_frames(a) == CustomRig.key_frames(b)
+
+
+func rig_key_diff(a: Dictionary, b: Dictionary) -> float:
+	var m := 0.0
+	for f in CustomRig.key_frames(b):
+		if not (a["keys"] as Dictionary).has(f):
+			return INF
+		for bone in b["keys"][f]:
+			if not (a["keys"][f] as Dictionary).has(bone):
+				return INF
+			m = maxf(m, (a["keys"][f][bone] as Quaternion).angle_to(b["keys"][f][bone]))
+	return m
+
+
 func xf_diff(a: Transform3D, b: Transform3D) -> float:
 	var d := (a.origin - b.origin).abs()
 	var m: float = maxf(maxf(d.x, d.y), d.z)
@@ -234,10 +250,10 @@ func _init() -> void:
 	var res_pre: Dictionary = CustomRig.human_tool(rig, "precheck")
 	ok(not res_pre.get("ok", true) and String(res_pre.get("why", "")).contains("not a human rig"), "5 precheck on the quadruped: %s" % res_pre.get("why", ""))
 	var mpath := G + "/manny.glb"
-	var me: Error = GltfExport.write(S, B, mpath, false)
+	var me: Error = GltfExport.write(S, B, mpath, true)
 	var mrig: Dictionary = CustomRig.load_glb(mpath)
 	var res_m: Dictionary = CustomRig.run_human_only(mrig, "body_limits", tool)
-	ok(me == OK and mrig.get("ok", false) and CustomRig.is_human(mrig) and counter[0] == 1 and res_m.get("ok", false), "5 control: Manny rig is human (%s core matched), tool ran %d" % [mrig.get("core_matched"), counter[0]])
+	ok(me == OK and mrig.get("ok", false) and CustomRig.is_human(mrig) and int(mrig.get("core_matched", 0)) == 22 and counter[0] == 1 and res_m.get("ok", false), "5 control: Manny rig is human (%s core matched), tool ran %d" % [mrig.get("core_matched"), counter[0]])
 
 	# ---- 6 EDIT
 	var re: Dictionary = CustomRig.load_glb(gpath)
@@ -277,6 +293,35 @@ func _init() -> void:
 	var d7b := max_diff(base, pose_hash(B))
 	ok(d7 == 0.0 and d7b == 0.0, "7 walk_bat pose at 0.5 s identical after the custom-rig work: fresh body %.8f, same body %.8f" % [d7, d7b])
 	ok(CustomRig.is_human(mrig), "7 Manny's own .glb is a human rig")
+
+	# ---- 8 SCENE FILE (round 1): an own rig saved inside a Kine scene file and loaded again
+	var S3 := Scene.new()
+	S3.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://scenes/walk_bat.json")))
+	var plain: String = JSON.stringify(S3.to_dict(B))
+	ok(not (JSON.parse_string(plain) as Dictionary).has("own_rig"), "8 a scene without an own rig has no own_rig key")
+	S3.own_rig = rig
+	var txt: String = JSON.stringify(S3.to_dict(B))
+	var S4 := Scene.new()
+	S4.from_dict(JSON.parse_string(txt))
+	var o: Dictionary = S4.own_rig
+	var same_struct: bool = o.get("names", []) == rig["names"] and o.get("parent", []) == rig["parent"] and key_frames_eq(o, rig)
+	var wr8 := 0.0
+	for i in (rig["rest"] as Array).size():
+		wr8 = maxf(wr8, xf_diff(o["rest"][i], rig["rest"][i]))
+	var wq8 := rig_key_diff(o, rig)
+	ok(same_struct and wr8 == 0.0 and wq8 <= 1e-9, "8 own rig in the scene file: %d bones, keys %s, rest diff %.9f, key quaternion diff %.12f" % [(o.get("names", []) as Array).size(), CustomRig.key_frames(o), wr8, wq8])
+	var rbad: Dictionary = CustomRig.from_file(CustomRig.to_file(rig))
+	rbad["keys"][10]["tail_3"] = (rbad["keys"][10]["tail_3"] as Quaternion) * Quaternion(Vector3.UP, 1e-3)
+	ok(rig_key_diff(rbad, rig) > 1e-4, "8 control: one key turned 1e-3 rad is seen by the comparison")
+	var again: Dictionary = CustomRig.load_glb(gpath)
+	var a_glb: String = JSON.stringify(CustomRig.to_file(again))
+	ok(a_glb == JSON.stringify(CustomRig.to_file(CustomRig.from_file(JSON.parse_string(a_glb)))), "8 an imported rig survives file text -> rig -> file text byte for byte")
+
+	# ---- 9 MANNY SCENE FILE: the Manny scene text is unchanged by the new key
+	S3.own_rig = {}
+	ok(JSON.stringify(S3.to_dict(B)) == plain, "9 clearing the own rig gives back the Manny scene text byte for byte (%d chars)" % plain.length())
+	S4.apply(B2, 0.5)
+	ok(max_diff(base, pose_hash(B2)) == 0.0, "9 a scene carrying an own rig still poses Manny the same: %.8f" % max_diff(base, pose_hash(B2)))
 
 	for f in DirAccess.get_files_at(G):
 		DirAccess.remove_absolute(G + "/" + f)
