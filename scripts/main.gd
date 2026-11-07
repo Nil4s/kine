@@ -21539,6 +21539,8 @@ func _close_asked() -> void:
 
 
 func _quit_app() -> void:
+	if _bgs != null:
+		_bgs.wait_all()   # L124: the writer finishes first
 	_pw_save()
 	if quit_fn.is_valid():
 		quit_fn.call()
@@ -21834,6 +21836,46 @@ func _selfcheck_save() -> void:
 	get_tree().quit()
 
 
+var _bgs: BgSave
+var _bg_pending := false   # a background save's doc key has not come back yet: the scene counts as saved
+
+
+## the rest of a save, one piece per frame so no frame carries all of it (recents + thumbnail, journal, the index, the lists, the doc line)
+func _bg_after(path: String) -> void:
+	await get_tree().process_frame
+	_recent_note(path, true)
+	_journal_saved()
+	await get_tree().process_frame
+	if np.loaded:
+		np.update_file(path)
+	await get_tree().process_frame
+	_lists()
+	await get_tree().process_frame
+	_doc_line(true)
+var save_prof := {}   # L124: ms since the start of the last _save_scene_now at each stage (cumulative)
+
+
+## the background writer (scripts/bg_save.gd), made when first needed
+func bgs() -> BgSave:
+	if _bgs == null:
+		_bgs = BgSave.new()
+		_bgs.name = "BgSave"
+		add_child(_bgs)
+	return _bgs
+
+
+## a background save has finished: the index learns the file; a failed write makes the scene unsaved again (the old file is untouched)
+func _bg_saved(ok: bool, err: String, path: String) -> void:
+	_bg_pending = false
+	if ok:
+		_clean = bgs().last_key   # the key of the snapshot that was written (made on the worker)
+		_autosave_drop()
+		_bg_after(path)
+	else:
+		_clean = "[bg save failed]"
+		_say("NOT SAVED: %s. The old file is untouched; save again." % err)
+
+
 func _save_scene_now(nm: String) -> void:
 	if co != null and co.connected() and not co.is_host:
 		_say("live co-edit: the host saves the scene (your fighter's work is on its side too): ask the host to save, or save your own copy under another name")
@@ -21841,25 +21883,40 @@ func _save_scene_now(nm: String) -> void:
 	var H := _hero_scene()   # TC3: the file is the hero's scene, whoever is active
 	H.name = nm if nm != "" else "scene_" + _stamp()   # the name as typed: what the scene is called
 	BodyFile.before_save(self, safe_file(H.name).get_file())   # G07: an applied body with no file yet: a NEW .kbody first
+	var _t0 := Time.get_ticks_usec()
+	save_prof = {}
 	var d := _scene_dict()   # TC3: the hero's file with its actors (lossless: the body kept, round 8)
+	save_prof["dict"] = (Time.get_ticks_usec() - _t0) / 1000.0
 	var fname := safe_file(H.name) if safe_file(H.name) != "" else "scene_" + _stamp()
 	var tpv: Node = get_node_or_null(KMeshVPaintUI.NODE)   # L55: the painted texture goes beside the scene (PNG) and is recorded in its JSON
 	var tps: Dictionary = tpv.texture_source() if tpv != null else {}
 	KMeshTPaintFile.record(d, tps, "%s_tpaint.png" % fname)
-	if not _write("res://scenes/%s.json" % fname, d):   # S271: say it was skipped; the old file and scene_path stay as they were
+	var big := BgSave.is_big(d)   # L124 P15: a big scene is written on a worker thread (scripts/bg_save.gd); a small one at once, as before
+	if big:
+		var bpath := UserPaths.w("res://scenes/%s.json" % fname)
+		if _test_keeps(bpath):
+			_say("not saved: a test run may not overwrite the shipped scene %s (save under another name, or a zz_ name)" % fname)
+			return
+		bgs().request(bpath, d, _bg_saved.bind(bpath), _doc_key_of.bind(_doc_key_inputs(true)))
+	elif not _write("res://scenes/%s.json" % fname, d):   # S271: say it was skipped; the old file and scene_path stay as they were
 		_say("not saved: a test run may not overwrite the shipped scene %s (save under another name, or a zz_ name)" % fname)
 		return
 	if not tps.is_empty():
 		KMeshTPaintFile.write_png(tps, ProjectSettings.globalize_path(UserPaths.w("res://scenes/%s_tpaint.png" % fname)))
-	if np.loaded:
+	if np.loaded and not big:
 		np.update_file(UserPaths.w("res://scenes/%s.json" % fname))   # R27: the index of your habits learns the saved scene
-	_clean = _doc_key()
-	_autosave_drop()
+	save_prof["write"] = (Time.get_ticks_usec() - _t0) / 1000.0
 	scene_path = UserPaths.w("res://scenes/%s.json" % fname)
-	_recent_note(scene_path, true)
-	_journal_saved()
-	_lists()
-	_refresh()
+	if big:   # L124: the doc key is made on the worker, the recents / index / lists / doc line run in later frames (_bg_saved)
+		_bg_pending = true
+	else:
+		_clean = _doc_key()
+		_autosave_drop()
+		_recent_note(scene_path, true)
+		_journal_saved()
+		_lists()
+		_refresh()
+	save_prof["refresh"] = (Time.get_ticks_usec() - _t0) / 1000.0
 	if easy != null and easy.on:   # Easy: "Saved run 68 (3.3 seconds)." (the name as its words; the length to a tenth of a second)
 		_say("Saved %s (%.1f seconds)." % [H.name.replace("_", " "), roundf(H.length() * 10.0 + 0.001) / 10.0])   # the 0.001: 3.25 s reads 3.3, not 3.2 (float)
 		if easy.home != null:   # the toast says where it went: the file's name and its folder (the status line keeps its words)
@@ -26503,6 +26560,8 @@ static func _rm_tree(dir: String) -> void:
 
 
 func _unsaved() -> bool:
+	if _bg_pending:
+		return false   # L124: a background save is on its way (its doc key comes back from the worker)
 	var H := _hero_scene()   # TC3: the file is the hero's scene, whoever is active
 	# a drawn house (or a part with steps) is work too; a blank part (no steps: the BUILDING card's start, Nick 2026-10-28) is not
 	return (not H.cards.is_empty() or not H.props.is_empty() or not S.building.is_empty() or not (S.part.get("features", []) as Array).is_empty()) and _doc_key() != _clean
@@ -26511,19 +26570,33 @@ func _unsaved() -> bool:
 ## what "saved" compares: the cards, and the set when there is one (no props: the same string as before round 37); with
 ## a second actor (TC3) each actor's name, place and cards too (one actor: the same string as before)
 func _doc_key() -> String:
+	return _doc_key_of(_doc_key_inputs(false))
+
+
+## what the key reads, gathered on the main thread (deep: copies, so a worker can stringify them while the scene is edited)
+func _doc_key_inputs(deep := false) -> Dictionary:
 	var H := _hero_scene()
-	var k := JSON.stringify(H.cards) + ("" if H.props.is_empty() else JSON.stringify(H.props.map(func(p): return Props.to_dict(p))))
-	if not S.building.is_empty():
-		k += "|building" + JSON.stringify(Building.to_file(S.building))   # BUILD: a drawn room is an unsaved change
-	if not S.part.is_empty():
-		k += "|part" + JSON.stringify(Part.to_file(S.part))   # PART: a sketched feature is an unsaved change
-	if not H.shots.is_empty():
-		k += "|shots" + var_to_str(H.shots)   # the shots and their cameras: an unsaved change too (ROADMAP 75)
-	for a in H.actors:
-		k += "|" + JSON.stringify([a["name"], a["xf"], (a["scene"] as Scene).cards])
-	# the fighter's applied body and armour plates are the scene's too (an edit to them is unsaved, so the autosave holds it)
-	k += "|body%d|plates%d" % [BaseBody.gen(self), ArmourFromBody.parts(self).size()]
-	return k
+	var inp := {"cards": H.cards.duplicate(true) if deep else H.cards,
+		"props": H.props.map(func(p): return Props.to_dict(p)) if not H.props.is_empty() else [],
+		"building": Building.to_file(S.building) if not S.building.is_empty() else {},
+		"part": Part.to_file(S.part) if not S.part.is_empty() else {},
+		"shots": H.shots.duplicate(true) if deep else H.shots,
+		"actors": H.actors.map(func(a): return [a["name"], a["xf"], (a["scene"] as Scene).cards.duplicate(true) if deep else (a["scene"] as Scene).cards]),
+		"tail": "|body%d|plates%d" % [BaseBody.gen(self), ArmourFromBody.parts(self).size()]}   # the fighter's applied body and armour plates are the scene's too (an edit to them is unsaved, so the autosave holds it)
+	return inp
+
+
+static func _doc_key_of(inp: Dictionary) -> String:
+	var k := JSON.stringify(inp["cards"]) + ("" if (inp["props"] as Array).is_empty() else JSON.stringify(inp["props"]))
+	if not (inp["building"] as Dictionary).is_empty():
+		k += "|building" + JSON.stringify(inp["building"])   # BUILD: a drawn room is an unsaved change
+	if not (inp["part"] as Dictionary).is_empty():
+		k += "|part" + JSON.stringify(inp["part"])   # PART: a sketched feature is an unsaved change
+	if not (inp["shots"] as Array).is_empty():
+		k += "|shots" + var_to_str(inp["shots"])   # the shots and their cameras: an unsaved change too (ROADMAP 75)
+	for a in inp["actors"]:
+		k += "|" + JSON.stringify(a)
+	return k + String(inp["tail"])
 
 
 func _load_scene(path0: String, work := false) -> void:   # work: a copy the app wrote into scenes/_wip (a card build, a mirror, a restore), not a file the user saved or opened
