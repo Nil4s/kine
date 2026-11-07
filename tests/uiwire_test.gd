@@ -401,7 +401,6 @@ func _init() -> void:
 	mbtn(ed, tgt, false)
 	control(var_to_bytes(m.S.part_keys) == ui_pk, "the same drag without Alt gives the Alt result")
 	m._undo()
-	m._undo() if var_to_bytes(m.S.part_keys) != base_pk else null
 	gb.button_pressed = false
 	ok(ed.ghost_keys.is_empty() and ed.ghost_line(0).is_empty(), "2a Ghost off hides it")
 
@@ -585,7 +584,7 @@ func _init() -> void:
 	b0 = state()
 	uT = m.undo.size()
 	var er := await req("react_place", {})
-	var err_txt := String(er.get("error", "?"))
+	var err_txt := String((er.get("error", {}) as Dictionary).get("message", "?"))
 	m.uiw.last_say = ""
 	run_rp.call()
 	ok(m.undo.size() == uT and state() == b0 and m.uiw.last_say.contains(err_txt), "4 CONTROL: no cue -> no step, unchanged, the status line carries the tool's reason ('%s')" % err_txt.left(70))
