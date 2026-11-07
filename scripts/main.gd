@@ -11160,6 +11160,8 @@ func _curve_toggle() -> void:
 		ui_curve.limit = func(j, v): return B.clamp_ang(j, v)
 		ui_curve.changed = func(): S.apply(B, playhead); _refresh()
 		ui_curve.say = func(t): _say(t)
+		ui_curve.wave_envs = audio_envs   # L14
+		ui_curve.wave_on = graph_wave
 		ui_root.add_child(ui_curve)
 		ui_curve.add_child(_detach_button("graph"))
 	ui_curve.visible = not ui_curve.visible
@@ -17943,6 +17945,9 @@ func _commands() -> Array:
 	add.call("Ask AI", "", _ai_toggle, "ai llm model chat prompt type words describe gpt claude gemini ollama assistant agent generate make animate", false, "type what should happen and an AI builds the cards on this scene, one Ctrl+Z per step")
 	add.call("Audio: add a sound file (wav / ogg / mp3)", "", _audio_ask, "audio sound music wav ogg mp3 voice track waveform lip sync timing import", false, "pick a sound file: it is added as a track, one lane under the timeline (a waveform; drag the lane to set its offset, click its name to mute it); it plays in step with Play and sounds a short slice as you drag the playhead")
 	add.call("Lip-sync: from the audio track", "", _lip_from_audio, "lip sync lipsync mouth jaw talk speech audio voice visemes timing", true, "bake a jaw and mouth shapes from the sound (a wav on the timeline): the loudness opens the jaw 0-15 deg, the zero-crossing rate picks closed, round, open or wide; one undo step")
+	add.call("Scene: frame rate to 24 / 30 / 60 fps (keys keep their exact times)", "", _fps_convert_ask, "fps frame rate framerate convert 24 30 60 sub-frame keys retime keep times", true, "change the scene's fps without moving any key in time: a key between two frames becomes a sub-frame key; notes and boxes follow the rate; one undo step. Type the rate in the box")
+	add.call("Scene: frame rate, snap keys to whole frames", "", _fps_snap_ask, "fps frame rate snap whole frames round keys convert", true, "the same, and each part key moves to the nearest whole frame of the new rate (at most half a frame; the status line counts the moves); one undo step")
+	add.call("Graph editor: sound waveform on / off", "", _graph_wave_toggle, "graph editor curve sound audio waveform wave toggle", false, "draw the sound track's waveform under the curves, the same peaks as the timeline's sound lane")
 	add.call("Audio: remove the sound", "", _audio_remove, "audio sound delete clear track waveform", true, "take the picked track off the timeline (click its lane first; with one track there is nothing to pick); the file stays on disk; one undo step")
 	add.call("Audio: louder (+3 dB)", "", _audio_gain.bind(3.0), "audio sound volume gain louder up db", true, "the sound 3 dB louder (about 1.4×), up to +12 dB; in playback and the playblast; one undo step")
 	add.call("Audio: quieter (-3 dB)", "", _audio_gain.bind(-3.0), "audio sound volume gain quieter down softer db", true, "the sound 3 dB quieter, down to -30 dB; in playback and the playblast; one undo step")
@@ -23662,6 +23667,7 @@ func _on_drop(files: PackedStringArray) -> void:
 ## own track's stream, not the premix.
 const AUDIO_SLICE_EXTRA := 0.04   # s added to one frame for a scrub slice
 const AUDIO_MIX_QUIET := 150000   # usec: a change is mixed after this long without another change
+var graph_wave := false         # L14: the sound's waveform under the graph editor's curves (view only)
 var audio_envs: Array = []      # per track: AudioTrack.envelope of its file ({} = not loaded)
 var audio_mixes := 0            # how many premixes were built (tests)
 var audio_mix_usec := 0         # how long the last premix took to build, usec (tests)
@@ -23745,6 +23751,8 @@ func _audio_reload() -> void:
 		_a_paths.append(path)
 		audio_envs.append({} if path == "" else AudioTrack.envelope(st, path))
 	audio_decode_usec = Time.get_ticks_usec() - t0
+	if ui_curve != null:
+		ui_curve.wave_envs = audio_envs   # L14
 	if audio_pick >= n:
 		audio_pick = -1
 	_audio_remix_now()
@@ -24196,6 +24204,30 @@ func _face_geo() -> Dictionary:
 ## a point on the head given in REST space, carried by the head joint now (the same carry as Body.cap): where it is in the world
 func face_at(rest: Vector3) -> Vector3:
 	return (B.P["head"] as Vector3) + (B.G["head"] as Quaternion) * (rest - (B.p0["head"] as Vector3))
+
+
+## L92: frame-rate conversion (scripts/fps_wave.gd). The target is the next of 24 / 30 / 60 after the scene's rate
+func _fps_convert_to(snap: bool) -> void:
+	var n := 30 if S.fps == 24 else (60 if S.fps == 30 else 24)
+	var r := FpsWave.serve(self, {"action": "convert", "fps": n, "snap": snap})
+	if not r["ok"]:
+		_say(String(r["error"]))
+		return
+	var res: Dictionary = r["result"]
+	_say("frame rate %d -> %d fps: %d keys kept at their exact times%s" % [res["from"], res["to"], res["keys"], (", %d moved to whole frames (largest %.1f ms), %d kept in place" % [(res["moves"] as Array).size(), 1000.0 * float(res["max_move"]), res["kept"]]) if snap else ""])
+
+
+func _fps_convert_ask() -> void:
+	_fps_convert_to(false)
+
+
+func _fps_snap_ask() -> void:
+	_fps_convert_to(true)
+
+
+func _graph_wave_toggle() -> void:
+	FpsWave.serve(self, {"action": "wave"})
+	_say("graph editor waveform " + ("on" if graph_wave else "off"))
 
 
 func _audio_remove() -> void:

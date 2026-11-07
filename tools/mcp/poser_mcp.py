@@ -58,6 +58,8 @@ TOOLS = {
                     "(pieces: names or col* patterns; camera {pos, target, fov}; w, h; part {record} frames a given part). Also `light`: per piece emission, "
                     "peak_luminance, glow_px, which edges it touches, the brightest_piece, and touching_frame_edge (and _with_glow).",
                     {"type": "object", "properties": {"pieces": {"type": "array", "items": S}, "camera": {"type": "object"}, "w": N, "h": N, "part": {"type": "object"}}, "additionalProperties": False}),
+    "fps_wave": ("fps_wave", "Frame-rate conversion that keeps every key at its exact time (sub-frame keys), and the sound waveform under the graph editor curves. action: convert (fps 1..240, snap true = move keys to the nearest whole frame, reported; one undo step) | wave (on true/false, none = toggle; view only) | read (fps, keys, sub-frame keys).",
+                    {"type": "object", "properties": {"action": S, "fps": N, "snap": {"type": "boolean"}, "on": {"type": "boolean"}}, "required": ["action"], "additionalProperties": False}),
     "curve_graph": ("curve_graph", "Graph editor curve of one joint's part keys. action: read | weight (key, side in/out, weight 1.0 default .. 3.0; one undo step) | snapshot (buffer curve, returns slot) | swap (slot; live <-> buffer exactly) | compare (slot: max/rms/per-channel deviation in deg) | mod (type noise/stepped/limits/cycles + fields) | unmod (index) | drop (slot).",
                     {"type": "object", "properties": {"action": S, "joint": S, "key": N, "side": S, "weight": N, "slot": N, "name": S, "type": S, "index": N, "strength": N, "scale": N, "seed": N, "step": N, "min": N, "max": N, "ch": N}, "required": ["action"], "additionalProperties": True}),
     "sockets": ("sockets", "Engine sockets placed from the anatomy of a preset body: weapon_r, weapon_l (palm grip centre), back_sheath (between the scapulae), hip_holster_r (greater trochanter, on the hip), head_fx (above the vertex). "
@@ -147,7 +149,7 @@ TOOLS = {
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets"]
+MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets", "fps_wave"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:

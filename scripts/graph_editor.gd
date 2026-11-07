@@ -469,6 +469,8 @@ func _draw() -> void:
 	var f := get_theme_default_font()
 	var ink := Tok.c("ink")
 	draw_rect(Rect2(Vector2.ZERO, size), Tok.c("graph_bg"))
+	if wave_on:
+		draw_multiline(wave_lines(), Color(ink, 0.2), 1.0)   # L14
 	var cs := chans()
 	draw_string(f, Vector2(PAD_L + _btn.size.x + 8, 15), "%d part%s, %d channels" % [parts().size(), "" if parts().size() == 1 else "s", cs.size()], HORIZONTAL_ALIGNMENT_LEFT, 150, 12, Tok.dim(0.8))
 	# the channel region

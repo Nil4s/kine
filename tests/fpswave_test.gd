@@ -118,9 +118,9 @@ func _init() -> void:
 
 	# ---- A  24 -> 30 -> 24
 	var S := make_scene(B, 92)
+	var ref := make_scene(B, 92)   # built before any to_dict: Scene.to_dict poses the shared Body, which changes the cards make_scene copies from it
 	var base_file := file_of(S, B)
 	var t_before := key_times(S)
-	var ref := make_scene(B, 92)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
 	var times := []
@@ -205,6 +205,8 @@ func _init() -> void:
 	ok(bool(env.get("ok", false)), "D0 the test tone decodes (envelope ok)")
 	var Sw := make_scene(B, 3)
 	Sw.audio_tracks = [{"path": WAV, "offset": 0.25, "gain_db": 0.0}]
+	for c in Sw.cards:
+		c["hold"] = 1.6   # the strip scales to the scene length: long enough to hold the whole 4.25 s tone
 	var wm: Node = gs.new()
 	wm.S = Sw
 	wm.audio_envs = [env]
