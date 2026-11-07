@@ -532,6 +532,11 @@ static func _play(S: Scene, B: Body, t: float) -> void:
 		var qa: Dictionary = qp[0]
 		var off: Vector3 = (qp[1] as Vector3) + step * int(a["k"])
 		var mt: Dictionary = c.get("match", {}) if c["type"] == "replace" else {}   # ROADMAP 84
+		var cl := {}   # L79 SEAM CLOSURE: a source whose last pose misses its first by a hair (< CLOSE_TOL) is trimmed to close
+		if int(a["k"]) < int(c["repeat"]) - 1 and mt.is_empty():
+			cl = _closure(e, mirror, Q)
+			if not cl.is_empty():
+				off.y += float(cl["y"]) * float(a["lt"]) / float(e["len"])
 		if not mt.is_empty() and mask_root(c["mask"]):
 			off = align(off, mt)
 		if bool(c.get("inplace", false)) and mask_root(c["mask"]):
@@ -546,6 +551,8 @@ static func _play(S: Scene, B: Body, t: float) -> void:
 				continue
 			var x: Vector3 = B.ang[j]
 			var y: Vector3 = qa[j]
+			if not cl.is_empty() and (cl["ang"] as Dictionary).has(j):
+				y += (cl["ang"][j] as Vector3) * float(a["lt"]) / float(e["len"])
 			if j == "pelvis" and not mt.is_empty():
 				y.z += float(mt["yaw"])   # the walk turned as the match says
 			var r := x + y * w if c["type"] == "add" else x + Scene._d(x, y, j) * w
@@ -560,6 +567,39 @@ static func _play(S: Scene, B: Body, t: float) -> void:
 		B.fk()
 		if arms:
 			B.apply_grip()   # a clip that moves the arms: the second hand back onto the weapon (a legs clip leaves the arms alone)
+
+
+## L79 SEAM CLOSURE (repeat > 1): the source's pose at its end vs at its start. Cyclic sources close only to the solver's noise
+## (the floor and the planted feet moved a calf 0.0044 deg between the first and last arrival of a three-card loop); that
+## residual is a visible-never but measurable jump at every loop boundary. When every joint misses by under CLOSE_TOL deg
+## (and the hips' height by under CLOSE_TOL_Y m), each cycle but the last is trimmed by residual x (lt / L), so the cycle ends
+## exactly on the next cycle's first pose. A source that really is not a loop (a walk: degrees off) is left as it is.
+## Returns {} (not closable / already closed) or {"ang": {joint: first - last}, "y": metres}
+const CLOSE_TOL := 0.05
+const CLOSE_TOL_Y := 0.002
+
+
+static func _closure(e: Dictionary, mirror: bool, Q: Body) -> Dictionary:
+	var cache: Dictionary = e.get("cl", {})
+	if cache.has(mirror):
+		return cache[mirror]
+	var p0 := _pose_of(e, 0.0, mirror, Q)
+	var d0: Dictionary = (p0[0] as Dictionary).duplicate()
+	var o0: Vector3 = p0[1]
+	var pL := _pose_of(e, float(e["len"]), mirror, Q)
+	var out := {"ang": {}, "y": (o0.y - (pL[1] as Vector3).y)}
+	var worst := 0.0
+	for j in d0:
+		if not (pL[0] as Dictionary).has(j):
+			continue
+		var d: Vector3 = (d0[j] as Vector3) - ((pL[0] as Dictionary)[j] as Vector3)
+		worst = maxf(worst, d.length())
+		out["ang"][j] = d
+	if worst >= CLOSE_TOL or absf(float(out["y"])) >= CLOSE_TOL_Y or worst + absf(float(out["y"])) == 0.0:
+		out = {}
+	cache[mirror] = out
+	e["cl"] = cache
+	return out
 
 
 ## a clip's words for the timeline and the status line

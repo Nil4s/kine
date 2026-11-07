@@ -184,15 +184,19 @@ func _init() -> void:
 	var Dd := Clips.length_of(cs, Ls)
 	var out_ok := Clips.at(cs, Ls, 0.5 + Dd + 0.01).is_empty() and Clips.at(cs, Ls, 0.4).is_empty() and not Clips.at(cs, Ls, 0.5 + Dd * 0.5).is_empty()
 	var seam := 0.0
+	var seam_m := 0.0
 	for k in [1, 2]:
 		var tb: float = 0.5 + Dd * k / 3.0
-		seam = maxf(seam, worst_all(pose(S, tb - 1e-7), pose(S, tb + 1e-7)))
+		var pa := pose(S, tb - 1e-7)
+		var pz := pose(S, tb + 1e-7)
+		seam = maxf(seam, worst_other(pa, pz, []))
+		seam_m = maxf(seam_m, ((pa["off"] as Vector3) - (pz["off"] as Vector3)).length())
 	var S2 := base_scene()
 	S2.clips = [Clips.make(SRC_OPEN, 0.0, {"repeat": 3})]
 	var eo := Clips.source(SRC_OPEN)
 	var tb2 := float(eo["len"])
 	var jump := worst_other(pose(S2, tb2 - 1e-5), pose(S2, tb2 + 1e-5), [])
-	ok(out_ok and seam < 1e-4 and jump > 1.0, "5b repeat 3: outside the strip nothing %s; pose at both loop boundaries differs by %.7f deg (bar 1e-4); control non-cyclic source jumps %.2f deg" % [out_ok, seam, jump])
+	ok(out_ok and seam < 1e-4 and seam_m < 1e-4 and jump > 1.0, "5b repeat 3: outside the strip nothing %s; loop boundaries differ by %.7f deg and %.7f m of hips (bars 1e-4 each); control non-cyclic source jumps %.2f deg" % [out_ok, seam, seam_m, jump])
 
 	# 6 blend curves
 	var mono := true
