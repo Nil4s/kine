@@ -113,6 +113,37 @@ func jump_scene(land_thigh: float, land_calf: float) -> Scene:
 	return S
 
 
+## the stance fixtures. A family fam builds a held pose from one number v:
+##   0 trunk bent forward v deg a joint, arms raised forward 90 deg   1 trunk bent back (v <= 0)
+##   2 the right leg lifted (thigh v deg, calf 100): one foot holds the body   3 the hips pushed forward by v metres
+func stance_scene(fam: int, v: float) -> Scene:
+	var B := body()
+	var S := Scene.new()
+	S.name = "zz_teach_stance"
+	S.add("stand", B.to_dict())
+	match fam:
+		0:
+			for j in ["spine_01", "spine_02", "spine_03"]:
+				B.set_ang(j, Vector3(v, 0, 0))
+			for sd in ["_l", "_r"]:
+				B.set_ang("upperarm" + sd, Vector3(90, 0, 0))
+		1:
+			for j in ["spine_01", "spine_02", "spine_03"]:
+				B.set_ang(j, Vector3(v, 0, 0))
+		2:
+			B.set_ang("thigh_r", Vector3(v, 0, 0))
+			B.set_ang("calf_r", Vector3(100, 0, 0))
+		3:
+			B.offset = Vector3(0, 0, v)
+	B.fk()
+	S.add("lean", B.to_dict())
+	S.cards[0]["move"] = -1.0
+	S.cards[0]["hold"] = 0.2
+	S.cards[1]["move"] = 0.3
+	S.cards[1]["hold"] = 0.6
+	return S
+
+
 func lean_scene(b: float) -> Scene:
 	var B := body()
 	var S := Scene.new()
@@ -129,17 +160,39 @@ func lean_scene(b: float) -> Scene:
 	return S
 
 
-## the lean (a joint, deg) at which the held margin first drops to want_cm or less: a search, so the fault is measured, not guessed
-func lean_for(want_cm: float) -> float:
-	var b := 0.0
-	while b <= 60.0:
-		var S := lean_scene(b)
-		var B := body()
-		S.apply(B, S.length())
-		if Balance.read(B)["margin"] * 100.0 <= want_cm:
-			return b
-		b += 2.0
-	return -1.0
+func held_margin(S: Scene) -> float:
+	var B := body()
+	S.apply(B, S.length())
+	var rd := Balance.read(B)
+	return -9.0 if (rd["down"] as Array).is_empty() else float(rd["margin"])
+
+
+## scan every family; the first whose margin reaches want_cm (hard) plants the fault; soft = the first v 2.5 cm or more past hard
+func plant_stance(want_cm: float) -> Dictionary:
+	var fams := [[0, range(0, 61, 2)], [1, range(0, -21, -2)], [2, range(20, 111, 10)], [3, range(0, 41, 2)]]
+	for fam in fams:
+		var vals: Array = []
+		for k in fam[1]:
+			vals.append(float(k) if fam[0] != 3 else float(k) * 0.01)
+		var ms: Array = []
+		for v in vals:
+			ms.append(held_margin(stance_scene(fam[0], v)) * 100.0)
+		print("   stance family %d: v %s -> margin cm %s" % [fam[0], str(vals.slice(0, 40, 6)), str(ms.slice(0, 40, 6).map(func(x): return snappedf(x, 0.1)))])
+		var ih := -1
+		for q in ms.size():
+			if ms[q] <= want_cm:
+				ih = q
+				break
+		if ih < 0:
+			continue
+		var isf := -1
+		for q in range(ih, ms.size()):
+			if ms[q] <= ms[ih] - 2.5:
+				isf = q
+				break
+		if isf >= 0:
+			return {"fam": fam[0], "hard": vals[ih], "soft": vals[isf], "m_hard": ms[ih], "m_soft": ms[isf]}
+	return {}
 
 
 func state_sig(S: Scene, B: Body) -> String:
@@ -219,15 +272,14 @@ func _init() -> void:
 	var lf := jump_scene(8, 12)
 	var lf2 := jump_scene(14, 30)
 	var lc := jump_scene(50, 90)
-	var b_hard := lean_for(-4.0)
-	var b_soft := lean_for(-9.0)
-	ok(b_hard > 0.0 and b_soft > b_hard, "0 planted stance faults exist: lean %.0f deg a joint puts the COM 4 cm past the feet, %.0f deg 9 cm" % [b_hard, b_soft])
-	if b_hard < 0.0 or b_soft < 0.0:
-		print("TEACH TEST FAIL (no planted lean)")
+	var pl := plant_stance(-4.0)
+	ok(not pl.is_empty(), "0 planted stance faults exist: family %s, hard fault margin %s cm, soft fault %s cm (measured Balance margin, bars: <= -4 and 2.5 cm lower)" % [str(pl.get("fam", "none")), str(pl.get("m_hard", "-")), str(pl.get("m_soft", "-"))])
+	if pl.is_empty():
+		print("TEACH TEST FAIL (no planted stance fault)")
 		quit(1)
 		return
-	var sf := lean_scene(b_hard)
-	var sf2 := lean_scene(b_soft)
+	var sf := stance_scene(pl["fam"], pl["hard"])
+	var sf2 := stance_scene(pl["fam"], pl["soft"])
 	var sc := lean_scene(4.0)
 	var clips := {"chain": [cf, cc], "landing": [lf, lc], "stance": [sf, sc]}
 	# ---- 1 / 6: the faults
@@ -270,7 +322,23 @@ func _init() -> void:
 	var mg := float(Balance.read(Bq)["margin"]) * 100.0
 	print("stance: frame %d margin %.2f cm (independent %.2f) lean %.0f deg run %.2f s edge %s" % [ns["frame"], ns["margin_cm"], mg, ns["lean_deg"], ns["run_s"], str(ns["edge"])])
 	ok(absf(float(ns["margin_cm"]) - mg) <= 0.3 and float(ns["margin_cm"]) <= -2.0, "1 stance: margin %.2f cm at frame %d = Balance's %.2f within 0.3 and past the 2 cm line" % [ns["margin_cm"], ns["frame"], mg])
-	ok(absf(float(ns["lean_deg"]) - 3.0 * b_hard) <= 3.0 and String(ns["edge"]) == "front", "1 stance: lean %.0f deg vs the planted %.0f, edge %s" % [ns["lean_deg"], 3.0 * b_hard, ns["edge"]])
+	var rdq := Balance.read(Bq)
+	var cq: Vector3 = rdq["com"]
+	var nq := Vector2(cq.x, cq.z)
+	var bestd := INF
+	var edge_ind := ""
+	for ei in (rdq["poly"] as PackedVector2Array).size():
+		var pa: Vector2 = rdq["poly"][ei]
+		var pb: Vector2 = rdq["poly"][(ei + 1) % (rdq["poly"] as PackedVector2Array).size()]
+		var cp := Geometry2D.get_closest_point_to_segment(nq, pa, pb)
+		if nq.distance_to(cp) < bestd:
+			bestd = nq.distance_to(cp)
+			var dv := nq - cp
+			edge_ind = ("front" if dv.y > 0 else "back") if absf(dv.y) >= absf(dv.x) else ("left" if dv.x > 0 else "right")
+	var lean_ind := 0.0
+	for j in ["spine_01", "spine_02", "spine_03"]:
+		lean_ind += float((Bq.ang[j] as Vector3).x)
+	ok(absf(float(ns["lean_deg"]) - lean_ind) <= 1.0 and String(ns["edge"]) == edge_ind, "1 stance: lean %.0f deg vs the body's %.0f, edge %s vs independent %s" % [ns["lean_deg"], lean_ind, ns["edge"], edge_ind])
 	# ---- 2 clean + cross
 	for c in [["chain", cc], ["landing", lc], ["stance", sc]]:
 		var r := run_one(c[0], c[1])
@@ -316,7 +384,7 @@ func _init() -> void:
 	# ---- 5 not canned
 	var rl2 := Teach.landing(lf2, body())
 	var rs2 := Teach.stance(sf2, body())
-	ok(int(rl2.get("n", 0)) == 1 and int(rs2.get("n", 0)) == 1, "5 the second landing (calf 30) and the second stance (lean %.0f) are also found" % b_soft)
+	ok(int(rl2.get("n", 0)) == 1 and int(rs2.get("n", 0)) == 1, "5 the second landing (calf 30) and the second stance (margin %.1f cm) are also found" % pl["m_soft"])
 	if int(rl2.get("n", 0)) == 1 and int(rs2.get("n", 0)) == 1:
 		ok(rl2["findings"][0]["text"] != fl["text"] and absf(float(rl2["findings"][0]["numbers"]["knee_deg"]) - float(nl["knee_deg"])) > 3.0 and rs2["findings"][0]["text"] != fs["text"]
 			and absf(float(rs2["findings"][0]["numbers"]["margin_cm"]) - float(ns["margin_cm"])) > 2.0,

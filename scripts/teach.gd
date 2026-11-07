@@ -241,8 +241,8 @@ static func stance(S: Scene, B: Body) -> Dictionary:
 		var k := Rulebook.card_at(S, float(wi) / FPS)
 		var nums := {"frame": wi, "margin_cm": _r(cm, 1), "edge": edge, "lean_deg": _r(lean, 0), "run_s": _r(run_s, 1)}
 		var fx := _stance_fix(S, B, k, float(wi) / FPS)
-		var fix := {"kind": "lean", "card": k, "delta_deg": fx["delta"], "found": fx["found"]}
-		fix["say"] = ("change the trunk's bend by %.0f deg on card '%s'" % [fx["delta"], S.cards[k].get("name", "")]) if fx["found"] else "move the feet under the weight"
+		var fix := {"kind": "lean", "card": k, "delta_deg": fx["delta"], "axis": fx["axis"], "found": fx["found"]}
+		fix["say"] = ("change the trunk's %s by %.0f deg on card '%s'" % ["side bend" if int(fx["axis"]) == 1 else "forward bend", fx["delta"], S.cards[k].get("name", "")]) if fx["found"] else "move the feet under the weight"
 		findings.append({"cause": "com_outside_feet", "frame": wi, "t": float(wi) / FPS, "numbers": nums, "fix": fix,
 			"text": "At frame %d: the centre of mass is %.1f cm past the %s edge of the feet, held for %.1f s. The trunk is bent %.0f deg, which puts the weight of the upper body beyond the base the feet make, so the body would topple that way unless a step or a hand catches it. Try: %s." % [
 				wi, absf(cm), edge, run_s, lean, fix["say"]]})
@@ -250,8 +250,8 @@ static func stance(S: Scene, B: Body) -> Dictionary:
 	return _res("stance", findings, measure, "The centre of mass stays over the feet: nothing to explain.")
 
 
-## the change of the trunk's bend (the same delta on the three spine joints) on card k that puts the margin at t at FIX_MARGIN or more:
-## the direction that raises the margin first, then 2 deg steps up to 80 deg
+## the change of the trunk's bend or side bend (the same delta on the three spine joints) on card k that puts the margin at t at
+## FIX_MARGIN or more: the axis and direction that raise the margin most on a first 2 deg, then 2 deg steps up to 60 deg
 static func _stance_fix(S: Scene, B: Body, k: int, t: float) -> Dictionary:
 	var C := S.clone()
 	var base_pose: Dictionary = (S.cards[k]["pose"] as Dictionary).duplicate(true)
@@ -259,29 +259,32 @@ static func _stance_fix(S: Scene, B: Body, k: int, t: float) -> Dictionary:
 	B2.load_files(PoseBake.SKEL, PoseBake.LIMS)
 	var ang0 := _ang_of(B2, base_pose)
 	var sgn := 1.0
+	var axis := 0
 	var best_m := -INF
-	for sg in [-1.0, 1.0]:
-		C.cards[k]["pose"] = _lean_pose(B2, ang0, base_pose, sg * 2.0)
-		C.apply(B, t)
-		var mg := float(Balance.read(B)["margin"])
-		if mg > best_m:
-			best_m = mg
-			sgn = sg
+	for ax in [0, 1]:
+		for sg in [-1.0, 1.0]:
+			C.cards[k]["pose"] = _lean_pose(B2, ang0, base_pose, sg * 6.0, ax)
+			C.apply(B, t)
+			var mg := float(Balance.read(B)["margin"])
+			if mg > best_m + 1e-6:
+				best_m = mg
+				sgn = sg
+				axis = ax
 	var d := 2.0
-	while d <= 80.0:
-		C.cards[k]["pose"] = _lean_pose(B2, ang0, base_pose, sgn * d)
+	while d <= 60.0:
+		C.cards[k]["pose"] = _lean_pose(B2, ang0, base_pose, sgn * d, axis)
 		C.apply(B, t)
 		if float(Balance.read(B)["margin"]) >= FIX_MARGIN:
-			return {"found": true, "delta": sgn * d}
+			return {"found": true, "delta": sgn * d, "axis": axis}
 		d += 2.0
-	return {"found": false, "delta": 0.0}
+	return {"found": false, "delta": 0.0, "axis": axis}
 
 
-static func _lean_pose(B2: Body, ang0: Dictionary, base_pose: Dictionary, delta: float) -> Dictionary:
+static func _lean_pose(B2: Body, ang0: Dictionary, base_pose: Dictionary, delta: float, axis := 0) -> Dictionary:
 	Scene.put(B2, Moves._flat(base_pose))
 	for j in SPINE:
 		var a: Vector3 = ang0[j]
-		B2.set_ang(j, Vector3(a.x + delta, a.y, a.z))
+		B2.set_ang(j, Vector3(a.x + (delta if axis == 0 else 0.0), a.y + (delta if axis == 1 else 0.0), a.z))
 	B2.fk()
 	return B2.to_dict()
 
@@ -316,7 +319,7 @@ static func fixed(S: Scene, _B: Body, f: Dictionary) -> Scene:
 		"lean":
 			if k >= 0 and k < C.cards.size() and bool(fix.get("found", false)):
 				var ang0 := _ang_of(B2, C.cards[k]["pose"])
-				C.cards[k]["pose"] = _lean_pose(B2, ang0, C.cards[k]["pose"], float(fix["delta_deg"]))
+				C.cards[k]["pose"] = _lean_pose(B2, ang0, C.cards[k]["pose"], float(fix["delta_deg"]), int(fix.get("axis", 0)))
 				C.set_meta("teach_frame", int(f.get("frame", -1)))
 	return C
 
