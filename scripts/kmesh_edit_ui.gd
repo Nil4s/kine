@@ -566,14 +566,8 @@ func _remeasure() -> void:
 
 ## B05: delete / dissolve / merge on the selection, one undo step each
 func _b05_key(e: InputEventKey) -> void:
-	if e.keycode == KEY_Z:
-		var lb := undo.redo() if e.shift_pressed else undo.undo()
-		sel.restore(undo.last_sel)
-		view.mark_dirty()
-		if view.show_heat:
-			view.rebuild()   # F08: the legend counts the mesh as it is now
-		_legend_update()
-		m._say("Model: %s %s" % ["redone" if e.shift_pressed else "undone", lb if lb != "" else "(nothing to %s)" % ("redo" if e.shift_pressed else "undo")])
+	if e.keycode == KEY_Z:   # P12: through Main, so the step taken is the newest of ALL pages (Main._pu_route; falls back to undo_redo)
+		m._redo() if e.shift_pressed else m._undo()
 		return
 	var it := KMeshDissolve.from_select(sel)
 	var before := "%s verts %s faces" % [str(mesh.vert_count()), str(mesh.face_count())]
@@ -675,13 +669,16 @@ func undo_redo(back: bool) -> void:
 	var lb := undo.undo() if back else undo.redo()
 	sel.restore(undo.last_sel)
 	view.mark_dirty()
+	if view.show_heat:
+		view.rebuild()   # F08: the legend counts the mesh as it is now
+	_legend_update()
 	m._say("Model: %s %s" % ["undone:" if back else "redone:", lb] if lb != "" else "Model: nothing to %s on the test cube" % ("undo" if back else "redo"))
 
 
 ## B02 / B03 (scripts/kmesh_extrude.gd): E extrude, I inset, Ctrl+E bridge, Ctrl+Z / Ctrl+Y undo / redo; true = used
 func _edit_key(k: InputEventKey) -> bool:
 	if k.ctrl_pressed and (k.keycode == KEY_Z or k.keycode == KEY_Y):
-		undo_redo(k.keycode == KEY_Z)
+		m._undo() if k.keycode == KEY_Z else m._redo()   # P12: as _b05_key
 		return true
 	if not (k.keycode == KEY_E or k.keycode == KEY_I) or k.alt_pressed or (k.ctrl_pressed and k.keycode == KEY_I):
 		return false

@@ -136,11 +136,11 @@ func _init() -> void:
 		"(4) Ctrl+Z #3: the sphere is byte-identical to before the stroke (%s), page %s" % [vbytes(ks.mesh.verts) == s0, m.cur_page])
 	# --- 5, 6 redo in reverse order
 	await key(KEY_Z, true, true)
-	var r1 := vbytes(ks.mesh.verts) == s1 and m.cur_page == "SCULPT" and pose_sig() == p0
+	var r1 = vbytes(ks.mesh.verts) == s1 and m.cur_page == "SCULPT" and pose_sig() == p0
 	await key(KEY_Z, true, true)
-	var r2 := pose_sig() == p1 and m.cur_page == "ANIMATE" and mesh_sig(kd.mesh) == c0
+	var r2 = pose_sig() == p1 and m.cur_page == "ANIMATE" and mesh_sig(kd.mesh) == c0
 	await key(KEY_Y, true)
-	var r3 := mesh_sig(kd.mesh) == c1 and m.cur_page == "MODEL" and pose_sig() == p1 and vbytes(ks.mesh.verts) == s1
+	var r3 = mesh_sig(kd.mesh) == c1 and m.cur_page == "MODEL" and pose_sig() == p1 and vbytes(ks.mesh.verts) == s1
 	ok(r1 and r2 and r3, "(5/6) Ctrl+Shift+Z: stroke back, page SCULPT %s; again: key back, page ANIMATE %s; Ctrl+Y: mesh op back, page MODEL %s" % [r1, r2, r3])
 	# --- 7 a new edit after an undo clears the redo across pages
 	await key(KEY_Z, true)   # the mesh op
@@ -152,17 +152,17 @@ func _init() -> void:
 	await idle(2)
 	var p2 := pose_sig()
 	await key(KEY_Y, true)
-	var stayed := mesh_sig(kd.mesh) == c0 and m.cur_page == "ANIMATE" and pose_sig() == p2 and kd.undo.redos.is_empty()
+	var stayed = mesh_sig(kd.mesh) == c0 and m.cur_page == "ANIMATE" and pose_sig() == p2 and kd.undo.redos.is_empty()
 	await key(KEY_Z, true)
-	var back_key := pose_sig() == p1 and m.cur_page == "ANIMATE"
+	var back_key = pose_sig() == p1 and m.cur_page == "ANIMATE"
 	await key(KEY_Z, true)
-	var back_pose := pose_sig() == p0
+	var back_pose = pose_sig() == p0
 	await key(KEY_Z, true)
-	var back_stroke := vbytes(ks.mesh.verts) == s0 and m.cur_page == "SCULPT"
+	var back_stroke = vbytes(ks.mesh.verts) == s0 and m.cur_page == "SCULPT"
 	ok(stayed and back_key and back_pose and back_stroke,
 		"(7) new edit after undo: Ctrl+Y does nothing %s; Ctrl+Z walks the new key %s, the old key %s, the stroke %s" % [stayed, back_key, back_pose, back_stroke])
 	# --- P planted control
-	var tam := ks.mesh.verts.duplicate()
+	var tam = ks.mesh.verts.duplicate()
 	tam[5] += Vector3(1e-6, 0, 0)
 	ok(vbytes(tam) != vbytes(ks.mesh.verts) and s0 != s1 and p0 != p1 and c0 != c1,
 		"(P) planted: a 1e-6 tamper is detected by the byte comparison, and the before / after states all differ")

@@ -3204,6 +3204,7 @@ func _ps() -> Scene:
 
 
 func _ready() -> void:
+	KMeshUndo.on_step = _pu_mesh_step   # P12: the mesh pages' steps join the one ordered history
 	# THE QUALITY WORKER (Easy's My scenes badges): Kine --headless --kine-quality-worker <list.json> grades the list and quits
 	# before anything else starts (no UI, no autosave). Checked first, so the app's start-up never runs in that process.
 	var wargs := OS.get_cmdline_args()
@@ -6529,7 +6530,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			return
 		if k.ctrl_pressed:
 			match k.keycode:
-				KEY_Z: _undo()
+				KEY_Z: _redo() if k.shift_pressed else _undo()
 				KEY_K: ui_cmd.open() if (bld != null and bld.part != null and bld.part.ep != null and bld.part.ep.active()) else _toggle_autokey()   # s097: Easy Part: Ctrl+K opens the action search; elsewhere ROADMAP 42 auto-key on / off
 				KEY_Y: _redo()
 				KEY_S: _save_scene() if k.shift_pressed or (easy != null and easy.on) else _save_pose()   # Ctrl+Shift+S = the scene (round 15, V3); Easy: Ctrl+S too (startwalk bar 8: a beginner's Ctrl+S wrote a pose into moves/)
@@ -7594,9 +7595,68 @@ func _push_undo() -> void:
 		undo_dropped += 1
 		_tree.trim_root()
 	redo.clear()
+	_pu_note("pose", cur_page, null)
 	UndoBudget.settle(self)   # Friday 175: the old steps packed, the oldest forgotten over the memory budget
 	_jpending = true
 	_co_sync()
+
+
+## P12 (scripts/page_undo.gd): ONE ordered undo history across pages. The lists stay each their own; this keeps the order.
+var pu = load("res://scripts/page_undo.gd").new()
+
+
+## a step was made on a list: it is the newest of all, and the redo of every other list is gone with it
+func _pu_note(kind: String, page: String, u) -> void:
+	pu.note(kind, page, u)
+	if kind != "pose":
+		redo.clear()
+	if ksc != null and ksc.undo != u:
+		ksc.undo.redos.clear()
+	if kmed != null and kmed.undo != u:
+		kmed.undo.redos.clear()
+
+
+## KMeshUndo.commit calls this for every mesh step: the sculpt sphere's and the model cube's are noted, any other list's is not
+func _pu_mesh_step(u) -> void:
+	if ksc != null and ksc.undo == u:
+		_pu_note("sculpt", "SCULPT", u)
+	elif kmed != null and kmed.undo == u:
+		_pu_note("model", "MODEL", u)
+
+
+## does the list an entry belongs to still have its step (and is it the list the page shows now)?
+func _pu_has(e: Dictionary, back: bool) -> bool:
+	match String(e["k"]):
+		"pose":
+			return not (undo if back else redo).is_empty()
+		"sculpt":
+			return ksc != null and ksc.undo == e["u"] and not (e["u"].steps if back else e["u"].redos).is_empty()
+		"model":
+			return kmed != null and kmed.undo == e["u"] and not (e["u"].steps if back else e["u"].redos).is_empty()
+	return false
+
+
+## Ctrl+Z / Ctrl+Y over every page: the newest step anywhere, on its own page. true = a step was taken
+func _pu_route(back: bool) -> bool:
+	if bld != null and bld.asm != null and bld.on:
+		return false   # the Assembly screen keeps its own steps
+	var e: Dictionary = pu.take(back, _pu_has)
+	if e.is_empty():
+		return false
+	var pg := String(e["page"])
+	var pose_on_mesh := String(e["k"]) == "pose" and ExpertPages.PAGES.has(pg)
+	if pg != cur_page and not pose_on_mesh:
+		_page_set(pg)
+	match String(e["k"]):
+		"pose":
+			if back: _undo_pose()
+			else: _redo_pose()
+		"sculpt":
+			ksc.undo_redo(back)
+		"model":
+			kmed.undo_redo(back)
+	pu.give(e, back)
+	return true
 
 
 ## the top bar's Undo / Redo on a mesh page: the page's own mesh history (the pose's is a different list). true = taken
@@ -7613,8 +7673,12 @@ func _mesh_undo(back: bool) -> bool:
 
 
 func _undo() -> void:
-	if _mesh_undo(true):
+	if _pu_route(true) or _mesh_undo(true):
 		return
+	_undo_pose()
+
+
+func _undo_pose() -> void:
 	sk.fitted = []   # I9: the faint fitted skeleton belongs to the pose that was undone
 	var sk_hist: Variant = sk.hist.back() if not sk.hist.is_empty() else null
 	sk.flips = {}   # ...and so do its flip handles, unless this undo takes back a flip (below)
@@ -7674,8 +7738,12 @@ func _easy_forget_msg() -> void:
 
 
 func _redo() -> void:
-	if _mesh_undo(false):
+	if _pu_route(false) or _mesh_undo(false):
 		return
+	_redo_pose()
+
+
+func _redo_pose() -> void:
 	_tree_sync()
 	if redo.is_empty():
 		_say("Nothing to redo")   # S252: said in words (status line and toast), never a silent key press or an empty "Redid:"
@@ -7999,6 +8067,7 @@ func _push_undo_lib(files: Array) -> void:
 func _drop_undo() -> void:
 	_tree_sync()
 	undo.pop_back()
+	pu.drop_pose()
 	_tree.drop_cur()
 	_undo_tips()
 	_history_rows.call_deferred()
