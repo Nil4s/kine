@@ -119,6 +119,7 @@ func run() -> void:
 	var s2: Stub = sh2[0]
 	var h2: Hotkeys = sh2[1]
 	h2.load_from(cfg)
+	s2.ui_cmd.commands = s2._commands()   # main builds its registry after load_from
 	ok(h2.scoped.to_json() == js, "SAVE reload from disk: bindings byte-identical (%d bytes)" % js.length())
 	log_.clear()
 	for pg in ["ANIMATE", "STAGE", "POSE"]:
@@ -144,6 +145,7 @@ func run() -> void:
 	cf.save("user://hotpage/old/poser.cfg")
 	var sh3 := make("user://hotpage/old/poser.cfg")
 	sh3[1].load_from("user://hotpage/old/poser.cfg")
+	sh3[0].ui_cmd.commands = sh3[0]._commands()
 	var all_ok := true
 	log_.clear()
 	for pg in ["ANIMATE", "STAGE", "POSE", "MODEL"]:
@@ -155,6 +157,7 @@ func run() -> void:
 	f.close()
 	var sh4 := make("user://hotpage/old/poser.cfg")
 	sh4[1].load_from("user://hotpage/old/poser.cfg")
+	sh4[0].ui_cmd.commands = sh4[0]._commands()
 	log_.clear()
 	for pg in ["ANIMATE", "POSE"]:
 		sh4[0].cur_page = pg

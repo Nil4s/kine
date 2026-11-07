@@ -126,8 +126,16 @@ static func cheat_groups(cmds: Array) -> Array:
 
 # ---- the config file -----------------------------------------------------------------------------------------------
 
+## the page-scoped keys live in a file beside the config (P06): kine_pagekeys.json in the config's folder
+static func scoped_path_of(cfg: String) -> String:
+	return cfg.get_base_dir().path_join("kine_pagekeys.json")
+
+
 func load_from(path: String) -> void:
 	over = {}
+	scoped.items = []
+	if FileAccess.file_exists(scoped_path_of(path)):
+		scoped.load_file(scoped_path_of(path))   # schema 2, or an old schema-1 profile (every binding global)
 	var cf := ConfigFile.new()
 	if cf.load(path) != OK or not cf.has_section(SECTION):
 		return
@@ -143,6 +151,8 @@ func save_to(path: String) -> void:
 	for key in over:
 		cf.set_value(SECTION, key, over[key])
 	cf.save(path)
+	if not scoped.items.is_empty() or FileAccess.file_exists(scoped_path_of(path)):
+		scoped.save_file(scoped_path_of(path))
 
 
 # ---- changing a key -------------------------------------------------------------------------------------------------
@@ -172,8 +182,34 @@ func set_key(id: String, combo: String, confirm := false) -> Dictionary:
 	return {"ok": true, "msg": msg}
 
 
+## P06: bind a key to a command on ONE page ("animate", "stage", ...; any case). The page's own key wins over the global one; a page with no
+## binding for the key falls back to the global key. Another command already on that key on that page is reported ({conflict}), not overwritten,
+## unless confirm is true.
+func set_page_key(id: String, combo: String, page: String, confirm := false) -> Dictionary:
+	if _find(m.ui_cmd.commands, id).is_empty():
+		return {"ok": false, "msg": "no command called %s" % id}
+	if page.strip_edges() == "":
+		return {"ok": false, "msg": "a page is needed (use set_key for a key on every page)"}
+	var r := scoped.bind(combo, id, page.to_lower(), confirm)
+	if r["ok"]:
+		save_to(m.settings)
+	return r
+
+
+## remove the command's key on that page (it falls back to the global key). True when something was removed.
+func clear_page_key(id: String, page: String) -> bool:
+	var pg := page.to_lower()
+	for b in scoped.items:
+		if String(b["cmd"]) == id and String(b["scope"]) == pg:
+			var gone := scoped.unbind(String(b["key"]), pg)
+			save_to(m.settings)
+			return gone
+	return false
+
+
 func reset_all() -> void:
 	over.clear()
+	scoped.items = []
 	pending = ""
 	capture = ""
 	refresh()
