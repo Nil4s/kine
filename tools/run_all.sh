@@ -1083,3 +1083,4 @@ EXTRA="$EXTRA partckpt:w"   # L57 PART CHECKPOINTS: replay of many joined steps 
 EXTRA="$EXTRA kmeshnat:w"   # L60: KMesh from_array_mesh/rebuild/is_manifold, Catmull-Clark subdivide and boolean in C++ (KineKMeshNative), native == GDScript, speed bars (tests/kmeshnat_test.gd)
 EXTRA="$EXTRA fastsave:w"   # L56 FASTSAVE: save/USD with 1000 props <= 300 ms warm, file byte-identical (tests/fastsave_test.gd)
 EXTRA="$EXTRA propsgrid:w"   # L58 PROPSGRID: Props.settle in C++ with a grid (GDScript twin), undo without re-settle, _props_show keeps nodes per prop (tests/propsgrid_test.gd)
+EXTRA="$EXTRA fight2:w"   # L72 FIGHT2: N034 impact alignment (bent wrist / locked knee flagged), N042 hit reaction by body region (4 of 4, monotone in impulse, inside body_limits), N046 shoulder-charge momentum sharing (<5%) (tests/fight2_test.gd)
