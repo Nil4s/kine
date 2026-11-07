@@ -1116,3 +1116,4 @@ EXTRA="$EXTRA access:w"   # L111 P16 accessibility: font scale 1.5 on a real pag
 EXTRA="$EXTRA pagewire:w"   # L108 P06/P07/P18 wired into the real app (tests/pagewire_test.gd)
 EXTRA="$EXTRA learnkeys:w"   # L114 P18 learn-from-me hotkeys: 5 box runs -> offered a free key, accept binds, decline is final, counts persist (tests/learnkeys_test.gd, scripts/learn_keys.gd)
 EXTRA="$EXTRA themehc:w"   # P08 HIGH CONTRAST theme via Tok: WCAG 7:1 pairs, planted 3:1, real page recolour + byte-identical restore (tests/themehc_test.gd)
+EXTRA="$EXTRA settings2:w"   # L115 Settings wiring: font scale 100/125/150, colour-blind colours, cm/m/in, brush pie; real clicks change live state, survive save + restart, defaults unchanged, planted fail (tests/settings2_test.gd, scripts/access_prefs.gd)
