@@ -41,8 +41,8 @@ func _line(f: Dictionary) -> String:
 	var who := "fighter %d" % (int(f["i"]) + 1)
 	var wall := String(f["corner"]) if String(f["corner"]).contains(" ") else String(f["wall"])
 	if float(f["room"]) < 0.0:
-		return "%s is pushed into the %s %s: %.2f m past it, at %.2f s" % [who, wall, "corner" if wall.contains(" ") else "wall", float(f["over"]), float(f["t"])]
-	return "%s has %.2f m to the %s wall = %d steps, at its tightest (%.2f s)" % [who, float(f["room"]), wall, int(f["steps"]), float(f["t"])]
+		return "%s is pushed into the %s %s: %s past it, at %.2f s" % [who, wall, "corner" if wall.contains(" ") else "wall", Units.metres(float(f["over"]), 2), float(f["t"])]
+	return "%s has %s to the %s wall = %d steps, at its tightest (%.2f s)" % [who, Units.metres(float(f["room"]), 2), wall, int(f["steps"]), float(f["t"])]
 
 
 func _panel() -> void:
@@ -64,11 +64,12 @@ func _panel() -> void:
 	row.add_child(m._label("Ring side", 13, "text:0.6"))
 	var sp := SpinBox.new()
 	sp.name = "arena_size"
-	sp.min_value = 3.0
-	sp.max_value = 20.0
-	sp.step = 0.5
-	sp.suffix = " m"
-	sp.value = size
+	var fk := 1.0 if Units.unit == "cm" else float(Units.M_PER[Units.unit])   # metres in cm / m mode, the unit itself in inches
+	sp.min_value = 3.0 / fk
+	sp.max_value = 20.0 / fk
+	sp.step = 0.5 / fk
+	sp.suffix = " " + ("m" if Units.unit == "cm" else Units.unit)
+	sp.value = size / fk
 	sp.tooltip_text = "the ring's side in metres; the fight is checked again at each change"
 	sp.value_changed.connect(_size_changed)
 	row.add_child(sp)
@@ -85,7 +86,7 @@ func _panel() -> void:
 
 
 func _size_changed(v: float) -> void:
-	size = v
+	size = v * (1.0 if Units.unit == "cm" else float(Units.M_PER[Units.unit]))
 	compute()
 
 

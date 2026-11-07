@@ -176,5 +176,5 @@ func _draw() -> void:
 			_label(c, Vector2(24.0, 12.0), "%.2f s" % float(stp["t"]), 9, Tok.c("text"), 2, "time")
 	var sb := Vector2(14.0, H - 14.0)
 	draw_line(sb, sb + Vector2(s, 0.0), ink, 3.0)
-	_text(sb + Vector2(s + 4.0, 4.0), "100 cm", 10, Tok.c("text"))
+	_text(sb + Vector2(s + 4.0, 4.0), Units.len(1.0), 10, Tok.c("text"))
 	_resolve(W, H)
