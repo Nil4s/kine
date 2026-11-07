@@ -431,6 +431,21 @@ func frame_all() -> void:
 
 
 ## the drawn line of angle c: PartKeys.value_at() at a point every 2 px (and at every key's time), as local pixel positions
+## L84 BUFFER CURVE GHOST: keys of a stored curve (CurveBuffer.keys_of) drawn faintly behind the live one; [] = none
+var ghost_keys: Array = []
+
+
+func ghost_line(c: int) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	if ghost_keys.is_empty():
+		return pts
+	var n := int(ceilf(plot().size.x / 2.0))
+	for i in n + 1:
+		var t := t0 + (t1 - t0) * float(i) / float(n)
+		pts.append(Vector2(t_to_x(t), cv_to_y(c, PartKeys.value_at(ghost_keys, t)[c])))
+	return pts
+
+
 func polyline(c: int) -> PackedVector2Array:
 	var pts := PackedVector2Array()
 	var ks := keys()
@@ -546,6 +561,8 @@ func _draw() -> void:
 		draw_string(f, Vector2(p.position.x + 20, p.position.y + p.size.y * 0.5), "no part keys on this part: pick it and press K at a time to key it", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Tok.dim(0.8))
 		return
 	for c in 3:
+		if not ghost_keys.is_empty():
+			draw_polyline(ghost_line(c), Color(_col(c), 0.35), 1.5, true)
 		draw_polyline(polyline(c), _col(c), 2.0, true)
 	_draw_why_lines()
 	for i in ks.size():

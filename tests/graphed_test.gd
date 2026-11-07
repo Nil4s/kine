@@ -55,6 +55,8 @@ func _init() -> void:
 	gs.reload()
 	var m: Node = gs.new()
 	var B := Body.new()
+	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	B.fk()
 	var S := Scene.new()
 	S.add("a", B.to_dict())
 	S.part_keys = {J: keys()}
@@ -221,7 +223,7 @@ func _init() -> void:
 	pk = {J: keys()}
 	m.S.part_keys = pk
 	var plain := JSON.stringify(S.to_dict(B))
-	var legacy_ok := not plain.contains("hout") and not plain.contains("mods")
+	var legacy_ok := not plain.contains("wout") and not plain.contains("mods")
 	PartKeys.set_weight(pk, J, 1, "out", 2.0)
 	PartKeys.set_weight(pk, J, 2, "in", 0.5)
 	PartKeys.add_mod(pk, J, {"type": "limits", "ch": 0, "min": 5.0, "max": 60.0, "mix": 1.0})
@@ -232,7 +234,7 @@ func _init() -> void:
 	for i in 301:
 		var t := 3.0 * float(i) / 300.0
 		w10 = maxf(w10, _mx(PartKeys.value_at(pk[J], t) - PartKeys.value_at(S2.part_keys[J], t)))
-	ok(legacy_ok and js.contains("hout") and w10 <= 0.02, "10 save/reload: weights and stack come back, worst %.5f deg (<= 0.02, the file keeps 0.01); a scene without weights or mods writes neither (%s)" % [w10, legacy_ok])
+	ok(legacy_ok and js.contains("wout") and w10 <= 0.02, "10 save/reload: weights and stack come back, worst %.5f deg (<= 0.02, the file keeps 0.01); a scene without weights or mods writes neither (%s)" % [w10, legacy_ok])
 	# 11 tool registered
 	var at_src := FileAccess.get_file_as_string("res://scripts/agent_tools.gd")
 	var py_src := FileAccess.get_file_as_string("res://tools/mcp/poser_mcp.py")

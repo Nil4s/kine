@@ -307,7 +307,7 @@ static func _inside(keys: Array, t: float, mode: String) -> Vector3:
 		return a
 	if ip == "linear":
 		return a + (b - a) * s
-	if mode == "hold" and handle_of(keys[i]) == "auto_clamped" and handle_of(keys[i + 1]) == "auto_clamped":
+	if mode == "hold" and handle_of(keys[i]) == "auto_clamped" and handle_of(keys[i + 1]) == "auto_clamped" and not keys[i].has("wout") and not keys[i + 1].has("win"):   # L84: a weighted handle takes the bezier path
 		# round 41's curve, the very same expression (old files sample bit for bit)
 		var ma := _slope(keys, i)
 		var mb := _slope(keys, i + 1)
@@ -483,6 +483,14 @@ static func _handles(keys: Array, k: int, mode: String) -> Array:
 		var sl := _auto_slope(keys, k, mode, ht == "auto_clamped")
 		dvi = -sl * dti
 		dvo = sl * dto
+	var wi := float(keys[k].get("win", 1.0))   # L84: tangent weight multipliers (auto / vector handles); the slope stays, the length scales
+	var wo := float(keys[k].get("wout", 1.0))
+	if wi != 1.0:
+		dti *= wi
+		dvi *= wi
+	if wo != 1.0:
+		dto *= wo
+		dvo *= wo
 	return [Vector4(-dti, dvi.x, dvi.y, dvi.z), Vector4(dto, dvo.x, dvo.y, dvo.z)]
 
 
@@ -658,6 +666,48 @@ static func set_tangent(pk: Dictionary, j: String, idx: int, side: String, c: in
 	return set_handle(pk, j, idx, side, Vector4(sgn * len, d.x, d.y, d.z))
 
 
+## L84 WEIGHT as a multiplier: key idx's handle on `side` has weight w = its length in time / (segment / 3). 1.0 is the default handle
+## (a third of the segment), so a curve that never had weights reads 1.0 everywhere; the longest is 3.0 (the whole segment), the shortest 0.06.
+## -1.0 when the key has no segment on that side
+static func weight_of(keys: Array, idx: int, side: String) -> float:
+	var nb := idx - 1 if side == "in" else idx + 1
+	if idx < 0 or idx >= keys.size() or nb < 0 or nb >= keys.size() or not side in ["in", "out"]:
+		return -1.0
+	var h := absf(float(keys[nb]["t"]) - float(keys[idx]["t"]))
+	var hd: Vector4 = _handles(keys, idx, inf_of(keys))[0 if side == "in" else 1]
+	return absf(hd.x) / maxf(h / 3.0, 1e-9)
+
+
+## L84: set that weight. The tangent's SLOPE per angle is kept, only the handle's length changes, so the key values and the other handle
+## (hence the neighbouring segment) do not change by a bit. A weight within 1e-9 of the current one changes nothing (weight 1.0 on a
+## default handle leaves the data byte for byte). The key turns "aligned" like any handle drag; false if there is no segment on that side
+static func set_weight(pk: Dictionary, j: String, idx: int, side: String, w: float) -> bool:
+	if not pk.has(j) or idx < 0 or idx >= (pk[j] as Array).size() or not side in ["in", "out"]:
+		return false
+	var keys: Array = pk[j]
+	var cur := weight_of(keys, idx, side)
+	if cur < 0.0:
+		return false
+	if absf(w - cur) < 1e-6:   # Vector4 is single precision: a default handle reads 1.0 to ~1e-8
+		return true
+	var key: Dictionary = keys[idx]
+	var ht := handle_of(key)
+	if ht == "aligned" or ht == "free":   # explicit handles: scale the stored one (slope kept), the other is untouched
+		var nb := idx - 1 if side == "in" else idx + 1
+		var h := absf(float(keys[nb]["t"]) - float(keys[idx]["t"]))
+		var hd: Vector4 = _handles(keys, idx, inf_of(keys))[0 if side == "in" else 1]
+		var f := clampf(w * h / 3.0, 0.02 * h, h) / maxf(absf(hd.x), 1e-9)
+		key["hin" if side == "in" else "hout"] = Vector4(hd.x * f, hd.y * f, hd.z * f, hd.w * f)
+		return true
+	var fld := "win" if side == "in" else "wout"
+	var mult := clampf(w, 0.06, 3.0)
+	if absf(mult - 1.0) < 1e-9:
+		key.erase(fld)
+	else:
+		key[fld] = mult
+	return true
+
+
 ## UNIFY: the key's two handles share one slope per angle (aligned); from broken (or a corner), the in handle turns to the out handle's
 ## slope and keeps its own length. BREAK: the handles are free to point apart (the curve does not move when they are frozen)
 static func unify(pk: Dictionary, j: String, idx: int) -> bool:
@@ -709,6 +759,9 @@ static func _extras_to_file(k: Dictionary, e: Dictionary) -> void:
 			for side in ["hin", "hout"]:
 				var h: Vector4 = k[side]
 				e[side] = [snappedf(h.x, 0.001), snappedf(h.y, 0.01), snappedf(h.z, 0.01), snappedf(h.w, 0.01)]
+	for wf in ["win", "wout"]:   # L84 tangent weights, written only when not 1.0
+		if k.has(wf):
+			e[wf] = snappedf(float(k[wf]), 0.0001)
 	if String(k.get("inf", "hold")) != "hold":
 		e["inf"] = k["inf"]
 	if k.get("mods") is Array and not (k["mods"] as Array).is_empty():
@@ -733,6 +786,9 @@ static func _extras_from_file(src: Dictionary, k: Dictionary) -> void:
 			if has_h:
 				k["hin"] = Vector4(float(hin_[0]), float(hin_[1]), float(hin_[2]), float(hin_[3]))
 				k["hout"] = Vector4(float(hout_[0]), float(hout_[1]), float(hout_[2]), float(hout_[3]))
+	for wf in ["win", "wout"]:
+		if src.has(wf) and absf(float(src[wf]) - 1.0) > 1e-9:
+			k[wf] = clampf(float(src[wf]), 0.06, 3.0)
 	if String(src.get("inf", "")) in INFS and src["inf"] != "hold":
 		k["inf"] = String(src["inf"])
 	if src.get("mods") is Array:   # DD2: unknown types dropped; numbers as floats, ch as an int
