@@ -448,6 +448,7 @@ var size_sl: HSlider
 var strength_sl: HSlider
 var size_lbl: Label
 var strength_lbl: Label
+var pie_cb: CheckBox   # L135
 
 
 func make_sliders() -> void:
@@ -477,14 +478,21 @@ func make_sliders() -> void:
 	dyn_cb.focus_mode = Control.FOCUS_NONE
 	dyn_cb.toggled.connect(_on_dyntopo)
 	box.add_child(dyn_cb)
-	var pie_cb := CheckBox.new()   # P04
+	pie_cb = CheckBox.new()   # P04
 	pie_cb.name = "sculpt_pie"
 	pie_cb.text = "Brush pie menu (Q)"
 	pie_cb.tooltip_text = "Q opens a ring of the brushes around the mouse; release the mouse on one to pick it. Off by default."
 	pie_cb.focus_mode = Control.FOCUS_NONE
 	pie_cb.button_pressed = m.pie_on
-	pie_cb.toggled.connect(func(v: bool): m.pie_on = v)
+	pie_cb.toggled.connect(func(v: bool):   # L135: the same setting as Settings' pie: saved, and Settings follows
+		m.pie_on = v
+		AccessPrefs.save("pie", v)
+		var sp := m.find_child("settings_pie", true, false) as CheckBox
+		if sp != null:
+			sp.set_pressed_no_signal(v))
 	box.add_child(pie_cb)
+	PenPicker.load_into(self, "sculpt")
+	PenPicker.add(box, self, "sculpt")
 	_sync_sliders()
 
 
@@ -520,6 +528,8 @@ func _on_strength(v: float) -> void:
 func _sync_sliders() -> void:
 	if size_sl == null:
 		return
+	if pie_cb != null:
+		pie_cb.set_pressed_no_signal(m.pie_on)
 	var r_mm := radius * 1000.0
 	var s_mm := strength * 1000.0
 	size_sl.set_value_no_signal(r_mm)

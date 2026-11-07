@@ -230,7 +230,7 @@ func run() -> void:
 	await click_ctl(node("wpart_book_btn"))
 	var e0 := book_entry("model_sword")
 	var err0 := mass_err(e0, km, WeaponParts.DEFAULT_MAT) if not e0.is_empty() else 9.0
-	ok(err0 < 1e-9, "1 untouched add-to-grip-book: model_sword with the role defaults, mass err %.2e" % err0)
+	ok(err0 < 1e-9, "1 untouched add-to-grip-book: model_sword with the role defaults, mass err %.8f" % err0)
 	# ---- 4 weapon choices
 	var le := node("wpart_name") as LineEdit
 	le.text = "katana"
@@ -242,7 +242,7 @@ func run() -> void:
 	await click_ctl(node("wpart_book_btn"))
 	var e1 := book_entry("model_katana")
 	var err1 := mass_err(e1, km, want) if not e1.is_empty() else 9.0
-	ok(err1 < 1e-9, "4 katana in the book with blade aluminium / grip pine / guard glass / pommel concrete: mass = volume x new density, worst rel err %.2e" % err1)
+	ok(err1 < 1e-9, "4 katana in the book with blade aluminium / grip pine / guard glass / pommel concrete: mass = volume x new density, worst rel err %.8f" % err1)
 	var e0b := book_entry("model_sword")
 	ok(not e0b.is_empty() and mass_err(e0b, km, WeaponParts.DEFAULT_MAT) < 1e-9, "4 model_sword is untouched by the katana")
 	# ---- 3 live pen pickers
@@ -322,7 +322,7 @@ func run() -> void:
 	await click_ctl(node("wpart_book_btn"))
 	var e2 := book_entry("model_katana")
 	var err2 := mass_err(e2, km, want) if not e2.is_empty() else 9.0
-	ok(err2 < 1e-9, "7 restart: an untouched add-to-grip-book writes the katana entry again, worst rel err %.2e" % err2)
+	ok(err2 < 1e-9, "7 restart: an untouched add-to-grip-book writes the katana entry again, worst rel err %.8f" % err2)
 	# ---- 8 PLANT
 	var steel_blade := float(KMeshMeasure.volume(WeaponParts.cut(km, WeaponParts.faces_of(km, "blade")))["m3"]) * float(KMeshMeasure.MATERIALS["steel"]["kg_m3"])
 	var got_blade := float(((e2.get("parts", {}) as Dictionary).get("blade", {}) as Dictionary).get("mass_kg", 0.0))
