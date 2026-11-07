@@ -201,7 +201,7 @@ func _tex_stamp(p: Vector2) -> int:
 	var mvp := cam.get_camera_projection() * Projection(cam.global_transform.affine_inverse() * model)
 	var wp: Vector3 = s["point"]
 	var rpx := cam.unproject_position(wp).distance_to(cam.unproject_position(wp + cam.global_transform.basis.x * radius * _pen.rk() * model.basis.get_scale().x))   # P09: pen radius
-	return tp.stamp(mvp, model.affine_inverse() * cam.global_position, Vector2i(m.get_viewport().get_visible_rect().size), p, rpx, color, strength * _pen.sk(), 1.0 - softness, 2)
+	return tp.stamp(mvp, model.affine_inverse() * cam.global_position, Vector2i(m.get_viewport().get_visible_rect().size), p, rpx, (Color.WHITE if _pen.erasing() else color), strength * _pen.sk(), 1.0 - softness, 2)
 
 
 func _tex_to(p: Vector2, first: bool) -> void:

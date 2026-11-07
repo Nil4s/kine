@@ -74,6 +74,14 @@ func stroke(a: Vector2, b: Vector2, pr := 0.0, inv := false, tilt := Vector2.ZER
 	await idle(2)
 
 
+## ONE dab: the hover that carries the pen state, a press, the release (no motion, so no second dab)
+func dab1(a: Vector2, pr := 0.0, inv := false) -> void:
+	await pen(a, pr, inv, Vector2.ZERO, false)
+	await btn(a, true)
+	await btn(a, false)
+	await idle(2)
+
+
 func hsh(x) -> String:
 	return str(var_to_bytes(x).hex_encode().hash())
 
@@ -268,9 +276,28 @@ func vpaint_part() -> void:
 				if dd != 0:
 					n += 1
 			tres[target + k] = {"s": float(s), "n": n, "h": hsh(td)}
-	var ts1: float = tres["strengthp1"]["s"]
-	var tr: float = tres["strengthp025"]["s"] / ts1 if ts1 != 0.0 else -9.0
-	ok(ts1 > 0.0 and near(tr, 0.25, 0.02), "(S) texture strength mode: texel change(0.25)/(1.0) = %.4f (bar 0.25 +- 0.02)" % tr)
+	# (S)/(I) on ONE dab at a low strength: a stroke stacks dabs (1-(1-w)^n), which is not linear in the pressure
+	pu.set("pen_target", "strength")
+	pu.strength = 0.3
+	var dres := {}
+	var sat := false
+	for k in ["p1", "p025", "inv"]:
+		pu.tp.set_data(t0.duplicate())
+		await dab1(pts[0].lerp(pts[1], 0.5), cases[k][0], cases[k][1])
+		var td1: PackedByteArray = pu.tp.data()
+		var s := 0.0
+		var g := 0.0
+		for i in td1.size():
+			s += absf(float(td1[i]) - float(t0[i]))
+			if i % 4 == 1:
+				g += float(td1[i]) - float(t0[i])
+			if td1[i] == 255 and t0[i] != 255 and i % 4 != 3:
+				sat = true
+		dres[k] = {"s": s, "g": g}
+	var ts1: float = dres["p1"]["s"]
+	var tr: float = dres["p025"]["s"] / ts1 if ts1 != 0.0 else -9.0
+	ok(ts1 > 0.0 and near(tr, 0.25, 0.02), "(S) texture strength mode, one dab at 0.3: texel change(0.25)/(1.0) = %.4f (bar 0.25 +- 0.02), a texel saturated %s" % [tr, sat])
+	ok(dres["inv"]["g"] > dres["p1"]["g"] + 1.0, "(I) texture pen_inverted erases toward white: green change %.0f vs %.0f for the normal red dab" % [dres["inv"]["g"], dres["p1"]["g"]])
 	ok(tres["radiusp025"]["n"] < 0.5 * tres["radiusp1"]["n"], "(R) texture radius mode: changed texels %d at 0.25 < half of %d at 1.0" % [tres["radiusp025"]["n"], tres["radiusp1"]["n"]])
 	ok(base_ok("tex", tres["strengthmouse"]["h"]) and base_ok("tex_r", tres["radiusmouse"]["h"]) and tres["strengthp1"]["h"] == tres["strengthmouse"]["h"],
 		"(M) texture: a mouse stroke is byte-identical to the baseline (both targets); a pen at 1.0 = the mouse")
@@ -327,14 +354,32 @@ func wpaint_part() -> void:
 			var before := wsum(mesh, B)
 			await stroke(pts[0], pts[1], cases[k][0], cases[k][1])
 			res[target + k] = {"s": wsum(mesh, B) - before, "r": float(ui.wp.p["radius"]), "h": hsh([mesh.attr_data(KMeshWPaint.CH_BONES), mesh.attr_data(KMeshWPaint.CH_WEIGHTS)])}
-	var s1: float = res["strengthp1"]["s"]
-	var r_s: float = res["strengthp025"]["s"] / s1 if s1 != 0.0 else -9.0
-	ok(s1 > 0.0 and near(r_s, 0.25, 0.02), "(S) wpaint strength mode: weight added(0.25)/(1.0) = %.4f (bar 0.25 +- 0.02), added(1.0) = %.5f" % [r_s, s1])
+	# (S)/(I) on ONE dab at a low strength where nothing clamps (a stroke saturates the weights at 1 and renormalises)
+	ui.set("pen_target", "strength")
+	ui.strength = 0.05
+	var one := {}
+	var maxw := 0.0
+	var pc := pts[0].lerp(pts[1], 0.5)
+	for k in ["w0", "p1", "p025", "add", "inv"]:
+		mesh.set_attr_data(KMeshWPaint.CH_BONES, cb0.duplicate())
+		mesh.set_attr_data(KMeshWPaint.CH_WEIGHTS, cw0.duplicate())
+		if k == "inv":
+			await dab1(pc, 1.0, false)
+			one["add"] = wsum(mesh, B)
+		var bef := wsum(mesh, B)
+		if k != "w0" and k != "add":
+			await dab1(pc, cases[k][0], cases[k][1])
+		one[k] = wsum(mesh, B) - bef
+		for v in mesh.verts.size():
+			maxw = maxf(maxw, KMeshWPaint.weight_of(mesh, v, B))
+	var s1: float = one["p1"]
+	var r_s: float = one["p025"] / s1 if s1 != 0.0 else -9.0
+	ok(s1 > 0.0 and maxw < 0.999 and near(r_s, 0.25, 0.02), "(S) wpaint strength mode, one dab at 0.05: weight added(0.25)/(1.0) = %.4f (bar 0.25 +- 0.02), added(1.0) = %.5f, largest bone weight seen %.3f (no clamp < 0.999)" % [r_s, s1, maxw])
 	var rr: float = res["radiusp025"]["r"] / ui.radius
 	ok(near(rr, 0.25, 0.02) and res["radiusp025"]["s"] < res["radiusp1"]["s"], "(R) wpaint radius mode: radius ratio %.4f (bar 0.25 +- 0.02); added %.5f < %.5f" % [rr, res["radiusp025"]["s"], res["radiusp1"]["s"]])
-	var raised: float = res["added"] - w0
-	var ri: float = res["strengthinv"]["s"] / raised if raised != 0.0 else 9.0
-	ok(raised > 0.0 and res["strengthinv"]["s"] < 0.0 and near(ri, -1.0, 0.1), "(I) wpaint pen_inverted subtracts: weight change %.5f after the add raised it %.5f, ratio %.4f (bar -1 +- 0.1)" % [res["strengthinv"]["s"], raised, ri])
+	var raised: float = one["p1"]
+	var ri: float = one["inv"] / raised if raised != 0.0 else 9.0
+	ok(raised > 0.0 and one["inv"] < 0.0 and near(ri, -1.0, 0.1), "(I) wpaint pen_inverted subtracts, one dab: weight change %.5f after an add dab raised it %.5f, ratio %.4f (bar -1 +- 0.1)" % [one["inv"], raised, ri])
 	ok(base_ok("wpaint", res["strengthmouse"]["h"]) and base_ok("wpaint_r", res["radiusmouse"]["h"]) and res["strengthp1"]["h"] == res["strengthmouse"]["h"],
 		"(M) wpaint: a mouse stroke is byte-identical to the baseline (both targets); a pen at 1.0 = the mouse: %s" % (res["strengthp1"]["h"] == res["strengthmouse"]["h"]))
 
