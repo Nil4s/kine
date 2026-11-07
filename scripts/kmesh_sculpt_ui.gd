@@ -58,6 +58,10 @@ var alpha_rot := SculptAlphaStroke.R_STROKE
 var alpha_angle := 0.0           # deg
 var _seed := 0
 var _stroking := false
+var pen_target := "strength"   # P09 tablet: what pen pressure scales: strength | radius | both | off (a mouse is always full)
+var pen_tilt := false          # P09: the pen tilt rotates the alpha stamp
+var _pen := KMeshPen.new()
+var _stroke_r := 0.08          # the radius the stroke began with (pressure in radius mode scales it per dab)
 var _grab_plane := Plane()
 var _hover := {}     # {"point" (world), "normal" (world)} under the mouse, or {}
 var _mouse := Vector2.ZERO
@@ -182,9 +186,11 @@ func _params(ev: InputEvent) -> Dictionary:
 		if (ev as InputEventWithModifiers).shift_pressed:
 			b = KMeshSculpt.SMOOTH
 	_seed += 1
+	_pen_sync()
+	inv = inv or _pen.erasing()   # P09: the eraser end of the pen is the inverse brush
 	return KMeshTopoMirror.get_shared().sculpt_params(mesh, view.global_transform if view != null else Transform3D.IDENTITY, {"brush": b, "radius": radius, "strength": strength, "falloff": falloff, "spacing": spacing, "invert": inv, "sym_x": sym_x, "dyntopo": dyntopo, "detail": dyn_detail,
 		"sym_y": sym_y, "sym_z": sym_z, "radial": radial, "radial_axis": radial_axis,
-		"alpha": alpha, "stroke_method": stroke_method, "alpha_rot": alpha_rot, "alpha_angle": deg_to_rad(alpha_angle), "seed": _seed,   # C08
+		"alpha": alpha, "stroke_method": stroke_method, "alpha_rot": alpha_rot, "alpha_angle": deg_to_rad(alpha_angle) + _pen.tilt_angle(), "seed": _seed,   # C08
 		"alpha_ref": _local_n((m.get("cam") as Camera3D).global_transform.basis.x) if view != null and m.get("cam") is Camera3D else Vector3.RIGHT})   # B22: the edit mirror on = its partner map
 
 
@@ -348,7 +354,9 @@ func input(ev: InputEvent) -> bool:
 			undo.begin(mesh)
 			sculpt.begin(mesh, fsets.params(self, _params(mb), s))
 			_grab_plane = Plane(cam.global_transform.basis.z, s["point"])   # grab: the drag slides on a screen-facing plane
-			sculpt.to(_local(s["point"]), _local_n(s["normal"]), 1.0)
+			_stroke_r = float(sculpt.p["radius"])
+			_pen_dab()
+			sculpt.to(_local(s["point"]), _local_n(s["normal"]), _pen.sk())
 			_stroking = true
 			view.mark_dirty()
 			return true
@@ -363,11 +371,14 @@ func input(ev: InputEvent) -> bool:
 	if ev is InputEventMouseMotion:
 		var mm := ev as InputEventMouseMotion
 		_mouse = mm.position
+		_pen_sync()
+		_pen.note(mm)
 		_hover = surface_at(cam, mm.position)
 		_ov.queue_redraw()
 		if not _stroking:
 			return false
-		var pr := KMeshSculpt.pressure_of(mm)
+		var pr := _pen.sk()
+		_pen_dab()
 		if sculpt.p["brush"] == KMeshSculpt.GRAB or sculpt.p["brush"] == KMeshSculpt.SNAKE:
 			var wp = _grab_plane.intersects_ray(cam.project_ray_origin(mm.position), cam.project_ray_normal(mm.position))
 			if wp != null:
@@ -379,6 +390,21 @@ func input(ev: InputEvent) -> bool:
 		view.mark_dirty()
 		return true
 	return false
+
+
+## P09: the page's pen options into the pen state
+func _pen_sync() -> void:
+	_pen.target = pen_target
+	_pen.tilt_on = pen_tilt
+
+
+## P09: before a dab, the pen's radius factor (radius mode) and tilt (a stamp turn) go into the running stroke
+func _pen_dab() -> void:
+	var rk := _pen.rk()
+	if rk != 1.0:
+		sculpt.p["radius"] = _stroke_r * rk
+	if pen_tilt:
+		sculpt.p["alpha_angle"] = deg_to_rad(alpha_angle) + _pen.tilt_angle()
 
 
 func _draw_overlay() -> void:

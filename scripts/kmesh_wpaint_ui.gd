@@ -45,6 +45,9 @@ var _lock_chk: CheckBox
 var _locks_lbl: Label
 var _ov: Control
 var _stroking := false
+var pen_target := "strength"   # P09 tablet: what pen pressure scales: strength | radius | both | off (a mouse is always full)
+var _pen := KMeshPen.new()
+var _stroke_r := 0.05
 var _hover := {}
 var _heat_dirty := true
 var _seen_data = null       # the weights array the heat was built from (an undo swaps it)
@@ -180,7 +183,11 @@ func set_lock(id: int, locked: bool) -> void:
 
 
 func _params() -> Dictionary:
-	return {"brush": brush, "bone": bone, "radius": radius, "strength": strength, "value": value, "falloff": falloff,
+	_pen.target = pen_target
+	var br := brush
+	if _pen.erasing():   # P09: the eraser end subtracts where the brush adds, and adds where it subtracts
+		br = KMeshWPaint.SUB if brush == KMeshWPaint.ADD else (KMeshWPaint.ADD if brush == KMeshWPaint.SUB else brush)
+	return {"brush": br, "bone": bone, "radius": radius, "strength": strength, "value": value, "falloff": falloff,
 		"mirror": mirror, "mirror_of": mirror_of, "locks": locks.duplicate()}
 
 
@@ -373,7 +380,9 @@ func input(ev: InputEvent) -> bool:
 				return true
 			ed.undo.begin(ed.mesh)
 			wp.begin(ed.mesh, _params())
-			wp.to(_local(s["point"]), Vector3.UP, 1.0)
+			_stroke_r = float(wp.p["radius"])
+			_pen_dab()
+			wp.to(_local(s["point"]), Vector3.UP, _pen.sk())
 			wp.flush()
 			_stroking = true
 			_heat_dirty = true
@@ -391,14 +400,24 @@ func input(ev: InputEvent) -> bool:
 		var mm := ev as InputEventMouseMotion
 		_hover = _surface_at(cam, mm.position)
 		_ov.queue_redraw()
+		_pen.target = pen_target
+		_pen.note(mm)
 		if not _stroking:
 			return false
 		if not _hover.is_empty():
-			wp.to(_local(_hover["point"]), Vector3.UP, KMeshSculpt.pressure_of(mm))
+			_pen_dab()
+			wp.to(_local(_hover["point"]), Vector3.UP, _pen.sk())
 			wp.flush()
 			_heat_dirty = true
 		return true
 	return false
+
+
+## P09: before a dab, the pen's radius factor (radius mode) goes into the running stroke
+func _pen_dab() -> void:
+	var rk := _pen.rk()
+	if rk != 1.0:
+		wp.p["radius"] = _stroke_r * rk
 
 
 func _status() -> void:
