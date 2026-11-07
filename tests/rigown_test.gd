@@ -123,6 +123,7 @@ func _init() -> void:
 
 	# Manny baseline (bar 7) BEFORE any custom-rig work
 	var B := Body.new()
+	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 	var S := Scene.new()
 	S.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://scenes/walk_bat.json")))
 	S.apply(B, 0.5)
@@ -267,6 +268,7 @@ func _init() -> void:
 
 	# ---- 7 MANNY
 	var B2 := Body.new()
+	B2.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 	var S2 := Scene.new()
 	S2.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://scenes/walk_bat.json")))
 	S2.apply(B2, 0.5)
