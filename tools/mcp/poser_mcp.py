@@ -78,6 +78,12 @@ TOOLS = {
     "cancel_windows": ("cancel_windows", "Where can the next move start? Cancel windows from the body: the frame runs (f0 to f1, at least min_run long) where the body is balanced (COM inside the feet), slow (COM velocity and whole-body angular momentum under thresholds) and no foot is off the floor. "
                        "clip = a scene file (else the live scene); frame adds whether that frame is cancelable; v_max (m/s), h_max (m^2/s per unit mass), margin_min (m) override the thresholds.",
                        {"type": "object", "properties": {"clip": S, "frame": {"type": "integer"}, "fps": N, "v_max": N, "h_max": N, "margin_min": N}, "additionalProperties": False}),
+    "teach_chain": ("teach_chain", "Why does this punch lack power? From the live clip's own numbers: the frame the fist peaks, the frame the hips' turn peaked, the lead in ms against the 40 ms hip-first order, the hips' turn in deg and the fist speed, with a fix (a hips-first card). apply true applies the fix as one undo step; none = 0 findings.",
+                    {"type": "object", "properties": {"apply": {"type": "boolean"}}, "additionalProperties": False}),
+    "teach_landing": ("teach_landing", "Why is this landing hard? From the clip: touchdown frame, fall height, impact speed, knee bend against the bar for that fall, how far the body goes down after the feet land, and the average force that stop takes in N and body weights, with a fix (bend the knees). apply true applies it as one undo step.",
+                      {"type": "object", "properties": {"apply": {"type": "boolean"}}, "additionalProperties": False}),
+    "teach_stance": ("teach_stance", "Why would this stance fall over? Held frames where the centre of mass is past the feet: frame, cm past which edge, seconds held, trunk bend in deg, with a fix (the trunk's bend on that card). apply true applies it as one undo step.",
+                     {"type": "object", "properties": {"apply": {"type": "boolean"}}, "additionalProperties": False}),
     "reactable": ("reactable", "Is each strike reactable? Per strike: the frame a viewer can first SEE it coming (the tell), its first active frame, the window between them and the frames a human needs "
                   "(plus latency_ms), status reactable / not reactable and the margin. clip = a scene file (else the live scene); frame adds what that frame is (tell / active / idle).",
                   {"type": "object", "properties": {"clip": S, "frame": {"type": "integer"}, "latency_ms": N, "fps": N}, "additionalProperties": False}),
@@ -138,7 +144,7 @@ TOOLS = {
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph"]
+MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:
