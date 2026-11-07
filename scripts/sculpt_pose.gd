@@ -48,6 +48,8 @@ var eff := PackedVector3Array() # rest + the corrective keys at this pose: what 
 var last_key := ""              # the corrective key the last stroke wrote ("" = rest)
 var last_error := ""
 var singular := 0               # vertices the last map_back could not invert (left as they were)
+var last_idx := PackedInt32Array()   # C23: the vertices the last map_back wrote (the stroke's region)
+var on_stroke := Callable()     # C23: called with last_idx after every stroke (the sculpt-in-motion strip)
 var _before := PackedVector3Array()
 
 
@@ -182,6 +184,7 @@ func map_back() -> int:
 	last_error = ""
 	last_key = ""
 	singular = 0
+	last_idx = PackedInt32Array()
 	var idx := PackedInt32Array()
 	var pv := posed.verts
 	if _before.size() == pv.size():
@@ -216,6 +219,7 @@ func map_back() -> int:
 		rest.verts = rv
 		rest._compute_normals()
 		_put_back(idx, ok)
+		last_idx = _written(idx, ok)
 		return idx.size() - singular
 	var jt := joint_of(idx)
 	if jt.is_empty():
@@ -233,7 +237,17 @@ func map_back() -> int:
 	key["delta"] = d
 	last_key = String(key["name"])
 	_put_back(idx, ok)
+	last_idx = _written(idx, ok)
 	return idx.size() - singular
+
+
+## the vertices of idx that were mapped (ok)
+func _written(idx: PackedInt32Array, ok: PackedByteArray) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	for j in idx.size():
+		if ok[j]:
+			out.append(idx[j])
+	return out
 
 
 ## vertices that could not be mapped go back to where they were in the posed mesh
@@ -315,6 +329,8 @@ class PoseUndo extends KMeshUndo:
 		var st := super.commit(label + (" (in pose, as a corrective)" if sp.corrective else " (in pose)"))
 		if sp.corrective:
 			sp.reskin()   # the posed copy shows exactly what the key gives
+		if sp.on_stroke.is_valid() and not sp.last_idx.is_empty():
+			sp.on_stroke.call(sp.last_idx)   # C23: the strip of the hardest frames
 		return st
 
 	func undo() -> String:

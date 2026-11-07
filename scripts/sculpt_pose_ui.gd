@@ -81,6 +81,9 @@ func open() -> String:
 	sp.reskin()
 	_sig = _pose_sig()
 	undo = SculptPose.PoseUndo.new(sp)
+	var mu := SculptMotionUI.get_ui(m)   # C23: every stroke shows its 8 hardest frames
+	var spx := sp
+	sp.on_stroke = func(idx: PackedInt32Array): mu.refresh(spx, idx)
 	var ksc = m.ksc
 	_sym = [ksc.sym_x, ksc.sym_y, ksc.sym_z, ksc.radial]
 	ksc.sym_x = false
@@ -120,6 +123,7 @@ func _leave() -> void:
 			kmed.undo.steps.append_array(undo.steps)   # the steps name the rest mesh: the preview's Ctrl+Z takes them back
 			kmed.undo.redos.clear()
 	undo = null
+	SculptMotionUI.get_ui(m).hide_strip()
 	m._say("Model: left the pose sculpt: %d stroke%s on the rest body (Ctrl+Z takes them back one by one); Search \"Model: apply the body mesh to the fighter\" writes it" % [n, "" if n == 1 else "s"])
 
 
