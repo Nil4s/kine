@@ -79,6 +79,8 @@ TOOLS = {
                     {"type": "object", "properties": {"clip": S, "fps": N, "thrower": {"type": "integer"}, "brief": {"type": "boolean"}}, "additionalProperties": False}),
     "impact_align": ("impact_align", "Impact alignment at the contact frame: flags a bent wrist on a punch, a wrist past the safe load line, a locked knee on a kick, an elbow snapped straight on a miss, each with the angle and a fix pose. clip = a scene file (else the live scene), or give ang {joint: [bend, side, twist]} with kind punch|kick, side l|r, miss.",
                      {"type": "object", "properties": {"clip": S, "fps": N, "ang": {"type": "object"}, "kind": S, "side": S, "miss": {"type": "boolean"}}, "additionalProperties": False}),
+    "effort_face": ("effort_face", "Effort face from torque: the clip's worst joint-torque ratio per frame drives AU4 brow lowerer, AU7 lid tightener, AU24 lip press, AU38 nostril and a clench, peaking about 3 frames BEFORE the torque peak; 0 on an idle clip. {clip?, fps?}", {"type": "object", "properties": {"clip": S, "fps": N}}),
+    "pain_face": ("pain_face", "Pain face from hit force: impulse (N s) gives the Prkachin-Solomon pain set (AU4, 6, 7, 9, 10, 43) starting about 110 ms after contact, growing with impulse then decaying; returns PSPI (0-16), peak AUs, onset. Zero impulse = no pain. {impulse, contact?, length?, fps?}", {"type": "object", "properties": {"impulse": N, "contact": N, "length": N, "fps": N}, "required": ["impulse"]}),
     "hit_region": ("hit_region", "Hit reaction by body region: from an anatomy tag (obliques_r = liver, face low = chin, quadriceps = thigh, abdominals high = solar plexus) and the impulse (N s) it returns the region and joint deltas (liver folds to the hit side with a delayed drop, chin snaps the head and buckles both knees, thigh buckles the hit leg, solar plexus folds forward), inside body limits, growing with impulse.",
                    {"type": "object", "properties": {"tag": S, "y": N, "head_y": N, "impulse": N, "side": S}, "required": ["tag"], "additionalProperties": False}),
     "body_collide": ("body_collide", "Shoulder charge / tackle: momentum shared between two bodies by de Leva upper-body mass; the lighter one changes speed more. Returns after-velocities, momentum before/after, and pelvis keys for both bodies.",
@@ -119,7 +121,7 @@ TOOLS = {
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo"]
+MATH_TOOLS = ["effort_face", "pain_face", "cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:
