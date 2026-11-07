@@ -60,6 +60,9 @@ const LIGHT := {
 }
 
 static var dark := true
+## P08 HIGH CONTRAST: a third palette (black, white, yellow, cyan focus) with every text pair >= 7:1 (WCAG 2.2 SC 1.4.6). It is a
+## dark-based mode: dark stays true while it is on, so the code that branches on Tok.dark keeps its dark branch.
+static var hc := false
 ## THE DEFAULT DARK PALETTE is graphite + amber (Nick picked it): the DARK dict below. --kine-palette=b|c (only when given)
 ## overrides: b = graphite + sky (amber kept for the main action and warnings), c = light (amber accent, sky selection).
 const PALETTES := {
@@ -84,10 +87,52 @@ const PALETTES := {
 }
 static var _dk: Dictionary = DARK.duplicate()
 static var _lt: Dictionary = LIGHT.duplicate()
+static var _hc: Dictionary = _make_hc()
+
+
+## the high-contrast palette: DARK with its low-contrast tokens replaced; opaque fills, white text, yellow accents
+static func _make_hc() -> Dictionary:
+	var h: Dictionary = DARK.duplicate()
+	var k := {
+		"text": Color(1, 1, 1), "heading": Color(1, 1, 0), "info": Color(0.9, 0.95, 1.0), "say": Color(1, 1, 0.6),
+		"ok": Color(0.4, 1.0, 0.4), "warn": Color(1, 0.85, 0), "fail": Color(1, 0.55, 0.5), "dummy": Color(1, 0.7, 0.6), "dummy_text": Color(1, 0.85, 0.8),
+		"panel": Color(0, 0, 0, 1), "float": Color(0.05, 0.05, 0.05, 1), "say_bg": Color(0, 0, 0, 1),
+		"btn": Color(0.12, 0.12, 0.12), "btn_hover": Color(0.25, 0.25, 0.25), "main": Color(1, 0.9, 0), "accent": Color(1, 0.9, 0), "on_accent": Color(0, 0, 0), "focus": Color(0, 1, 1),
+		"btn_text": Color(1, 1, 1), "field": Color(0, 0, 0),
+		"card": Color(0.08, 0.08, 0.08), "card_sel": Color(0, 0.2, 0.4), "card_passby": Color(0.2, 0.15, 0), "card_play": Color(1, 0.9, 0), "card_multi": Color(1, 0.62, 0.11), "card_play_bg": Color(0.15, 0.15, 0.15),
+		"graph_bg": Color(0, 0, 0, 1), "ink": Color(1, 1, 1), "tl_bg": Color(0, 0, 0),
+		"world": Color(0.02, 0.02, 0.03), "floor": Color(0.07, 0.07, 0.08), "grid": Color(0.3, 0.3, 0.33), "grid_major": Color(0.65, 0.65, 0.7),
+		"mk_panel": Color(0, 0, 0, 1), "mk_border": Color(1, 1, 1, 1),
+	}
+	for key in k:
+		h[key] = k[key]
+	return h
 
 
 static func c(name: String) -> Color:
+	if hc:
+		return _hc[name]
 	return (_dk if dark else _lt)[name]
+
+
+## "dark", "light" or "hc"
+static func mode() -> String:
+	return "hc" if hc else ("dark" if dark else "light")
+
+
+static func set_mode(m: String) -> void:
+	hc = m == "hc"
+	dark = m != "light"
+
+
+## the palette dict of a mode ("dark" / "light" / "hc") as it is now
+static func palette(m: String) -> Dictionary:
+	match m:
+		"hc":
+			return _hc
+		"light":
+			return _lt
+	return _dk
 
 
 ## the palette the command line asks for ("b" or "c"), or "" when none is given (the app's own colours)
@@ -115,7 +160,7 @@ static func apply_palette(p: String) -> void:
 static func dim(a: float) -> Color:
 	var t := c("text")
 	var bg := c("panel")
-	var k := maxf(clampf(a, 0.0, 1.0), 0.5) if dark else lerpf(0.72, 1.0, clampf(a, 0.0, 1.0))   # the floors: 4.5:1 (theme_test)
+	var k := 1.0 if hc else maxf(clampf(a, 0.0, 1.0), 0.5) if dark else lerpf(0.72, 1.0, clampf(a, 0.0, 1.0))   # the floors: 4.5:1 (theme_test)
 	return Color(bg.r + (t.r - bg.r) * k, bg.g + (t.g - bg.g) * k, bg.b + (t.b - bg.b) * k)
 
 
@@ -129,6 +174,7 @@ static func of(tok: String) -> Color:
 
 static func set_dark(on: bool) -> void:
 	dark = on
+	hc = false
 
 
 ## WCAG contrast ratio of two opaque colours (>= 4.5 = readable body text)

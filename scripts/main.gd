@@ -3314,13 +3314,15 @@ func _ready() -> void:
 		_sm.call_deferred("run", self)
 	if OS.get_cmdline_user_args().has("--light") or OS.get_cmdline_user_args().has("--dark"):   # shots and tests choose
 		theme_pref = "light" if OS.get_cmdline_user_args().has("--light") else "dark"
-	if theme_pref not in ["system", "light", "dark"]:
+	if theme_pref not in ["system", "light", "dark", "hc"]:
 		theme_pref = "system"
 	var pal := Tok.palette_arg()   # STYLE PROPOSAL: --kine-palette=a|b|c (a shot or a review); "" = the app's own colours
 	if pal != "":
 		theme_pref = "light" if pal == "c" else "dark"
 	Tok.set_dark(_theme_wanted())
 	Tok.apply_palette(pal)
+	if theme_pref == "hc":
+		Tok.set_mode("hc")
 	# THE SCALE (ROADMAP 58): the saved one (the user chose it), or a test's 100, or on a first start the screen's pick,
 	# made once the ribbon is built (_auto_scale_now). Nothing is saved for the pick: it is made again each start
 	var pct := 100 if testing else (int(cf.get_value("look", "scale", 0)) if cf.has_section_key("look", "scale") else 0)
@@ -12876,7 +12878,7 @@ func _theme() -> Theme:
 		th.set_color("font_hover_pressed_color", t, Tok.c("on_accent"))
 	for t in ["CheckBox", "CheckButton"]:   # C33: an ON box under the mouse keeps the accent fill its dark on_accent words need (it fell back to a dark box: 1.04:1)
 		th.set_stylebox("hover_pressed", t, box.call(Tok.c("accent")))
-	if not Tok.dark:
+	if not Tok.dark or Tok.hc:   # P08: high contrast names every colour too (Godot's own greys are not a 7:1 promise)
 		# LIGHT (round 9): Godot's own look is dark, so every control that draws its own box or text gets the palette.
 		# Dark keeps Godot's look for these (nothing Nick knows changes)
 		var tx := Tok.c("text")
@@ -12893,7 +12895,7 @@ func _theme() -> Theme:
 			th.set_stylebox("normal", t, StyleBoxEmpty.new())
 			th.set_stylebox("pressed", t, StyleBoxEmpty.new())
 			th.set_stylebox("hover", t, box.call(Tok.c("btn_hover")))
-		var edge := Tok.c("btn_hover").darkened(0.15)
+		var edge := Tok.c("mk_border") if Tok.hc else Tok.c("btn_hover").darkened(0.15)
 		var field: StyleBoxFlat = box.call(Tok.c("field"), 4, 5)
 		field.content_margin_top = 2   # + the 1 px border = Godot's own field height: a card is as tall in light as in dark
 		field.content_margin_bottom = 2
@@ -13434,7 +13436,7 @@ func _theme_wanted() -> bool:
 	match theme_pref:
 		"light":
 			return false
-		"dark":
+		"dark", "hc":
 			return true
 	return _system_dark()
 
@@ -13457,11 +13459,30 @@ func _set_light(on: bool) -> void:
 	_say("light theme (VIEW > Light again for dark)" if on else "dark theme")
 
 
+## VIEW > High contrast (P08): on = the black / white / yellow palette (WCAG 7:1); off = the mode it came from
+var _hc_prev := "dark"
+
+
+func _set_high_contrast(on: bool) -> void:
+	if on == Tok.hc:
+		return
+	if on:
+		_hc_prev = Tok.mode()
+		theme_pref = "hc"
+		Tok.set_mode("hc")
+	else:
+		theme_pref = _hc_prev
+		Tok.set_mode(_hc_prev)
+	_retheme()
+	_save_theme()
+	_say("high contrast theme (VIEW > High contrast again to leave)" if on else "%s theme" % _hc_prev)
+
+
 ## VIEW > Follow system: on = the palette is Windows' (dark or light, re-read when the window gets focus); off = the
 ## palette it has now, kept as an explicit choice
 func _set_theme_system(on: bool) -> void:
 	theme_pref = "system" if on else ("dark" if Tok.dark else "light")
-	if on and _theme_wanted() != Tok.dark:
+	if on and (_theme_wanted() != Tok.dark or Tok.hc):
 		Tok.set_dark(_theme_wanted())
 		_retheme()
 	_save_theme()
@@ -13502,6 +13523,8 @@ func _retheme() -> void:
 	ui_tinted = ui_tinted.filter(func(x): return is_instance_valid(x[0]))
 	for x in ui_tinted:
 		(x[0] as Label).add_theme_color_override("font_color", Tok.of(x[1]))
+	if ui_status != null:
+		_status_look()   # P08: the status line's colour follows what it says; the tint loop above just set its creation token
 	for t in ui_ribbon_tabs:
 		(ui_ribbon_tabs[t] as Button).add_theme_color_override("font_pressed_color", Tok.c("heading") if Tok.dark else Tok.c("on_accent"))
 	ui_say_box.bg_color = Tok.c("say_bg")
@@ -14240,6 +14263,7 @@ func _ui() -> void:
 	ui_ribbon["VIEW"].add_child(_button("Final shot", func(): _temple_final_shot(), "the camera as a PNG with no interface at all (1920 x 1080 unless the panel says otherwise), lit like the live view; saved in the exports folder"))
 	tog.call("VIEW", "Next poses", _sg_toggle, func(): return sg_on, "while a card is current: up to 3 ghost poses of what may come next (gold = your usual next, violet = from real motion, rose = the move phase), small thumbnails after the card.  Tab cycles, Enter or a click takes one as a new card, Esc hides.  Nothing changes until you take one")
 	tog.call("VIEW", "Light", func(): _set_light(Tok.dark), func(): return not Tok.dark, "light or dark theme (remembered)")
+	tog.call("VIEW", "High contrast", func(): _set_high_contrast(not Tok.hc), func(): return Tok.hc, "black, white and yellow with every text at 7:1 or better (WCAG AAA); every page follows (remembered)")
 	tog.call("VIEW", "Follow system", func(): _set_theme_system(theme_pref != "system"), func(): return theme_pref == "system", "the palette follows Windows' dark mode (remembered); Light sets it by hand")
 	tog.call("VIEW", "Corrective shapes", func(): corr.on = not corr.on; dummy_corr.on = corr.on; _refresh(); dummy_corr.update(T.D), func(): return corr.on,
 		"the elbows and knees keep their volume as they bend: the skin pushes out along its normals as the bend goes 0 -> 140 deg (scripts/corrective.gd). Off = the plain skinning, which pinches at a bent joint")
@@ -15626,7 +15650,7 @@ func _panel_part() -> void:
 	if locked_parts.has(sel):
 		ui_title.text += "   (LOCKED)"
 	if side_col(sel) != SIDE_MID:
-		ui_title.add_theme_color_override("font_color", side_col(sel))
+		ui_title.add_theme_color_override("font_color", (Tok.c("ch_x") if sel.ends_with("_l") else Tok.c("ch_z")) if Tok.hc else side_col(sel))   # P08: the 3:1 side blue is not readable on the HC panel
 	else:
 		ui_title.remove_theme_color_override("font_color")
 	ui_title.modulate = LIMIT if not lims.is_empty() else Color.WHITE
