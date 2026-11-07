@@ -39,6 +39,8 @@ const TURN := {"shoulder_r": ["upperarm_r", "clavicle_r"], "shoulder_l": ["upper
 ##  trunk 1120: same review, "upper trunk rotation velocity (fastball) 1120 deg/s", collegiate pitchers. Maps 1:1 to the WARN bar.
 ##  knee 1874: Manolopoulos 2006 as printed in the soccer-kick review (JSSM 6:154, Table 4): amateur males, maximum knee extension
 ##    angular velocity 1874 deg/s, SD 155 -- a group MEAN, not an individual peak (other rows 1100-1805). A mean is a LOW bar for a peak.
+## N036: the TURN names to the body joint an injury profile names
+const INJ_JOINT := {"shoulder_r": "upperarm_r", "shoulder_l": "upperarm_l", "knee_r": "calf_r", "knee_l": "calf_l"}
 const SPEED_SRC := {"shoulder": "Fortenbaugh 2009, pitching", "knee": "Manolopoulos 2006, kicking", "trunk": "Fortenbaugh 2009, pitching"}
 const SPEED := {"shoulder": 6520.0,   # internal rotation, collegiate fastball (Fortenbaugh 2009 review, primary not read)
 	"knee": 1874.0,                    # extension in a soccer kick (Manolopoulos 2006, via a kick review's Table 4)
@@ -162,6 +164,8 @@ static func sample(S: Scene, B: Body) -> Dictionary:
 	var rows: Array = FrameMemo.frames("hl", S, B, n, FPS, mk)
 	S.stepped = was_stepped
 	var out := {"t": [], "speed": {}, "torque": {}, "margin": [], "h": [], "down": [], "sup": [], "cv": [], "mass": mass_of(B), "com": []}
+	if not S.injury.is_empty():
+		out["injury"] = S.injury   # N036: rule_speed / rule_torque scale their bars by the strength loss
 	for i in n:
 		out["t"].append(i / FPS)
 		var c0: Vector3 = rows[maxi(i - 1, 0)]["com"]
@@ -303,6 +307,9 @@ static func rule_speed(sm: Dictionary) -> Array:
 	for j in sm["speed"]:
 		var kind: String = String(j).split("_")[0]
 		var bar: Array = bars(kind)
+		if sm.has("injury"):   # N036: the joint's strength loss lowers its speed bar
+			var sc := 1.0 - Injury.strength_loss(sm["injury"], INJ_JOINT.get(String(j), ""))
+			bar = [float(bar[0]) * sc, float(bar[1]) * sc]
 		for r in _runs(sm["speed"][j], float(bar[0])):
 			var pk: float = r["peak"]
 			var sev := "FAIL" if pk > float(bar[1]) else "WARN"
@@ -319,8 +326,12 @@ static func rule_speed(sm: Dictionary) -> Array:
 static func rule_torque(sm: Dictionary) -> Array:
 	var out := []
 	var mass: float = sm["mass"]
-	var bar: Array = shoulder_bars(mass)
+	var bar0: Array = shoulder_bars(mass)
 	for j in sm["torque"]:
+		var bar: Array = bar0
+		if sm.has("injury"):   # N036: the shoulder's strength loss lowers its torque cap
+			var sc := 1.0 - Injury.strength_loss(sm["injury"], INJ_JOINT.get(String(j), ""))
+			bar = [float(bar0[0]) * sc, float(bar0[1]) * sc]
 		for r in _runs(sm["torque"][j], float(bar[0])):
 			var pk: float = r["peak"]
 			var sev := "FAIL" if pk > float(bar[1]) else "WARN"
@@ -392,6 +403,7 @@ static func findings(S: Scene, B: Body, sm := {}, with_torque := false) -> Array
 		out += rule_torque(sm)
 	out += rule_tipping(sm)
 	out += BodyCaps.findings(S, B, sm)   # N031: whole-body start / stop / cut / rise / fall caps on the COM (scripts/body_caps.gd)
+	out += Injury.findings(S, B)   # N036: the motion past a reduced range (nothing without a profile)
 	out += CoupledLimits.findings(S, B)   # N028: two-joint muscles (straight-leg kick vs the hamstrings): scripts/coupled_limits.gd
 	for f in out:
 		f["card"] = Rulebook.card_at(S, f["t"])

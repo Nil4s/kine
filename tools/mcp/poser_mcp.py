@@ -58,6 +58,10 @@ TOOLS = {
                     "(pieces: names or col* patterns; camera {pos, target, fov}; w, h; part {record} frames a given part). Also `light`: per piece emission, "
                     "peak_luminance, glow_px, which edges it touches, the brightest_piece, and touching_frame_edge (and _with_glow).",
                     {"type": "object", "properties": {"pieces": {"type": "array", "items": S}, "camera": {"type": "object"}, "w": N, "h": N, "part": {"type": "object"}}, "additionalProperties": False}),
+    "floor": ("floor", "Floor material of the scene (N035): mat 0.75, concrete 1.0, wood 0.5, sand 0.4, wet_tile 0.2 (shoe-floor friction mu; sources in action list). The stop / pivot / slide judges read it; a stop that needs mu 0.6 is flagged on wet tile. action: read | list | set (material) | clear; set and clear are one undo step.",
+              {"type": "object", "properties": {"action": S, "material": S}, "additionalProperties": False}),
+    "injury": ("injury", "Injury profile of the fighter (N036): per-joint losses as fractions, e.g. joint knee_l rom 0.3 strength 0.4. Joint limits and torque/speed caps drop there; the judges use them (rule INJURY ROM). action: read | set (joint, rom?, strength?) | clear (joint?) | moves (the moves of the scene that now fail, with their frame); set and clear are one undo step. Saved with the scene.",
+               {"type": "object", "properties": {"action": S, "joint": S, "rom": N, "strength": N}, "additionalProperties": False}),
     "spacing": ("spacing", "Spacing chart from a tracked reference video (pose.json). action: read (joint, ref path, landmark? 0..32: both charts as progress per frame, per-frame difference in % of an even step, ease shape) | match (same args; Match spacing re-times the in-betweens toward the reference, keys fixed, one undo step).",
                {"type": "object", "properties": {"action": {"type": "string"}, "joint": {"type": "string"}, "ref": {"type": "string"}, "landmark": {"type": "integer"}}}),
     "jump_budget": ("jump_budget", "Take-off power the open clip's jump needs (COM apex, push rise, push time) vs countermovement-jump norms (Lin 2025, 29.72 W/kg elite mean): 'needs 2.1x an elite vertical jump', push frames, flag. Read-only.",
@@ -175,7 +179,7 @@ TOOLS = {
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets", "animtools", "anykey", "bake_any", "euler_warp", "react_time", "react_place", "weight_slider", "clip_print", "rig_anim", "fps_wave", "spacing", "jump_budget", "grip_hold"]
+MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets", "animtools", "anykey", "bake_any", "euler_warp", "react_time", "react_place", "weight_slider", "clip_print", "rig_anim", "fps_wave", "spacing", "jump_budget", "grip_hold", "floor", "injury"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:
