@@ -166,8 +166,8 @@ func _init() -> void:
 	S.props = []
 	S.outl = {}
 	var yaw0 := [0.0, 20.0, 45.0, 10.0]
-	var px := [-3.0, -1.0, 1.0, 3.5]
-	var pz := [3.0, 4.0, 3.5, 6.0]
+	var px := [0.0, 1.2, 2.4, 3.5]   # the first run (x -3..1, z 3..4) clicked into nothing: those screen points are under the left UI; the 4th prop (3.5, 6) always picked
+	var pz := [6.0, 6.0, 6.0, 6.0]
 	for i in 4:
 		S.props.append(Props.make("box", Props.xf_at(Vector3(px[i], 0, pz[i]), yaw0[i])))
 	m.sel_prop = -1
@@ -287,8 +287,8 @@ func _init() -> void:
 	ok(snap() == b7, "7 Ctrl+Z byte-identical")
 	# the old drag law: the origin moves by (ray hit at the end - ray hit at the start) on the plane of the first hit
 	var o3: Vector3 = (S.props[3]["xf"] as Transform3D).origin
-	var a := m.cam.unproject_position(o3 + Vector3(0, 0.25, 0))
-	var b := a + Vector2(60, 25)
+	var a: Vector2 = m.cam.unproject_position(o3 + Vector3(0, 0.25, 0))
+	var b: Vector2 = a + Vector2(60, 25)
 	var ra: Vector3 = m.cam.project_ray_origin(a)
 	var da: Vector3 = m.cam.project_ray_normal(a)
 	var pick: Array = m._pick_prop(a)

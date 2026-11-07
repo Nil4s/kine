@@ -678,6 +678,9 @@ const LIBRARY := "user://library"
 var library := LIBRARY        # a test's own: user://zz_lib_<pid>, removed on exit
 var ui_props_root: Node3D
 var sel_prop := -1
+var sel_props: Array = []   # L120 P10: with 2 or more props picked (Shift / Ctrl-click) this holds all of them, sel_prop the last one
+var multi_panel: MultiPanel
+var _multi_starts := {}
 var sel_obj_part := ""   # m.sel when sel_obj was picked: a part picked since lets go of the object
 var sel_obj := ""   # L36 OUTLINER: the picked object that is not a prop ("light:key", "cam:0", "body:hero"...); a prop is sel_prop
 var _prop_drag := {}
@@ -6334,10 +6337,14 @@ func _unhandled_input(ev: InputEvent) -> void:
 					_pick_t = float(pa[2])
 					pp = [-1, INF]
 				if int(pp[0]) >= 0 and (j == "" or float(pp[1]) < _pick_t):   # a prop in front of the body: the prop
+					if mb.ctrl_pressed or (mb.shift_pressed and (int(pp[0]) != sel_prop or _msel().size() >= 2)):   # L120 P10: Ctrl / Shift-click adds or takes out (Shift on the one picked prop is still the turn drag)
+						_prop_toggle(int(pp[0]))
+						return
 					_prop_press(int(pp[0]), mb.position, float(pp[1]))
 					return
 				if sel_prop >= 0:
 					sel_prop = -1
+					sel_props = []
 					_props_show()
 				redspots.press(j, mb.position, playhead)   # N074: a glowing part opens its finding and Fix (the press goes on)
 				if easy != null and easy.sliders != null:
@@ -22953,7 +22960,9 @@ func _props_show(resettle := true) -> void:
 	var carried_props := []
 	for cr in S.carries():
 		carried_props.append(int(cr["prop"]))
-	var shared := PropInstances.plan(S.props, sel_prop, carried_props)   # M3: the still copies of one kind share one drawn mesh
+	var plan_skip := carried_props.duplicate()
+	plan_skip.append_array(sel_props)   # L120: a picked copy is drawn alone so it can carry the tint
+	var shared := PropInstances.plan(S.props, sel_prop, plan_skip)   # M3: the still copies of one kind share one drawn mesh
 	var in_shared := {}
 	for g in shared:
 		for i in g:
@@ -22972,7 +22981,7 @@ func _props_show(resettle := true) -> void:
 		var key := "prop_%d" % i
 		live[key] = true
 		var vol := Props.animated(p) or Props.hinged(p) or carried_props.has(i)
-		var sig := hash(p) + (1 if i == sel_prop else 0)
+		var sig := hash(p) + (1 if i == sel_prop or sel_props.has(i) else 0)
 		var old = _pn.get(key)
 		if old != null and not vol and int(old[0]) == sig and is_instance_valid(old[1][0]) and (old[1][0] as Node3D).get_parent() == ui_props_root 				and ((old[1][0] as Node3D).transform).is_equal_approx(PropInstances.root_xf(p)):
 			continue
@@ -22982,7 +22991,7 @@ func _props_show(resettle := true) -> void:
 			_gone_said[p["kind"]] = true
 			_say_plain("the model file of the %s is missing: it is drawn as a box. Open the importer and add the model again, or delete the prop" % p["kind"])
 		n.name = key
-		if i == sel_prop:
+		if i == sel_prop or (sel_props.has(i) and sel_props.has(sel_prop)):
 			for mi in n.find_children("*", "MeshInstance3D", true, false):
 				(mi as MeshInstance3D).material_overlay = tint
 		ui_props_root.add_child(n)
@@ -23030,6 +23039,7 @@ func _props_show(resettle := true) -> void:
 		_grey(ui_use_btns["Pick up"], "" if kind != "" and sel_card >= 0 else ("pick a card first: the body on it holds the prop" if kind != "" else "pick a prop first: click it in the view, or add one with Add prop"))
 		_grey(ui_use_btns["Put down"], "" if not _held_at(sel_card).is_empty() else "pick a card where a prop is held (after its Pick up card): the hands let it go there")
 	_props_pose()
+	_multi_panel_sync()
 	if shading.mode != "solid":
 		shading.set_mode(self, shading.mode)   # K01: the new prop nodes are drawn in the view's shading mode
 	if ui_browser != null:
@@ -23149,6 +23159,7 @@ func _prop_name(i: int) -> String:
 
 ## a press on a prop: picked, and a drag moves it over the floor (snapped onto what it stands over); one undo step
 func _prop_press(i: int, mp: Vector2, t: float) -> void:
+	sel_props = []   # L120: a plain press picks this one prop alone
 	if Outliner.locked(S, "prop:%d" % i):   # L36: a locked object is picked, never grabbed: no drag, no undo step
 		sel_prop = i
 		sel_obj = "prop:%d" % i
@@ -23286,6 +23297,7 @@ func _prop_add(kind: String, at: Variant = null) -> void:   # at: a floor point 
 	p["xf"] = xf
 	S.props.append(p)
 	sel_prop = S.props.size() - 1
+	sel_props = []
 	_props_show()
 	_doc_line()
 	if easy.on:   # Easy has no SET ribbon: the sit is the panel's "Sit on it" (walk-through round 5), or the strip's "Sit on the chair" once a clip is built (the panel is hidden then: walk-through 10, B)
@@ -23496,6 +23508,7 @@ func _prop_copies_row() -> void:
 func _prop_del() -> void:
 	if sel_prop < 0 or sel_prop >= S.props.size():
 		return
+	sel_props = []
 	if _outl_locked_say(sel_prop):
 		return
 	_push_undo()
@@ -23932,10 +23945,134 @@ func _use_card(nm: String, before: Dictionary) -> void:
 			Rulebook.part_words(hits[0][0]), float(hits[0][2]) * 100.0, String(S.props[hits[0][1]]["kind"])])
 
 
+## ---- MULTI-OBJECT EDITING (L120, ROADMAP_400 P10; scripts/multi_edit.gd, scripts/multi_panel.gd)
+## the picked props: the multi-selection when sel_prop is in it, else the one picked, else none
+func _msel() -> Array:
+	var o := []
+	for i in sel_props:
+		if int(i) >= 0 and int(i) < S.props.size() and not o.has(int(i)):
+			o.append(int(i))
+	if o.size() >= 2 and o.has(sel_prop):
+		return o
+	return [sel_prop] if sel_prop >= 0 and sel_prop < S.props.size() else []
+
+
+## Ctrl / Shift-click on prop i: it joins the picked props, or leaves them (no undo step)
+func _prop_toggle(i: int) -> void:
+	var cur := _msel()
+	if cur.has(i):
+		cur.erase(i)
+	else:
+		cur.append(i)
+	if cur.is_empty():
+		sel_prop = -1
+		sel_props = []
+	else:
+		sel_prop = i if cur.has(i) else int(cur[-1])
+		sel_props = cur if cur.size() >= 2 else []
+	sel_obj = "prop:%d" % sel_prop if sel_prop >= 0 else ""
+	_props_show()
+	_say_plain("%d object%s picked: the Transform panel edits them all (Shift / Ctrl-click adds or takes out)" % [cur.size(), "" if cur.size() == 1 else "s"])
+
+
+func _multi_panel_sync() -> void:
+	if multi_panel == null:
+		if ui_root == null:
+			return
+		multi_panel = MultiPanel.new()
+		multi_panel.typed.connect(_multi_typed)
+		multi_panel.scrub_begin.connect(_multi_scrub_begin)
+		multi_panel.scrub_move.connect(_multi_scrub_move)
+		multi_panel.scrub_end.connect(_multi_scrub_end)
+		ui_root.add_child(multi_panel)
+	var ids := _msel()
+	multi_panel.visible = not ids.is_empty()
+	if ids.is_empty():
+		return
+	multi_panel.position = Vector2(maxf(ui_root.size.x - 210.0, 0.0), 150.0)
+	var t := {}
+	for f in MultiEdit.FIELDS:
+		t[f] = MultiEdit.text(S.props, ids, f)
+	multi_panel.show_values(t, ids.size())
+
+
+func _multi_ids() -> Array:
+	var out := []
+	for i in _msel():
+		if Outliner.locked(S, "prop:%d" % i):
+			_outl_locked_say(i)
+		else:
+			out.append(i)
+	return out
+
+
+## a value typed in a field: every picked (unlocked) prop gets it; one undo step
+func _multi_typed(f: String, text: String) -> void:
+	(multi_panel.edits[f] as LineEdit).release_focus()
+	if not text.is_valid_float():
+		_say_plain("'%s' is not a number" % text)
+		_multi_panel_sync()
+		return
+	var ids := _multi_ids()
+	if ids.is_empty():
+		return
+	_step_hint = "Set %s of %d objects" % [MultiPanel.NAMES[f], ids.size()] if ids.size() > 1 else "Set " + MultiPanel.NAMES[f]
+	_push_undo()
+	for i in ids:
+		_prop_live(i)
+		MultiEdit.set_abs(S.props[i], f, text.to_float())
+		Outliner.moved(S, "prop:%d" % i)
+		_prop_autokey(i)
+	_props_show()
+	_doc_line()
+	_say("%s = %s for %d object%s. Ctrl+Z takes it back" % [MultiPanel.NAMES[f], text, ids.size(), "" if ids.size() == 1 else "s"])
+
+
+func _multi_scrub_begin(f: String) -> void:
+	var ids := _multi_ids()
+	_multi_starts = {}
+	if ids.is_empty():
+		return
+	_step_hint = "Drag %s of %d objects" % [MultiPanel.NAMES[f], ids.size()] if ids.size() > 1 else "Drag " + MultiPanel.NAMES[f]
+	_push_undo()
+	playing = false
+	for i in ids:
+		_prop_live(i)
+		_multi_starts[i] = (S.props[i]["xf"] as Transform3D)
+
+
+func _multi_scrub_move(f: String, d: float) -> void:
+	for i in _multi_starts:
+		S.props[i]["xf"] = MultiEdit.moved(_multi_starts[i], f, d)
+	if not _multi_starts.is_empty():
+		_props_show(false)
+
+
+func _multi_scrub_end(f: String) -> void:
+	if _multi_starts.is_empty():
+		return
+	var moved := false
+	for i in _multi_starts:
+		if not (S.props[i]["xf"] as Transform3D).is_equal_approx(_multi_starts[i]):
+			moved = true
+	if not moved:
+		undo.pop_back()   # a click on the label: no step
+		_history_rows()
+	else:
+		for i in _multi_starts:
+			Outliner.moved(S, "prop:%d" % i)
+			_prop_autokey(i)
+		_props_show()
+		_doc_line()
+		_say("moved %d object%s by the same amount. Ctrl+Z takes it back" % [_multi_starts.size(), "" if _multi_starts.size() == 1 else "s"])
+	_multi_starts = {}
+
+
 ## a row in the browser's Set: pick prop i (no undo step)
 func _prop_select(i: int) -> void:
 	if i < 0 or i >= S.props.size():
 		return
+	sel_props = []
 	sel_prop = i
 	sel_obj = "prop:%d" % i
 	_props_show()
