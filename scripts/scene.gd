@@ -75,6 +75,7 @@ var building := {}     # BUILD mode (docs/BUILD_PLAN.md; scripts/build/building.
 var props_skipped := []   # kinds the file named that this library does not have (from_dict)
 var part_keys := {}    # PART KEYS (round 41, WW1): {"<joint>": [{"t", "v": Vector3}]} by time; see scripts/part_keys.gd
 var iq := {}          # VIDEO IQ (scripts/video_iq.gd): what the video import knew, {"conf" lane, "spans", "contacts", "keys"...}; in the file as "iq" only when any
+var anykeys := {}     # ANY KEY (ROADMAP_400 L13/L15): {"<id>": [{"t", "v": Vector3}]}: shape-key weights and any property; scripts/any_key.gd; in the file as "anykeys" only when any
 var attrs := {}       # CUSTOM ATTRIBUTES (ROADMAP 82, custom_attr.gd): {"<part>.<name>": {"min", "max", "default", "keys": [{"t", "v": Vector3(x,0,0)}]}}; in the file as "attrs" only when any
 var ik := {}           # IK / FK (GAP_ANALYSIS row 13): {"hand_l": [{"t", "target", "pole", "w", "rot"?}]} by time; scripts/limb_ik.gd
 var sets := {}         # SELECTION + KEYING SETS (GAP_ANALYSIS rows 9, 6): {"select": {name: [parts]}, "keying": {..}, "active"}; scripts/part_sets.gd
@@ -941,6 +942,8 @@ func apply(B: Body, t: float) -> void:
 	if not cons.is_empty():
 		cons_last = Constraints.play(self, B, t)
 	B.fast = was_fast
+	if not anykeys.is_empty():
+		AnyKey.play(self, t)   # L13/L15: keyed shape weights and properties; an unkeyed one is never written
 
 
 ## LAYER (round 43, GATES YY9; docs/ANIM_RESEARCH.md idea 4: Maya's animation layers, Blender's NLA): one whole-scene
@@ -1777,6 +1780,7 @@ func clone() -> Scene:
 	c.lip = lip.duplicate(true)
 	c.face = face.duplicate(true)   # ROADMAP 74: the face keys
 	c.attrs = attrs.duplicate(true)   # ROADMAP 82: the custom attributes
+	c.anykeys = anykeys.duplicate(true)   # L13/L15
 	c.iq = iq.duplicate(true)   # VIDEO IQ: the import's confidence lane and contacts
 	c.layer = layer.duplicate()   # YY9 (Vector3 values: copies)
 	c.layer_w = layer_w
@@ -2448,6 +2452,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["face"] = Face.to_file(face)   # ROADMAP 74: the face keys, only when keyed
 	if not iq.is_empty():
 		out["iq"] = VideoIQ.to_file(iq)   # VIDEO IQ: only when the scene came from a video
+	if not anykeys.is_empty():
+		out["anykeys"] = AnyKey.to_file(anykeys)   # L13/L15: only when keyed
 	if not attrs.is_empty():
 		out["attrs"] = CustomAttr.to_file(attrs)   # ROADMAP 82: the custom attributes, only when there are any
 	if not lip.is_empty():
@@ -2519,6 +2525,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "held_parts": "free (
 	"actors": "SIDED: each actor's scene mirrored whole (Scene.mirror_file), its xf pos x negated and its yaw negated",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)",
 	"iq": "SIDED: VideoIQ.mirror_file (the lost-part spans and the contacts move to their twin side: hand_l <-> hand_r, foot_l <-> foot_r, x negated; the lane and times free)",
+	"anykeys": "free (a shape weight or a property is not a side)",
 	"attrs": "SIDED: CustomAttr.mirror_file (each attribute's id moves to its twin part: hand_r.grip -> hand_l.grip; min, max, default and keys free)",
 	"face": "SIDED: Face.mirror_file (brow_l <-> brow_r, eye_yaw negated; jaw, visemes, blink and eye pitch free)",
 	"drivers": "SIDED: Drivers.mirror_file (driven and source to their twins; each factor and offset reflected by its axes' signs)",
@@ -2673,6 +2680,7 @@ func from_dict(d: Dictionary) -> void:
 	audio_tracks = AudioTrack.from_file(d.get("audio", null))   # ROADMAP 77: a dictionary (one sound, as before) or a list
 	face = Face.from_file(d.get("face", {}))   # ROADMAP 74: absent = none
 	iq = VideoIQ.from_file(d.get("iq", {}))   # VIDEO IQ: absent = none
+	anykeys = AnyKey.from_file(d.get("anykeys", {}))   # L13/L15: absent = none
 	attrs = CustomAttr.from_file(d.get("attrs", {}))   # ROADMAP 82: absent = none
 	lip = LipSync.from_file(d.get("lip", {}))   # ROADMAP 31: absent = none
 	props = []
