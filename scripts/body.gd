@@ -1720,7 +1720,7 @@ func hand_shape(side: String, kind: String) -> void:
 		return
 	var c: Array = {"open": [Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO],
 		"grip": [Vector3(70, 0, 0), Vector3(90, 0, 0), Vector3(50, 0, 0), Vector3(5, 0, 0), Vector3(35, 0, 0), Vector3(28, 0, 0)],
-		"fist": [Vector3(90, 0, 0), Vector3(105, 0, 0), Vector3(70, 0, 0), Vector3(30, -10, 0), Vector3(60, 0, 0), Vector3(48, 0, 0)]}[kind]
+		"fist": [Vector3(90, 0, 0), Vector3(105, 0, 0), Vector3(80, 0, 0), Vector3(30, -10, 0), Vector3(60, 0, 0), Vector3(48, 0, 0)]}[kind]
 	# thumbs found by search (10-12): fist = thumb tip 4 mm from the index's middle joint underside; grip = 5 mm from
 	# where a 3.2 cm handle's surface sits
 	for f in ["index", "middle", "ring", "pinky"]:

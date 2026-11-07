@@ -1121,3 +1121,4 @@ EXTRA="$EXTRA settings2:w"   # L115 Settings wiring: font scale 100/125/150, col
 EXTRA="$EXTRA multiobj:w"   # L120 P10 multi-object editing: Shift/Ctrl-click 3 props, Transform panel X=1.5 on all, relative rotate +10 each, mixed marker, one undo (tests/multiobj_test.gd, scripts/multi_edit.gd, scripts/multi_panel.gd)
 EXTRA="$EXTRA pie2:w"   # L117 P04 follow-up: opt-in brush pie on vertex/texture/weight paint + the Q collision, snap-90 stays reachable (tests/pie2_test.gd)
 EXTRA="$EXTRA coach:w"   # L121 P19 task coach: BODY MODEL SURFACE POSE, live checks, Next only on green, cancel/resume, planted always-true check (tests/coach_test.gd, scripts/task_coach.gd)
+EXTRA="$EXTRA fistclose:w"   # L116 close the right fist: tip gap <= 15 mm, thumb weight out of the palm, self-intersection reported (tests/fistclose_test.gd; scripts/fist_check.gd from w4-fistmat)
