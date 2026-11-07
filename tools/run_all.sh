@@ -1120,3 +1120,4 @@ EXTRA="$EXTRA themehc:w"   # P08 HIGH CONTRAST theme via Tok: WCAG 7:1 pairs, pl
 EXTRA="$EXTRA settings2:w"   # L115 Settings wiring: font scale 100/125/150, colour-blind colours, cm/m/in, brush pie; real clicks change live state, survive save + restart, defaults unchanged, planted fail (tests/settings2_test.gd, scripts/access_prefs.gd)
 EXTRA="$EXTRA multiobj:w"   # L120 P10 multi-object editing: Shift/Ctrl-click 3 props, Transform panel X=1.5 on all, relative rotate +10 each, mixed marker, one undo (tests/multiobj_test.gd, scripts/multi_edit.gd, scripts/multi_panel.gd)
 EXTRA="$EXTRA pie2:w"   # L117 P04 follow-up: opt-in brush pie on vertex/texture/weight paint + the Q collision, snap-90 stays reachable (tests/pie2_test.gd)
+EXTRA="$EXTRA coach:w"   # L121 P19 task coach: BODY MODEL SURFACE POSE, live checks, Next only on green, cancel/resume, planted always-true check (tests/coach_test.gd, scripts/task_coach.gd)
