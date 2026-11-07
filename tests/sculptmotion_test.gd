@@ -374,7 +374,7 @@ func _init() -> void:
 	var srt := sc_el.duplicate()
 	srt.sort()
 	var gap89 := srt[srt.size() - 8] - srt[srt.size() - 9]
-	ok(mx / maxf(mn, 1e-9) > 1.5 and gap89 > 1e-5, "0 elbow score range %.5f .. %.5f (x%.1f); 8th - 9th best = %.2e" % [mn, mx, mx / maxf(mn, 1e-9), gap89])
+	ok(mx / maxf(mn, 1e-9) > 1.5 and gap89 > 1e-5, "0 elbow score range %.5f .. %.5f (x%.1f); 8th - 9th best = %.8f" % [mn, mx, mx / maxf(mn, 1e-9), gap89])
 	var reg_ok: bool = ui.sm != null and Array(ui.sm.region).size() == last_moved.size()
 	if reg_ok:
 		for v in ui.sm.region:
@@ -386,7 +386,7 @@ func _init() -> void:
 	var maxd := 0.0
 	for f in NF:
 		maxd = maxf(maxd, absf(float(ui.sm.scores[f]) - sc_el[f]))
-	ok(ui.sm.scores.size() == NF and maxd <= 1e-5, "1 every module score within 1e-5 of the test's (worst %.2e over %d frames)" % [maxd, NF])
+	ok(ui.sm.scores.size() == NF and maxd <= 1e-5, "1 every module score within 1e-5 of the test's (worst %.8f over %d frames)" % [maxd, NF])
 	var bent := 0
 	for f in ch_el:
 		if bend_at(f, "lowerarm_r") > 60.0:
