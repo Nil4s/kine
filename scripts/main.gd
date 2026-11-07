@@ -15081,6 +15081,9 @@ func _ui() -> void:
 	ui_root.add_child(ui_plugins)
 	ui_cmd.commands = _commands() + plugins.command_rows()
 	_nt_sync()
+	var learn_keys := LearnKeys.new(self)   # P18: commands run from the S box get offered a key (scripts/learn_keys.gd)
+	add_child(learn_keys)
+	learn_keys.attach()
 	ui_cmd.files_provider = _search_files   # ROADMAP 52: the saved poses and scenes, read each time the box opens
 	ui_cmd.pose_by_words = _pose_words
 	ui_cmd.tools_provider = func(): return MeshTools.rows(self)   # ROADMAP_400 P02: the mesh tools (scripts/mesh_tools.gd), built on the S box's first search
