@@ -156,6 +156,7 @@ func _init() -> void:
 	m.plugins.host["mesh"] = func(): return KMeshPrims.cube(Vector3.ONE, 2)
 	var km: KMesh = KMeshPrims.cube(Vector3.ONE, 2)
 	var before := scene_json()
+	var len0: float = m.S.length()
 	var u0: int = m.undo.size()
 	var t0 := Time.get_ticks_msec()
 	run_row("Probe: All")
@@ -165,7 +166,7 @@ func _init() -> void:
 	ok(L["ver"] == PluginAPI.VERSION and L["n"] == 3 and L["cards"].size() == 3 and L["joints"].size() > 20, "api_version / card_count / cards / joint_names")
 	ok(L["perm_files"] == true and L["perm_nope"] == false, "has_permission is true for a granted one only")
 	var info: Dictionary = L["info"]
-	ok(info["cards"] == 3 and absf(float(info["length"]) - m.S.length()) < 0.0001 and info["objects"] == 1 and info["keyed_joints"] == 1
+	ok(info["cards"] == 3 and absf(float(info["length"]) - len0) < 0.0001 and info["objects"] == 1 and info["keyed_joints"] == 1
 		and String(info["name"]) == m.S.name, "scene_info: cards 3, length %.3f s, objects 1, keyed joints 1" % float(info["length"]))
 	ok(L["objs0"].size() == 1 and L["objs0"][0]["kind"] == "box" and (L["objs0"][0]["pos"] as Vector3).distance_to(Vector3(1, 0, 0)) < 0.001,
 		"objects(): the box at (1,0,0)")

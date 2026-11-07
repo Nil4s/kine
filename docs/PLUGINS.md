@@ -130,7 +130,7 @@ The Plugins panel shows them before you switch a plugin on.
 
 | permission | call | what it does |
 |---|---|---|
-| `tools` | `api.run_tool(line)` | one line of the app's tool language, e.g. `set=head:15,0,0` or `card=2` (the same lines as a saved script). Quit, open, new and save are refused |
+| `tools` | `api.run_tool(line)` | one line of the app's tool language: `card=N`, `sel=<joint>`, `set=<joint>:bend,side,twist`, `name=<text>`, `pose=<words>`, `add`, `update`. Anything else (quit, open, new, save) is refused |
 | `export` | `api.export("bvh")` | writes `<scene>.bvh` into the plugin's own `exports/` folder. Returns `{"ok", "path", "bytes"}` |
 | `files` | `api.write_file("exports/a.txt", text)`, `api.read_file(rel)` | files in the PROJECT, but only `exports/`, `scenes/`, `poses/` or `plugin_out/` (a folder, then a name). `..`, absolute paths, drives, `res://`, `user://`, backslashes and `scripts/` are refused |
 

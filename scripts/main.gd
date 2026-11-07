@@ -21574,8 +21574,6 @@ func _plugin_mesh():
 	return kmed.mesh if kmed != null and kmed.mesh != null else null
 
 
-var _plugin_agent = null   # AgentTools for api.run_tool, made on first use
-
 ## L70: a plugin command that failed or ran too long takes its edits back: the step it opened is undone and dropped from redo
 func _plugin_rollback() -> void:
 	if not _macro_pushed:
@@ -21587,14 +21585,44 @@ func _plugin_rollback() -> void:
 		redo.pop_back()
 
 
-## L70: api.run_tool: one line of the tool language through the same code the local API uses (no waiting for frames here)
+## L70: api.run_tool: the synchronous lines of the tool language (AgentTools.step always waits a frame, so it cannot run here):
+## card=N  sel=<joint>  set=<joint>:bend,side,twist  name=<text>  pose=<words>  add  update
 func _plugin_tool(tok: String) -> Dictionary:
-	if _plugin_agent == null:
-		_plugin_agent = load("res://scripts/agent_tools.gd").new(self)
-	var st: Variant = _plugin_agent.step(tok)
-	if not (st is Dictionary):
-		return {"ok": false, "why": "'%s' waits for frames and cannot run from a plugin" % tok}
-	return {"ok": bool(st.get("ok", false)), "why": String(st.get("error", "")), "said": String(st.get("said", ""))}
+	var no := func(why: String): return {"ok": false, "why": why}
+	if tok.begins_with("card="):
+		var n := int(tok.substr(5))
+		if n < 1 or n > S.cards.size():
+			return no.call("no card %d (the scene has %d)" % [n, S.cards.size()])
+		_plugin_sel_card(n - 1)
+	elif tok.begins_with("sel="):
+		var j := tok.substr(4)
+		if not (j in Body.BODY or j in Body.WEAPON):
+			return no.call("no part '%s'" % j)
+		sel = j
+	elif tok.begins_with("set="):
+		var p := tok.substr(4).split(":")
+		var v: PackedStringArray = p[1].split(",") if p.size() == 2 else PackedStringArray()
+		if p.size() != 2 or v.size() != 3 or not p[0] in Body.BODY:
+			return no.call("set=<joint>:bend,side,twist  e.g. set=lowerarm_r:90,0,0")
+		sel = p[0]
+		_do(func(): B.set_ang_safe(p[0], Vector3(float(v[0]), float(v[1]), float(v[2]))))
+	elif tok.begins_with("name="):
+		if sel_card < 0 or tok.substr(5).strip_edges() == "":
+			return no.call("name=<text> names the picked card: pick one first (card=N)")
+		_card_rename(sel_card, tok.substr(5))
+	elif tok.begins_with("pose="):
+		var pr: Dictionary = _pose_words(tok.substr(5))
+		if not pr["ok"]:
+			return no.call(String(pr["error"]))
+	elif tok == "add":
+		_card_add()
+	elif tok == "update":
+		if sel_card < 0:
+			return no.call("pick a card first (card=N)")
+		_card_update(sel_card)
+	else:
+		return no.call("unknown tool line '%s': the lines are card=N, sel=<joint>, set=<joint>:b,s,t, name=<text>, pose=<words>, add, update" % tok)
+	return {"ok": true, "why": "", "said": String(ui_status.text) if ui_status != null else ""}
 
 
 ## L70: api.export
