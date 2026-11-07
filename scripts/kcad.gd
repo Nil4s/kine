@@ -112,6 +112,18 @@ static func bounds_aabb(id: int) -> AABB:
 	return AABB(lo, sz).grow(1e-6 * sz.length() + 1e-6)
 
 
+## L57: {volume, inertia} of a shape, the numbers mass_properties gives without its surface integral (a third of the time on a big body);
+## falls back to mass_properties when the DLL is older
+static func volume_inertia(id: int) -> Dictionary:
+	if _n() == null:
+		return {}
+	if _mass_cache.has(id):
+		return (_mass_cache[id] as Dictionary).duplicate()
+	if ClassDB.class_exists("KineCAD") and ClassDB.class_has_method("KineCAD", "volume_inertia"):
+		return load(NATIVE_NEW).volume_inertia(id)
+	return mass_properties(id)
+
+
 static func has_union_many() -> bool:
 	return ClassDB.class_exists("KineCAD") and ClassDB.class_has_method("KineCAD", "union_many")
 
