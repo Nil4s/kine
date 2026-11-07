@@ -245,6 +245,20 @@ func _mask_key(ke: InputEventKey) -> bool:
 	return true
 
 
+var _pie_mouse := Vector2(-1, -1)   # the last mouse motion seen (events carry it; the OS cursor can differ under a pushed event)
+
+
+## P04: a ring of the brushes around the mouse; releasing the mouse on a wedge picks it (scripts/ring_menu.gd, release_pick)
+func _open_pie() -> void:
+	var its: Array = []
+	for kc in KEYS:
+		var b: String = KEYS[kc]
+		its.append({"name": b, "run": func():
+			brush = b
+			_status()})
+	m.ui_pie.open(_pie_mouse if _pie_mouse.x >= 0.0 else m.get_viewport().get_pie_mouse_position(), "Brush", its)
+
+
 ## the surface under the screen point: {"point", "normal"} in world space, or {}
 func surface_at(cam: Camera3D, p: Vector2) -> Dictionary:
 	var hit := view.ray_face(cam.project_ray_origin(p), cam.project_ray_normal(p))
@@ -266,6 +280,8 @@ func _local_n(wn: Vector3) -> Vector3:
 func input(ev: InputEvent) -> bool:
 	if not on:
 		return false
+	if ev is InputEventMouseMotion:
+		_pie_mouse = (ev as InputEventMouseMotion).position   # P04: where the pie opens
 	if not _stroking and filt.input(ev, self):
 		return true
 	if not _stroking and not filt.active and ((matcap != null and matcap.input(ev)) or (presets != null and presets.input(ev))
@@ -278,6 +294,9 @@ func input(ev: InputEvent) -> bool:
 			undo_redo(not ke.shift_pressed)
 			return true
 		if _mask_key(ke) or fsets.key(self, ke):
+			return true
+		if k == KEY_Q and not ke.ctrl_pressed and not ke.alt_pressed and not ke.shift_pressed and m.pie_on and m.ui_pie != null:
+			_open_pie()   # P04: the brush pie (option, off by default)
 			return true
 		if KEYS.has(k) and not ke.ctrl_pressed:
 			brush = KEYS[k]
@@ -432,6 +451,14 @@ func make_sliders() -> void:
 	dyn_cb.focus_mode = Control.FOCUS_NONE
 	dyn_cb.toggled.connect(_on_dyntopo)
 	box.add_child(dyn_cb)
+	var pie_cb := CheckBox.new()   # P04
+	pie_cb.name = "sculpt_pie"
+	pie_cb.text = "Brush pie menu (Q)"
+	pie_cb.tooltip_text = "Q opens a ring of the brushes around the mouse; release the mouse on one to pick it. Off by default."
+	pie_cb.focus_mode = Control.FOCUS_NONE
+	pie_cb.button_pressed = m.pie_on
+	pie_cb.toggled.connect(func(v: bool): m.pie_on = v)
+	box.add_child(pie_cb)
 	_sync_sliders()
 
 
