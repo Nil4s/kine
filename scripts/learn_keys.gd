@@ -66,7 +66,7 @@ func _ran(nm: String) -> void:
 	for c in m.ui_cmd.commands:
 		if String(c["name"]) == nm:
 			var id := String(c["id"])
-			m.hk.learn.record(id)
+			# counted once by main._learn_after (L108), which every S-box run already passes through
 			m.hk.learn.save_file()
 			if offer.is_empty() and would_offer(id):
 				var key := first_free(m.ui_cmd.commands, m.hk.scoped)
