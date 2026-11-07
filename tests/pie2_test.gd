@@ -94,6 +94,10 @@ func arm() -> void:
 			break
 	if part != "":
 		m.sel = part
+		var fo := root.gui_get_focus_owner()
+		if fo != null and not (fo is RingMenu):
+			print("     (focus owner released before Q: %s)" % fo.get_class())
+			fo.release_focus()   # a panel's spin box that holds the keyboard makes main treat Q as typing; the bars are about the keys, not that guard
 		m.B.set_ang_safe(part, Vector3(80, 0, 0))
 
 

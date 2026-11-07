@@ -301,10 +301,31 @@ func _unhandled_input(ev: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
+
+var _pie_mouse := Vector2(-1, -1)   # the last mouse motion seen (events carry it; the OS cursor can differ under a pushed event)
+
+
+## P04 follow-up: the brush pie (option m.pie_on, off by default); a release on a wedge picks it (scripts/ring_menu.gd, release_pick)
+func _open_pie() -> void:
+	var its: Array = []
+	for b in KMeshVPaint.MODES + ["blur"]:
+		its.append({"name": b, "run": func():
+			blur = (b == "blur")
+			if not blur:
+				mode = b
+			_status()})
+	m.ui_pie.open(_pie_mouse if _pie_mouse.x >= 0.0 else m.get_viewport().get_pie_mouse_position(), "Brush", its)
+
+
 ## true = used
 func input(ev: InputEvent) -> bool:
 	if not on:
 		return false
+	if ev is InputEventMouseMotion:
+		_pie_mouse = (ev as InputEventMouseMotion).position
+	if ev is InputEventKey and ev.pressed and not ev.echo and ev.keycode == KEY_Q and not ev.ctrl_pressed and not ev.alt_pressed 			and not ev.shift_pressed and m.pie_on and m.ui_pie != null:
+		_open_pie()   # the brush pie (Q is free on this page; snap-90 stays on the S search line)
+		return true
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var ke := ev as InputEventKey
 		if tex_mode and ke.ctrl_pressed and ke.keycode == KEY_Z and tp != null:

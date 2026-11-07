@@ -11501,6 +11501,11 @@ func _reset_part() -> void:
 
 
 ## snap the selected joint's free angles to the nearest 90 (or 45) the range allows; it stops at contact
+## the S search lines "Snap the part to 90 / 45": the snap itself, not a replay of Q (with the brush pie on, a Q on a mesh page opens the ring)
+func _snap_cmd(step: float) -> void:
+	_do(func(): _snap(step))
+
+
 func _snap(step: float) -> void:
 	if sel in Body.WEAPON:
 		return
@@ -18036,8 +18041,8 @@ func _commands() -> Array:
 		add.call("Part key type: " + kt, "", _part_ktype.bind(kt), "key type keyframe breakdown inbetween main " + kt, true, "the picked part's key (or the curve editor's picked keys on it) becomes a " + kt + " key")
 	add.call("Breakdown: add a key at the playhead in between", "", _part_breakdown, "breakdown in between key add playhead interpolated pose blender", true, "a breakdown key on the picked part at the playhead, on its curve: the pose does not change")
 	add.call("Curve editor: pick only main keys", "", _curve_main_keys, "pick select main keys only retime breakdown inbetween curve", false, "the curve editor picks just its main keys (not breakdowns or in-betweens), so a drag retimes only them")
-	add.call("Snap the part to 90°", "Q", _press.bind(KEY_Q), "round", true, "round the picked part's angles to the 90° steps its range allows")
-	add.call("Snap the part to 45°", "Shift+Q", _press.bind(KEY_Q, true), "round", true, "round the picked part's angles to the 45° steps its range allows")
+	add.call("Snap the part to 90°", "Q", _snap_cmd.bind(90.0), "round", true, "round the picked part's angles to the 90° steps its range allows")
+	add.call("Snap the part to 45°", "Shift+Q", _snap_cmd.bind(45.0), "round", true, "round the picked part's angles to the 45° steps its range allows")
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
 	add.call("Voxel remesh", "", _sculpt_remesh, "remesh voxel even topology quads rebuild retopo sculpt sphere uniform", true, "the test sphere becomes an even mesh at 1.5 cm voxels: its surface is rebuilt; one undo step (Ctrl+Z takes it back)")
