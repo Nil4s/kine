@@ -33,6 +33,7 @@
 #include "kine_dyntopo_native.h"
 #include "kine_tpaint_native.h"
 #include "kine_props_native.h"
+#include "kine_dock_native.h"
 
 using namespace godot;
 
@@ -70,6 +71,7 @@ void kine_native_initialize(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(KineDyntopoNative);
 	GDREGISTER_CLASS(KineTPaintNative);
 	GDREGISTER_ABSTRACT_CLASS(KinePropsNative);
+	GDREGISTER_ABSTRACT_CLASS(KineDockNative);
 }
 
 void kine_native_terminate(ModuleInitializationLevel p_level) {

@@ -5661,11 +5661,13 @@ func _place(mi: MeshInstance3D, a: Vector3, b: Vector3, r: float, capsule := tru
 
 func _refresh() -> void:
 	var _rf := PerfDoc.t()
+	var _rx := _rf
 	if ic_ui != null:
 		ic_ui.sync()   # plan 137: the target's flash on its 2 frames
 	PerfDoc.add("r_ic", _rf)
 	_rf = PerfDoc.t()
-	_hands_refresh()   # HANDS (w4-handlock): the hands rows say the state
+	if not PerfDoc.refresh_plant:   # (L64 test control: a refresh that should have run is skipped)
+		_hands_refresh()   # HANDS (w4-handlock): the hands rows say the state
 	PerfDoc.add("r_hands", _rf)
 	_rf = PerfDoc.t()
 	_light_apply()
@@ -5682,21 +5684,36 @@ func _refresh() -> void:
 		ui_akey.queue_redraw()   # the frame reads Tok on each draw: a palette switch shows at once
 	if not sel_more.is_empty() and sel != _group_sel:
 		sel_more = []
+	PerfDoc.add("rx00", _rx)
+	_rx = PerfDoc.t()
 	_sym_prev = B.ang.duplicate()
 	if ui_body != null and ui_body.visible and not ui_body.dragging:
 		ui_body.sync(S.body, B)   # an undo, a load or a retarget moved the body: the sliders and the readout follow
+	PerfDoc.add("rx01", _rx)
+	_rx = PerfDoc.t()
 	var _pk := PerfDoc.t()
 	if not PerfStub.skip("skinning"):
 		Overlays.pose_skeleton(skel, bone_idx, B)
 	CharImportApp.update(self)   # L9: an imported rigged character stands on the pose (scripts/char_import_app.gd)
 	PerfDoc.add("skinning", _pk)
+	PerfDoc.add("rx02", _rx)
+	_rx = PerfDoc.t()
+	var _ck := PerfDoc.t()
+	corr.reuse = not PerfDoc.refresh_full and S.dq_skin <= 0.0 and not B.has_meta("spline_body") and not B.has_stretch() and S.soft.is_empty() and not soft_live.engaged   # L64
 	corr.update(B)
+	PerfDoc.add("sk_corr", _ck)
+	_ck = PerfDoc.t()
 	var spl_dq: bool = B.has_meta("spline_body")   # L33: a back driven by a spline chain
 	if spl_dq and B.has_stretch():
 		dq_skin_pass.update(0.0)   # the stretch pass builds on the rest mesh, not on the DQ one
 	stretch_skin.update(B)   # L33: after the corrective (its mesh is the rest this corrects); nothing without a stretch
+	PerfDoc.add("sk_stretch", _ck)
+	_ck = PerfDoc.t()
 	dq_skin_pass.update(1.0 if (spl_dq and not B.has_stretch()) else S.dq_skin)   # L33: a back driven by a spline chain is skinned by DQ (a plain blend caves in at its bends; with a stretch the stretch pass owns the mesh)
+	PerfDoc.add("sk_dq", _ck)
 	# H04: after the corrective (its mesh is the rest DQ corrects)
+	PerfDoc.add("rx03", _rx)
+	_rx = PerfDoc.t()
 	_face_draw()   # ROADMAP 31 + 74: the jaw, the mouth shape, the brows and the eyes at the playhead (scripts/face.gd)
 	for tg in ui_toggles:
 		(tg[0] as Button).set_pressed_no_signal(tg[1].call())
@@ -5704,12 +5721,16 @@ func _refresh() -> void:
 	_next_sync()
 	_insp_fit.call_deferred()   # RR2: rows shown / hidden change the box's height
 	_sync_weapon()
+	PerfDoc.add("rx04", _rx)
+	_rx = PerfDoc.t()
 	_throw_refresh()   # THROW CHECK (N040, L34)
 	_lock_refresh()   # LOCK CHECK (N041)
 	_fight_refresh()   # L76 FIGHT BAKE
 	_fd_refresh()   # FRAME DATA (ROADMAP 12): the strip and the boxes on active frames
 	if ui_browser != null and ui_browser.visible:
 		ui_browser.follow()
+	PerfDoc.add("rx05", _rx)
+	_rx = PerfDoc.t()
 	_rf = PerfDoc.t()
 	var touching: Dictionary = B.touching_parts_ref() if PerfDoc.slow else B.touching_parts()   # L12: one capsule per part per frame
 	PerfDoc.add("r_touch", _rf)
@@ -5818,6 +5839,8 @@ func _refresh() -> void:
 	tag.text = part_words(sel)
 	tag.position = ((c2[0] as Vector3) + (c2[1] as Vector3)) * 0.5 + Vector3(0, 0.1, 0)
 	PerfDoc.add("r_looks", _rf)
+	PerfDoc.add("rx06", _rx)
+	_rx = PerfDoc.t()
 	_dummy_refresh()
 	_pk = PerfDoc.t()
 	bal.show_body(B)
@@ -5825,8 +5848,12 @@ func _refresh() -> void:
 	_pk = PerfDoc.t()
 	cshadow.show_body(B)
 	PerfDoc.add("cshadow", _pk)
+	PerfDoc.add("rx07", _rx)
+	_rx = PerfDoc.t()
 	_hand_sliders_sync()
 	_auto_pin_sync()
+	PerfDoc.add("rx08", _rx)
+	_rx = PerfDoc.t()
 	if not clean or ov.trail_on or ov.onion_on or not ov.pins.is_empty() or ov.has_rigs():
 		_pk = PerfDoc.t()
 		ov.trail(_ps())
@@ -5836,6 +5863,8 @@ func _refresh() -> void:
 		PerfDoc.add("onion", _pk)
 	if ov.spacing_on or ov.graph_on:
 		ov.trail(_ps())
+	PerfDoc.add("rx09", _rx)
+	_rx = PerfDoc.t()
 	ov.spacing(playhead)
 	if cm_ui != null and cm_ui.pv != null and fp_prev.is_empty():
 		ov.fight_ghost(cm_ui.pv, cm_ui.pv_t, Transform3D.IDENTITY)   # I23: the combo, previewed, on the hero
@@ -5845,6 +5874,8 @@ func _refresh() -> void:
 		ov.fight_ghost(fp_prev.get("scene", null), playhead, fp_prev.get("xf", Transform3D.IDENTITY))   # I11: the defender's answer, previewed
 	ov.take_ghost(reh.get("take", null), Rehearse.take_time(reh["R"]["map"], playhead) if not reh.is_empty() else 0.0)   # I14: you, orange, at your own time for this playhead
 	ov.version_ghost(vdiff.get("scene", null), float(vdiff.get("ghost_t", playhead)))   # COMPARE WITH (ROADMAP 28): the version's body, magenta; the diff report's 'Show both' pins it to the older card's time (ROADMAP 98)
+	PerfDoc.add("rx10", _rx)
+	_rx = PerfDoc.t()
 	_pk = PerfDoc.t()
 	wt.draw(_ps(), playhead)   # weapon trail ribbon + smear (ROADMAP 35)
 	PerfDoc.add("wtrail", _pk)
@@ -5854,6 +5885,8 @@ func _refresh() -> void:
 	if ui_graph != null:
 		ui_graph.visible = ov.graph_on and S.cards.size() >= 2
 		ui_graph.queue_redraw()
+	PerfDoc.add("rx11", _rx)
+	_rx = PerfDoc.t()
 	_pk = PerfDoc.t()
 	if not PerfStub.skip("ui"):
 		_panel()
@@ -5863,8 +5896,12 @@ func _refresh() -> void:
 	_actors_draw()
 	PerfDoc.add("actors", _pk)
 	_pk = PerfDoc.t()
+	PerfDoc.add("rx12", _rx)
+	_rx = PerfDoc.t()
 	_crowd_draw()   # ROADMAP 95: the crowd's copies of this fighter's clip (none without a crowd)
 	PerfDoc.add("crowd", _pk)
+	PerfDoc.add("rx13", _rx)
+	_rx = PerfDoc.t()
 	_fighters_mark()
 	_rings_draw()   # ROADMAP 38: the range rings (View toggle)
 	_ikh_draw()   # IK2: the pinned limbs' target / pole handles
@@ -5872,6 +5909,8 @@ func _refresh() -> void:
 	loa.draw(B)   # ROADMAP 23: the current line of action (View toggle)
 	_frh_draw()   # ROADMAP 6: the reverse-foot handles of the picked foot
 	_rp_draw()   # ROADMAP 91: the root path on the floor and its handles (View toggle)
+	PerfDoc.add("rx14", _rx)
+	_rx = PerfDoc.t()
 	_pk = PerfDoc.t()
 	_sec_draw()   # ROADMAP 26: the secondary chains (ponytail, cloth, bo) at the playhead, from their baked keys
 	_cape_draw()   # ROADMAP 86: the baked cape at the playhead
@@ -5887,6 +5926,8 @@ func _refresh() -> void:
 		_bone_ui().draw()   # J01: your extra bones (scripts/bone_editor_ui.gd)
 	_hair_draw()   # ROADMAP 87: the hair strands (scripts/hair.gd) at the playhead, from the baked frames
 	PerfDoc.add("hair", _pk)
+	PerfDoc.add("rx15", _rx)
+	_rx = PerfDoc.t()
 	if hitbox_ui != null:
 		hitbox_ui.draw_handles()   # ROADMAP 36: the picked box's end and radius handles
 	if feint_ui != null:
@@ -5895,6 +5936,8 @@ func _refresh() -> void:
 		ao_ui.refresh()   # I37: the ghost of fighter 2 follows the playhead; an edit since the plan was made drops it
 	if counter_ui != null:
 		counter_ui.refresh()   # I3: an edit since the ghosts were made puts them away
+	PerfDoc.add("rx16", _rx)
+	_rx = PerfDoc.t()
 	_foot_plant_draw()   # ROADMAP 8: the footprint under a planted foot
 	_iq_prints_draw()   # VIDEO IQ: the contacts the video import found, as footprints
 	_cons_draw()   # CN: each active constraint's line from the part to what it follows

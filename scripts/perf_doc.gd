@@ -9,6 +9,8 @@ extends RefCounted
 
 static var on := false
 static var slow := false   # L12 (tests/perf60_test.gd): true = the reference paths of the PERF60 fixes (equality + before/after timing)
+static var refresh_full := false   # L64 (tests/refresh_test.gd): true = the reference _refresh (every block runs every frame)
+static var refresh_plant := false  # L64 TEST-ONLY control: the hands block is skipped even when it should run (R3 must fail)
 static var acc := {}     # name -> microseconds summed over the measured frames
 static var burn := {}    # TEST-ONLY debug hook: name -> milliseconds busy-waited inside that bracket while measuring
 
