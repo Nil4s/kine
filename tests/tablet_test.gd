@@ -359,7 +359,7 @@ func wpaint_part() -> void:
 	ui.strength = 0.05
 	var one := {}
 	var maxw := 0.0
-	var pc := pts[0].lerp(pts[1], 0.5)
+	var pc: Vector2 = pts[0].lerp(pts[1], 0.5)
 	for k in ["w0", "p1", "p025", "add", "inv"]:
 		mesh.set_attr_data(KMeshWPaint.CH_BONES, cb0.duplicate())
 		mesh.set_attr_data(KMeshWPaint.CH_WEIGHTS, cw0.duplicate())
