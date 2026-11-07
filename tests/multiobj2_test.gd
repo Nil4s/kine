@@ -177,7 +177,7 @@ func _init() -> void:
 		var n_undo: int = m.undo.size()
 		m._prop_turn(15.0)
 		await idle(2)
-		var dy := absf(angle_difference(deg_to_rad(yb), deg_to_rad(Props.yaw_of(S.props[i]["xf"]))) + deg_to_rad(15.0))
+		var dy := absf(angle_difference(deg_to_rad(yb), deg_to_rad(Props.yaw_of(S.props[i]["xf"]))) - deg_to_rad(15.0))
 		base_ok = base_ok and dy < deg_to_rad(1e-4) and (S.props[i]["xf"] as Transform3D).origin == ob and m.undo.size() == n_undo + 1
 		for j in 4:
 			if j != i:
@@ -243,7 +243,7 @@ func _init() -> void:
 	var yok := true
 	var ook := true
 	for i in 3:
-		yok = yok and absf(angle_difference(deg_to_rad(y0[i]), deg_to_rad(Props.yaw_of(S.props[i]["xf"]))) + deg_to_rad(15.0)) < deg_to_rad(1e-4)
+		yok = yok and absf(angle_difference(deg_to_rad(y0[i]), deg_to_rad(Props.yaw_of(S.props[i]["xf"]))) - deg_to_rad(15.0)) < deg_to_rad(1e-4)
 		ook = ook and (S.props[i]["xf"] as Transform3D).origin == org[i]
 	ok(yok, "4 each yaw moved by the same 15 deg step (1e-4 deg)")
 	ok(ook, "4 positions unchanged to the bit")
@@ -252,7 +252,7 @@ func _init() -> void:
 	var fake: Array = str_to_var(before)
 	fake[2] = S.props[2].duplicate(true)
 	ok(not turned_ok(fake, ref_turn, 3), "6a PLANTED: a turn that reached only the last-picked prop is told apart")
-	ok(absf(angle_difference(deg_to_rad(y0[0]), deg_to_rad(Props.yaw_of(S.props[0]["xf"]))) + deg_to_rad(16.0)) > deg_to_rad(0.5), "6c PLANTED: a wrong expectation (+16 deg) fails on the real result")
+	ok(absf(angle_difference(deg_to_rad(y0[0]), deg_to_rad(Props.yaw_of(S.props[0]["xf"]))) - deg_to_rad(16.0)) > deg_to_rad(0.5), "6c PLANTED: a wrong expectation (+16 deg) fails on the real result")
 	await key(KEY_Z, true)
 	ok(snap() == before, "4 Ctrl+Z byte-identical")
 

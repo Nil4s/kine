@@ -23385,44 +23385,55 @@ func _prop_add(kind: String, at: Variant = null) -> void:   # at: a floor point 
 
 
 func _prop_turn(deg: float) -> void:
-	if sel_prop < 0 or sel_prop >= S.props.size():
-		return
-	if _outl_locked_say(sel_prop):
+	var ids := _multi_ids()   # L125: every picked (unlocked) prop turns about its own origin by the same step
+	if ids.is_empty():
 		return
 	_push_undo()
-	_prop_live(sel_prop)
-	var d := Props.to_dict(S.props[sel_prop])
-	d["yaw"] = wrapf(float(d["yaw"]) + deg, -180.0, 180.0)
-	S.props[sel_prop] = Props.from_dict(d)
-	Outliner.moved(S, "prop:%d" % sel_prop)   # L36: its children turn / grow with it
-	_prop_autokey(sel_prop)
+	for i in ids:
+		_prop_live(i)
+		var d := Props.to_dict(S.props[i])
+		d["yaw"] = wrapf(float(d["yaw"]) + deg, -180.0, 180.0)
+		S.props[i] = Props.from_dict(d)
+		Outliner.moved(S, "prop:%d" % i)   # L36: its children turn / grow with it
+		_prop_autokey(i)
 	_props_show()
 	_doc_line()
-	_say("turned the %s to %.0f°" % [_prop_name(sel_prop), float(d["yaw"])])
+	if ids.size() > 1:
+		_say("turned %d objects by %.0f° each" % [ids.size(), deg])
+	else:
+		_say("turned the %s to %.0f°" % [_prop_name(ids[0]), float(Props.to_dict(S.props[ids[0]])["yaw"])])
 
 
 ## SIZE of the picked prop (Easy's Bigger / Smaller: f = 1.15 or 1 / 1.15; Expert reads the same field): one undo step; the
 ## range is Props.SIZE_MIN..SIZE_MAX, and at the end of it the status says so
 func _prop_resize(f: float) -> void:
-	if sel_prop < 0 or sel_prop >= S.props.size():
-		return
-	var old := Props.scale_of(S.props[sel_prop])
-	var new_s := clampf(old * f, Props.SIZE_MIN, Props.SIZE_MAX)
-	if absf(new_s - old) < 0.0005:
-		_say("the %s is as %s as it goes" % [_prop_name(sel_prop), "big" if f > 1.0 else "small"])
-		return
-	if _outl_locked_say(sel_prop):
+	var ids := _multi_ids()   # L125: every picked (unlocked) prop scales by the same factor about its own origin
+	var todo := []
+	for i in ids:
+		var old := Props.scale_of(S.props[i])
+		var new_s := clampf(old * f, Props.SIZE_MIN, Props.SIZE_MAX)
+		if absf(new_s - old) >= 0.0005:
+			todo.append([i, new_s])
+	if todo.is_empty():
+		if not ids.is_empty():
+			_say("the %s is as %s as it goes" % [_prop_name(ids[0]) if ids.size() == 1 else "objects", "big" if f > 1.0 else "small"])
 		return
 	_push_undo()
-	_prop_live(sel_prop)
-	var d := Props.to_dict(S.props[sel_prop])
-	d["scale"] = snappedf(new_s, 0.0001)
-	S.props[sel_prop] = Props.from_dict(d)
-	Outliner.moved(S, "prop:%d" % sel_prop)   # L36: its children turn / grow with it
-	_prop_autokey(sel_prop)
+	for t in todo:
+		var i: int = t[0]
+		_prop_live(i)
+		var d := Props.to_dict(S.props[i])
+		d["scale"] = snappedf(float(t[1]), 0.0001)
+		S.props[i] = Props.from_dict(d)
+		Outliner.moved(S, "prop:%d" % i)   # L36: its children turn / grow with it
+		_prop_autokey(i)
 	_props_show()
 	_doc_line()
-	_say("the %s is %s now (%d%% of its real size)" % [_prop_name(sel_prop), "bigger" if f > 1.0 else "smaller", roundi(new_s * 100.0)])
+	if todo.size() > 1:
+		_say("%d objects are %s now" % [todo.size(), "bigger" if f > 1.0 else "smaller"])
+	else:
+		var i0: int = todo[0][0]
+		_say("the %s is %s now (%d%% of its real size)" % [_prop_name(i0), "bigger" if f > 1.0 else "smaller", roundi(float(todo[0][1]) * 100.0)])
 
 
 ## COLOUR of the picked prop (Easy's Colour button cycles Props.COLOUR_ORDER; the first press gives blue): one undo step
@@ -23581,30 +23592,32 @@ func _prop_copies_row() -> void:
 
 
 func _prop_del() -> void:
-	if sel_prop < 0 or sel_prop >= S.props.size():
+	var ids := _multi_ids()   # L125: every picked (unlocked) prop goes, in ONE undo step
+	if ids.is_empty():
 		return
 	sel_props = []
-	if _outl_locked_say(sel_prop):
-		return
 	_push_undo()
-	var nm := _prop_name(sel_prop)
-	S.props.remove_at(sel_prop)
-	Outliner.prop_removed(S, sel_prop)   # L36: the parents / hide / lock follow the new numbers
-	for c in S.cards:   # UU2: the cards' take / drop marks follow the props' new numbers
-		if c.has("take"):
-			if int(c["take"]["prop"]) == sel_prop:
-				c.erase("take")
-			elif int(c["take"]["prop"]) > sel_prop:
-				c["take"]["prop"] = int(c["take"]["prop"]) - 1
-		if c.has("drop"):
-			if int(c["drop"]) == sel_prop:
-				c.erase("drop")
-			elif int(c["drop"]) > sel_prop:
-				c["drop"] = int(c["drop"]) - 1
+	var nm := _prop_name(ids[0]) if ids.size() == 1 else "%d objects" % ids.size()
+	ids.sort()
+	ids.reverse()   # highest number first: the lower numbers stay valid
+	for pi in ids:
+		S.props.remove_at(pi)
+		Outliner.prop_removed(S, pi)   # L36: the parents / hide / lock follow the new numbers
+		for c in S.cards:   # UU2: the cards' take / drop marks follow the props' new numbers
+			if c.has("take"):
+				if int(c["take"]["prop"]) == pi:
+					c.erase("take")
+				elif int(c["take"]["prop"]) > pi:
+					c["take"]["prop"] = int(c["take"]["prop"]) - 1
+			if c.has("drop"):
+				if int(c["drop"]) == pi:
+					c.erase("drop")
+				elif int(c["drop"]) > pi:
+					c["drop"] = int(c["drop"]) - 1
 	sel_prop = -1
 	_props_show()
 	_doc_line()
-	_say("deleted the %s: Ctrl+Z puts it back" % nm)
+	_say("deleted the %s: Ctrl+Z puts %s back" % [nm, "it" if ids.size() == 1 else "them"])
 
 
 ## APROP: EASY PICK UP. The picked Part (a cup you built) leaves the scene and goes into his right hand, as Give to a character
