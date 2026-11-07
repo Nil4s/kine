@@ -44,6 +44,9 @@ var _blank := ""        # L55: the SHA-256 of the texture as Texture mode made i
 var _last_px := Vector2.ZERO
 var dropper := false    # the panel's eyedropper: the next click on the mesh picks its colour
 var _stroking := false
+var pen_target := "strength"   # P09 tablet: what pen pressure scales: strength | radius | both | off (a mouse is always full)
+var _pen := KMeshPen.new()
+var _stroke_r := 0.12
 var _hover := {}        # {"point" (world), "face"} under the mouse, or {}
 var _ov: Control
 var panel: PanelContainer
@@ -197,8 +200,8 @@ func _tex_stamp(p: Vector2) -> int:
 	var model: Transform3D = view.global_transform
 	var mvp := cam.get_camera_projection() * Projection(cam.global_transform.affine_inverse() * model)
 	var wp: Vector3 = s["point"]
-	var rpx := cam.unproject_position(wp).distance_to(cam.unproject_position(wp + cam.global_transform.basis.x * radius * model.basis.get_scale().x))
-	return tp.stamp(mvp, model.affine_inverse() * cam.global_position, Vector2i(m.get_viewport().get_visible_rect().size), p, rpx, color, strength, 1.0 - softness, 2)
+	var rpx := cam.unproject_position(wp).distance_to(cam.unproject_position(wp + cam.global_transform.basis.x * radius * _pen.rk() * model.basis.get_scale().x))   # P09: pen radius
+	return tp.stamp(mvp, model.affine_inverse() * cam.global_position, Vector2i(m.get_viewport().get_visible_rect().size), p, rpx, color, strength * _pen.sk(), 1.0 - softness, 2)
 
 
 func _tex_to(p: Vector2, first: bool) -> void:
@@ -252,7 +255,10 @@ func params(ev: InputEvent = null) -> Dictionary:
 	var b := blur
 	if ev is InputEventWithModifiers and (ev as InputEventWithModifiers).shift_pressed:
 		b = true
-	return {"color": color, "mode": mode, "radius": radius, "strength": strength, "falloff": falloff, "blur": b, "sym_x": sym_x, "hardness": 1.0 - softness}
+	_pen.target = pen_target
+	var md := KMeshPen.inverse_vmode(mode) if _pen.erasing() else mode   # P09: the eraser end: add <-> subtract, lighten <-> darken
+	var col := Color.WHITE if _pen.erasing() and mode == KMeshVPaint.MIX else color   # and a mix erases back to white
+	return {"color": col, "mode": md, "radius": radius, "strength": strength, "falloff": falloff, "blur": b, "sym_x": sym_x, "hardness": 1.0 - softness}
 
 
 func _status() -> void:
@@ -364,7 +370,9 @@ func input(ev: InputEvent) -> bool:
 				return true
 			ui.undo.begin(mesh)
 			vp.begin(mesh, params(mb))
-			vp.to(_local(s["point"]), 1.0, int(s["face"]))
+			_stroke_r = float(vp.p["radius"])
+			_pen_dab()
+			vp.to(_local(s["point"]), _pen.sk(), int(s["face"]))
 			_stroking = true
 			view.mark_dirty()
 			return true
@@ -384,15 +392,25 @@ func input(ev: InputEvent) -> bool:
 		var mm := ev as InputEventMouseMotion
 		_hover = surface_at(cam, mm.position)
 		_ov.queue_redraw()
+		_pen.target = pen_target
+		_pen.note(mm)
 		if not _stroking:
 			return false
 		if not _hover.is_empty() and tex_mode:
 			_tex_to(mm.position, false)
 		elif not _hover.is_empty():
-			vp.to(_local(_hover["point"]), KMeshSculpt.pressure_of(mm))
+			_pen_dab()
+			vp.to(_local(_hover["point"]), _pen.sk())
 			view.mark_dirty()
 		return true
 	return false
+
+
+## P09: before a dab, the pen's radius factor (radius mode) goes into the running stroke
+func _pen_dab() -> void:
+	var rk := _pen.rk()
+	if rk != 1.0:
+		vp.p["radius"] = _stroke_r * rk
 
 
 func _draw_overlay() -> void:
