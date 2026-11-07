@@ -5813,6 +5813,8 @@ func _refresh() -> void:
 	PerfDoc.add("soft", _pk)
 	_pk = PerfDoc.t()
 	_rigx_draw()   # J24: the words-made rig (tail, ears, cape) on the body
+	if rig_ui != null or not S.own_rig.is_empty():
+		_rig_ui().draw()   # OWN RIG (L73): its bones, drawn (scripts/own_rig_ui.gd)
 	if bed != null or not S.bones.is_empty():
 		_bone_ui().draw()   # J01: your extra bones (scripts/bone_editor_ui.gd)
 	_hair_draw()   # ROADMAP 87: the hair strands (scripts/hair.gd) at the playhead, from the baked frames
@@ -6134,6 +6136,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if counter_ui != null and counter_ui.on and counter_ui.input(ev):   # I3: Tab picks the next ghost, Enter places it, Esc puts them away
+		get_viewport().set_input_as_handled()
+		return
+	if rig_ui != null and not S.own_rig.is_empty() and rig_ui.input(ev):   # OWN RIG (L73): a press on one of its bones picks it
 		get_viewport().set_input_as_handled()
 		return
 	if bed != null and bed.on and bed.input(ev):   # J01: the bone editor's keys (E, Shift+A, X, Tab, Esc), picks and end-ball drags
@@ -6769,6 +6774,20 @@ func _rig_words(text: String) -> Dictionary:
 
 ## BONE EDITOR (ROADMAP_400 J01; scripts/bone_editor.gd + bone_editor_ui.gd): your extra bones, drawn and edited
 var bed: BoneEditUI
+var rig_ui: OwnRigUI   # OWN RIG IN THE APP (L73, scripts/own_rig_ui.gd): import, drawn bones, pick, rotate, key
+
+
+func _rig_ui() -> OwnRigUI:
+	if rig_ui == null:
+		rig_ui = OwnRigUI.new()
+		add_child(rig_ui)
+		rig_ui.setup(self)
+	return rig_ui
+
+
+## the Scene menu's "Import rig (glTF)": "" = done, else why not
+func rig_import(path: String) -> String:
+	return _rig_ui().import_file(path)
 
 
 func _bone_ui() -> BoneEditUI:
@@ -6986,6 +7005,7 @@ func _snapshot() -> Dictionary:
 		"simc": simc.meta.duplicate(true),   # L35: the sim point caches (their files follow), undone like a card
 		"cape": S.cape.duplicate(true),   # the cape (ROADMAP 86), undone like a card
 		"rigx": S.rigx.duplicate(true),   # the words-made rig (rig_words.gd), undone like a card
+		"own_rig": S.own_rig.duplicate(true),   # OWN RIG (L73), undone like a card
 		"bones": S.bones.duplicate(true),   # J01: the user's extra bones (bone_editor.gd), undone like a card
 		"spline": S.spline_chains.duplicate(true),   # L28: their spline-IK chains (spline_chain.gd), undone like a card
 		"hair": S.hair.duplicate(true),   # the hair strands' parameters (ROADMAP 87): undone like a card, the frames baked again
@@ -7220,6 +7240,10 @@ func _restore(u: Dictionary) -> void:
 	if u["scene"] == S and u.has("rigx") and var_to_str(u["rigx"]) != var_to_str(S.rigx):
 		S.rigx = u["rigx"].duplicate(true)   # RIG FROM WORDS (J24), undone like a card
 		ov.mark_dirty()
+	if u["scene"] == S and u.has("own_rig") and var_to_str(u["own_rig"]) != var_to_str(S.own_rig):
+		S.own_rig = u["own_rig"].duplicate(true)   # OWN RIG (L73), undone like a card
+		if rig_ui != null:
+			rig_ui._scene_ref = null
 	if u["scene"] == S and u.has("bones") and var_to_str(u["bones"]) != var_to_str(S.bones):
 		S.bones = u["bones"].duplicate(true)   # BONE EDITOR (J01), undone like a card
 	if u["scene"] == S and u.has("spline") and var_to_str(u["spline"]) != var_to_str(S.spline_chains):
@@ -16092,7 +16116,7 @@ func _card_menu_pick(id: int) -> void:
 
 
 const SCENE_MENU := [[0, "Save scene", "save"], [1, "Open scene", "open"], [2, "Versions", "version"], [3, "New empty scene", "new_scene"],
-	[4, "New from template...", "template"], [5, "Delete scene", "trash"]]
+	[4, "New from template...", "template"], [5, "Delete scene", "trash"], [6, "Import rig (glTF)...", "open"]]
 
 
 ## the Scene menu: the same actions the eight buttons had, by the same names (the command search runs them too)
@@ -16115,6 +16139,8 @@ func _scene_menu_pick(id: int) -> void:
 			_template_ask()
 		5:
 			_delete_scene()
+		6:
+			_rig_ui().import_ask()
 
 
 ## the Scene menu opens ABOVE its button when there is no room under it. Godot moves a popup that does not fit back up over
@@ -17579,6 +17605,7 @@ func _commands() -> Array:
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
 	add.call("Voxel remesh", "", _sculpt_remesh, "remesh voxel even topology quads rebuild retopo sculpt sphere uniform", true, "the test sphere becomes an even mesh at 1.5 cm voxels: its surface is rebuilt; one undo step (Ctrl+Z takes it back)")
 	add.call("Sculpt: a test sphere (preview)", "", _sculpt_start, "sculpt brush draw clay inflate smooth flatten pinch crease grab snake hook pressure tablet zbrush", false, "add a test sphere to the stage and sculpt it: drag to stroke, D C I S F P E G K brushes, [ ] radius, Shift+[ ] strength, O falloff, X symmetry, Ctrl invert, Shift smooth, Ctrl+Z undo, Esc leaves (nothing is saved)")
+	add.call("Import rig (glTF): animate your own skeleton", "", func(): _rig_ui().import_ask(), "import rig gltf glb own skeleton creature animal tail quadruped non human bones custom pose key", false, "pick a .glb / .gltf with a skeleton that is not a human one: it becomes this scene's own rig, drawn in the view; click a bone, turn it, key it, play it back. Saved in the scene")
 	add.call("Rig: bone editor (add / delete / parent bones)", "", func(): _bone_ui().toggle(), "bone bones rig skeleton add delete parent extrude roll rest edit armature tail chain joint", false, "open / close the bone editor: your own bones on the body (E extrude from a tail, Shift+A add, X delete, drag the end balls; name, parent, length, roll in its panel). Each edit is one undo step; the body's own skeleton is not edited")
 	add.call("Model: edit a test cube (preview)", "", _kmesh_edit_start, "model mesh cube edit select vertex edge face box lasso xray polygon modeling", false, "add a 4x4-per-side test cube to the stage and select on it: click, Shift+click, B box, L lasso, X x-ray, 1/2/3 vertex / edge / face, Esc leaves (nothing is saved)")
 	add.call("Character: import a rigged character (glb / fbx)", "", func(): CharImportApp.ask(self), "character import rigged rig skin skinned mesh blendshape blend shape fbx glb mixamo unreal rigify vrm own model mapping bring in", false, "a .glb / .fbx with a skinned mesh becomes the fighter: its mesh, skin weights and blend shapes, its skeleton mapped onto Kine's body (names, then geometry; a map screen to fix bones). Kine's poses, limits, balance and contacts then drive it, on its own proportions")

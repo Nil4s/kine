@@ -1089,3 +1089,4 @@ EXTRA="$EXTRA fight3:w"   # L74 FIGHT3: N045 disarm truth (strong grip refused, 
 EXTRA="$EXTRA fight2:w"   # L72 FIGHT2: N034 impact alignment (bent wrist / locked knee flagged), N042 hit reaction by body region (4 of 4, monotone in impulse, inside body_limits), N046 shoulder-charge momentum sharing (<5%) (tests/fight2_test.gd)
 EXTRA="$EXTRA rigown:w"   # L69 RIGOWN: non-human glTF skeleton kept as its own rig, FK, keys, export, bone edit (tests/rigown_test.gd)
 EXTRA="$EXTRA plugins2:w"   # L70 PLUGIN2: addon API reach, install from folder/zip, permissions, timeout + rollback, examples (tests/plugins2_test.gd)
+EXTRA="$EXTRA rigown:w rigown_app:w"   # L69 RIGOWN: non-human glTF skeleton kept as its own rig, FK, keys, export, bone edit (tests/rigown_test.gd)
