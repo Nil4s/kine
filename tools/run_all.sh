@@ -1102,3 +1102,4 @@ EXTRA="$EXTRA eulerwarp:h"   # L86 Euler filter, quaternion view, slerp, clip ti
 EXTRA="$EXTRA reactweight:w"   # L89 L29 reaction auto-timing (block at cue + 0.29 s, superhuman flag) + L23 mass slider (tests/reactweight_test.gd)
 EXTRA="$EXTRA rigmirror:w"   # L91 RIGMIRROR: key/breakdown/retime/graph read on a custom rig, mirror by name then position, one undo each, tool rig_anim (tests/rigmirror_test.gd)
 EXTRA="$EXTRA fpswave:h"   # L92 L19+L14: frame-rate conversion with sub-frame keys (24/30/60 byte-identical, snap option, naive control) + sound waveform under the graph editor curves (tests/fpswave_test.gd)
+EXTRA="$EXTRA uiwire:w"   # L95 UIWIRE: AnyKey registry + Key this property, graph ghost + Alt-drag weight, AU picker, rig/react/weight palette + slider, Interp menu slerp, quaternion readout (tests/uiwire_test.gd)
