@@ -26,6 +26,8 @@ var vals := {}                 # key -> its value label
 var head_lab: Label
 var sub_lab: Label
 var meas_lab: Label
+var pct_labs := {}
+var pct_note: Label
 var blend_lab: Label
 var _sync := false
 var _pending := false
@@ -126,6 +128,14 @@ func build(main) -> void:
 	v.add_child(HSeparator.new())
 	meas_lab = m._label("", 12, "text:0.7", true)
 	v.add_child(meas_lab)
+	for d in Percentile.DIMS:
+		var pl: Label = m._label("", 12, "text:0.8", true)
+		pl.name = "pct_" + d
+		pct_labs[d] = pl
+		v.add_child(pl)
+	pct_note = m._label(Percentile.NOTE, 11, "text:0.6", true)
+	pct_note.name = "percentile_note"
+	v.add_child(pct_note)
 	v.add_child(m._label("Scene only: data/skeleton.json is never changed. Percentiles: ANSUR II 2012 (Gordon et al.).", 11, "text:0.5", true))
 	_show()
 
@@ -254,6 +264,8 @@ func sync(body: Dictionary, B: Body, force := false) -> void:
 	var L := last_measures
 	meas_lab.text = "Measured on the skeleton (T pose): height %.1f cm, arm span %.1f cm (%.2f x height), shoulder joints %.1f cm apart, hip joints %.1f cm apart." % [
 		float(L["stature"]) * 100.0, float(L["span"]) * 100.0, float(L["span"]) / float(L["stature"]), float(L["shoulders"]) * 100.0, float(L["hips"]) * 100.0]
+	for r in Percentile.rows(L):
+		(pct_labs[r["dim"]] as Label).text = Percentile.text(r)
 
 
 ## ---- R12: named characters. A character is the seven sliders (blend, stat, mass, arm, leg, trunk, head), nothing else;
