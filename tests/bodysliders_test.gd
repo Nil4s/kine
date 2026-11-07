@@ -76,17 +76,36 @@ func bones(sk: Skeleton3D) -> PackedVector3Array:
 	return o
 
 
-## max move (m) of the verts within `r` of `pts` between a and b
-func landmark_move(a: PackedVector3Array, b: PackedVector3Array, pts: Array, r: float) -> float:
+## the landmark ring of a joint: the verts of the (rest) mesh within 1.5 cm of the plane through the joint square to the bone
+## axis `u` and within 8 cm of the joint (the surface ring round the limb at the joint)
+func ring_ids(verts: PackedVector3Array, joint_p: Vector3, u: Vector3) -> PackedInt32Array:
+	var o := PackedInt32Array()
+	for i in verts.size():
+		var d := verts[i] - joint_p
+		var ax := d.dot(u)
+		if absf(ax) <= 0.015 and (d - u * ax).length() <= 0.08:
+			o.append(i)
+	return o
+
+
+func centroid(vs: PackedVector3Array, ids: PackedInt32Array) -> Vector3:
+	var c := Vector3.ZERO
+	for i in ids:
+		c += vs[i]
+	return c / maxf(1.0, ids.size())
+
+
+## the landmark move (m) of the rings: the larger of the centroid shift and the biggest single-vert move over every ring
+## (999 when a ring is empty: the instrument saw nothing)
+func landmark_move(a: PackedVector3Array, b: PackedVector3Array, rings: Array, _r := 0.0) -> float:
 	var w := 0.0
-	var n := 0
-	for i in a.size():
-		for p in pts:
-			if a[i].distance_to(p) <= r:
-				w = maxf(w, a[i].distance_to(b[i]))
-				n += 1
-				break
-	return w if n > 0 else 999.0
+	for ids in rings:
+		if (ids as PackedInt32Array).is_empty():
+			return 999.0
+		w = maxf(w, centroid(a, ids).distance_to(centroid(b, ids)))
+		for i in ids:
+			w = maxf(w, a[i].distance_to(b[i]))
+	return w
 
 
 ## max move (m) of the verts NOT in `ids`
@@ -117,7 +136,8 @@ func _init() -> void:
 	var ids := BodySliders.region_verts(base, sk, REG)
 	var sho := joint(sk, "upperarm_l")
 	var elb := joint(sk, "lowerarm_l")
-	var lm := [sho, elb]
+	var rings := [ring_ids(base.verts, sho, (elb - sho).normalized()), ring_ids(base.verts, elb, (elb - sho).normalized())]
+	print("landmark rings: shoulder %d verts, elbow %d verts" % [rings[0].size(), rings[1].size()])
 	var g0 := BodySliders.girth(base, sk, REG)
 	print("region %s: %d verts of %d; mid-bone girth %.1f mm; arm length %.1f cm" % [REG, ids.size(), base.verts.size(), g0 * 1000.0, sho.distance_to(elb) * 100.0])
 	ok(ids.size() > 200 and g0 > 0.15 and g0 < 0.5, "bar 0: the region has verts and a plausible girth (%.1f mm)" % [g0 * 1000.0])
@@ -129,7 +149,7 @@ func _init() -> void:
 	BodySliders.stroke_undoable(ub, kb, sk, REG, "bulk", 0.020)
 	var db: float = BodySliders.girth(kb, sk, REG) - g0
 	ok(db >= 0.018 and db <= 0.022, "bar 1: bulk +2.0 cm -> girth change %.2f cm (window 1.80 .. 2.20)" % [db * 100.0])
-	var lmb := landmark_move(base.verts, kb.verts, lm, 0.015)
+	var lmb := landmark_move(base.verts, kb.verts, rings)
 	ok(lmb <= 0.0005, "bar 2: bulk, mesh verts within 1.5 cm of shoulder / elbow moved %.3f mm (<= 0.5)" % [lmb * 1000.0])
 	var bn := bones(sk)
 	var bmax := 0.0
@@ -142,7 +162,7 @@ func _init() -> void:
 	BodySliders.stroke_undoable(ul, kl, sk, REG, "lean", 0.015)
 	var dl: float = BodySliders.girth(kl, sk, REG) - g0
 	ok(dl <= -0.01350 and dl >= -0.01650, "bar 1: lean 1.5 cm -> girth change %.2f cm (window -1.35 .. -1.65)" % [dl * 100.0])
-	var lml := landmark_move(base.verts, kl.verts, lm, 0.015)
+	var lml := landmark_move(base.verts, kl.verts, rings)
 	ok(lml <= 0.0005, "bar 2: lean, landmark verts moved %.3f mm (<= 0.5)" % [lml * 1000.0])
 
 	# ---- 3 soft on planted roughness
@@ -162,7 +182,7 @@ func _init() -> void:
 	var gs1: float = BodySliders.girth(ks, sk, REG)
 	ok(cv0 > 0.0 and cv1 <= 0.90 * cv0, "bar 3: soft, curvature variance %.10f -> %.10f (ratio %.3f, <= 0.90)" % [cv0, cv1, cv1 / maxf(cv0, 1e-30)])
 	ok(absf(gs1 - gs0) <= 0.005, "bar 3: soft, girth change %.2f mm (<= 5)" % [(gs1 - gs0) * 1000.0])
-	var lms := landmark_move(rough.verts, ks.verts, lm, 0.015)
+	var lms := landmark_move(rough.verts, ks.verts, rings)
 	ok(lms <= 0.0005, "bar 3: soft, landmark verts moved %.3f mm (<= 0.5)" % [lms * 1000.0])
 
 	# ---- 4 ANSUR bound
@@ -233,7 +253,7 @@ func _init() -> void:
 	for v in ids:
 		var rad: Vector3 = fn[v] - ax * fn[v].dot(ax)
 		fk.verts[v] += rad.normalized() * (0.020 / TAU)
-	var fl := landmark_move(base.verts, fk.verts, lm, 0.015)
+	var fl := landmark_move(base.verts, fk.verts, rings)
 	ok(not (fl <= 0.0005), "bar 7a: untapered fake moves the elbow ring %.2f mm and is CAUGHT by the landmark check" % [fl * 1000.0])
 	var d3 := 0.030
 	ok(not (d3 >= 0.018 and d3 <= 0.022), "bar 7b: a 3 cm growth for a 2 cm ask is outside the window")

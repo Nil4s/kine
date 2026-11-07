@@ -17,7 +17,7 @@ extends RefCounted
 const BRUSHES := ["lean", "bulk", "soft"]
 ## metres: ANSUR II biceps circumference flexed, mean and SD (UNVERIFIED, from memory)
 const ANSUR := {"upperarm": {"male": [0.339, 0.032], "female": [0.296, 0.030]}}
-const SOFT_PASSES := 3
+const SOFT_PASSES := 6
 const SOFT_LAMBDA := 0.5
 const SOFT_MU := -0.53
 
@@ -141,7 +141,7 @@ static func stroke(mesh: KMesh, sk: Skeleton3D, region: String, brush: String, a
 	res["girth_after"] = g0
 	res["ok"] = true
 	if brush == "soft":
-		_soft(mesh, ids, a, u, len)
+		_soft(mesh, ids, a, b)
 		res["moved"] = ids.size()
 		res["girth_after"] = _girth(mesh, ids, a, b)
 		return res
@@ -181,7 +181,10 @@ static func stroke(mesh: KMesh, sk: Skeleton3D, region: String, brush: String, a
 	return res
 
 
-static func _soft(mesh: KMesh, ids: PackedInt32Array, a: Vector3, u: Vector3, len: float) -> void:
+static func _soft(mesh: KMesh, ids: PackedInt32Array, a: Vector3, b: Vector3) -> void:
+	var u := (b - a).normalized()
+	var len := (b - a).length()
+	var g0 := _girth(mesh, ids, a, b)
 	var nbs := []
 	var w := PackedFloat32Array()
 	for v in ids:
@@ -203,6 +206,26 @@ static func _soft(mesh: KMesh, ids: PackedInt32Array, a: Vector3, u: Vector3, le
 			nw[i] = p + (m / nb.size() - p) * (lam * w[i])
 		for i in ids.size():
 			mesh.verts[ids[i]] = nw[i]
+	# girth-preserving rescale: smoothing shrinks a coarse tube, so push the region radially (tapered) until the mid-bone girth is what it was
+	var orig := mesh.verts.duplicate()
+	var dirs := PackedVector3Array()
+	dirs.resize(ids.size())
+	for i in ids.size():
+		var r: Vector3 = orig[ids[i]] - a
+		r -= u * r.dot(u)
+		dirs[i] = r.normalized() * w[i]
+	var g1 := _girth(mesh, ids, a, b)
+	var want := g0 - g1
+	if absf(want) < 1e-7:
+		return
+	var k := want / TAU
+	for _it in 4:
+		for i in ids.size():
+			mesh.verts[ids[i]] = orig[ids[i]] + dirs[i] * k
+		var dg := _girth(mesh, ids, a, b) - g1
+		if absf(dg - want) <= 0.01 * absf(want) or absf(dg) < 1e-9:
+			break
+		k *= want / dg
 
 
 ## stroke() as ONE undo step (nothing moved = no step)
