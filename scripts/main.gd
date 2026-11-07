@@ -395,15 +395,17 @@ func _chrome_sync() -> void:
 
 
 func lw() -> float:
-	return 0.0 if big_view or easy.on or _hides("sides") else float(RAIL_W if fold["left"] else LEFT_W)
+	return 0.0 if big_view or easy.on or _hides("sides") else float(RAIL_W if fold["left"] else side_w["left"])
 
 
 func rw() -> float:
-	return 0.0 if big_view or easy.on or _hides("sides") else float(RAIL_W if fold["right"] else RIGHT_W)
+	return 0.0 if big_view or easy.on or _hides("sides") else float(RAIL_W if fold["right"] else side_w["right"])
 
 
 func _fold(which: String, on: bool, save := true) -> void:
 	fold[which] = on
+	if save:
+		_dock_note()   # L123: this page's own fold
 	_sides_apply()
 	_layout_bottom()
 	_fit_rows.call_deferred()
@@ -437,6 +439,7 @@ func _sides_apply() -> void:
 			ui_rails[k].visible = not big_view and fold[k] and not clean and not easy.on and not pose_only
 		if ui_fold_btn.has(k):
 			ui_fold_btn[k].visible = not big_view and not fold[k] and not clean and not easy.on and not pose_only
+	_dock_widths()
 	if ui_body != null:
 		ui_body.visible = cur_page == "BODY" and not big_view and not fold["left"] and not clean and not easy.on
 		if ui_body.visible:
@@ -3373,6 +3376,7 @@ func _ready() -> void:
 	hk.load_from(settings)
 	hk.scoped.load_file()   # P06: the page keys (user://kine_pagekeys.json); the run counts and dismissals (P18) load with hk.learn
 	pg_spaces = PageSpaces.new()   # P07: each page's panel layout (user://kine_page_spaces.json)
+	pg_docks = PageDocks.new()   # L123 P07: every app page's own side widths, folds and floating panels (user://kine_page_docks.json)
 	camnav = CamNav.new(self)   # W01: camera navigation settings (scripts/cam_nav.gd)
 	camnav.load_from(settings)
 	camnav_ui = CamNavUI.new(self, camnav)
@@ -3401,6 +3405,7 @@ func _ready() -> void:
 		if not testing and cf.get_value("layout", "fold_" + k, FOLD_DEFAULT[k]):
 			_fold(k, true, false)
 	_pages_load(cf)
+	_dock_enter(cur_page)   # L123: the layout this page was left with (a restart)
 	shading.load_cfg(self)   # K01 / K02: the remembered shading mode, matcap, studio lights and sky (a test's own file)
 	BootProfile.mark("pages+shading")
 	_fit_rows.call_deferred()
@@ -17100,6 +17105,7 @@ func _page_set(p: String, save := true) -> void:
 	_pp("leave")
 	if p != was_page:
 		_pw_leave(was_page)
+		_dock_leave(was_page)
 	cur_page = p
 	if p != was_page:
 		_pw_enter(p)
@@ -17134,6 +17140,7 @@ func _page_set(p: String, save := true) -> void:
 	_pp("reactions")
 	_sides_apply()
 	_pp("sides_apply")
+	_dock_enter(p, p != was_page)   # L123: this page's own widths, folds and floating panels (after the page's defaults)
 	_layout_bottom()
 	_pp("layout_bottom")
 	_chrome_sync()
@@ -17658,9 +17665,186 @@ var camx: CamExtras   # C01
 var kt: KeymapTranslate   # P20: Blender / Maya key helper
 var blk: BlKeys           # B16: Blender-style modal G / R / S layer
 var pg_spaces: PageSpaces   # P07: per-page panel layouts
+var pg_docks: PageDocks   # L123 P07: per app page (all nine): side widths, folds, floating panels
+var side_w := {"left": float(LEFT_W), "right": float(RIGHT_W)}   # the side panels' widths on the page shown now (dragged by the grips)
+var _dock_grips := {}
+var _dock_win_ok := {}   # page -> the floating panels' owners existed when the page was entered (the stored panels were applied)
+var _grip_drag := ""
+var _grip_x0 := 0.0
+var _grip_w0 := 0.0
 var _learn_toast: PanelContainer
 var _learn_shown := {}   # command id -> true: its suggestion toast was shown this session (once each)
 const PAGE_WS := {"ANIMATE": "animate", "MODEL": "part", "SCULPT": "part", "SURFACE": "part"}   # the app page -> the workspace page (scripts/work_layouts.gd) whose layout it keeps
+
+
+## L123: the grips on the inner edge of the side panels; a real drag widens a panel (never narrower than the app's own width)
+func _dock_widths() -> void:
+	if ui_root == null or not ui_side_of.has("left") or not ui_side_of.has("right") or ui_body == null:
+		return
+	var lp: Control = ui_side_of["left"]
+	var rp: Control = ui_side_of["right"]
+	lp.offset_right = side_w["left"]
+	ui_body.offset_right = side_w["left"]
+	rp.offset_left = -side_w["right"]
+	for k in ["left", "right"]:
+		if not _dock_grips.has(k):
+			var g := Control.new()
+			g.name = "dock_grip_" + k
+			g.mouse_filter = Control.MOUSE_FILTER_STOP
+			g.mouse_default_cursor_shape = Control.CURSOR_HSIZE
+			g.z_index = 20
+			g.tooltip_text = "drag to widen this panel (remembered for this page)"
+			g.offset_top = TOP_H + 6
+			g.anchor_bottom = 1.0
+			g.offset_bottom = -BOTTOM_H - 6
+			if k == "right":
+				g.anchor_left = 1.0
+				g.anchor_right = 1.0
+			g.gui_input.connect(_grip_input.bind(k))
+			ui_root.add_child(g)
+			_dock_grips[k] = g
+		var gg: Control = _dock_grips[k]
+		if k == "left":
+			gg.offset_left = side_w["left"] - 4.0
+			gg.offset_right = side_w["left"] + 4.0
+			gg.visible = lp.visible or ui_body.visible
+		else:
+			gg.offset_left = -side_w["right"] - 4.0
+			gg.offset_right = -side_w["right"] + 4.0
+			gg.visible = rp.visible
+
+
+func _grip_input(ev: InputEvent, which: String) -> void:
+	if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		if (ev as InputEventMouseButton).pressed:
+			_grip_drag = which
+			_grip_x0 = (ev as InputEventMouseButton).global_position.x
+			_grip_w0 = side_w[which]
+		else:
+			_grip_drag = ""
+			if pg_docks != null:
+				pg_docks.save_file()
+	elif ev is InputEventMouseMotion and _grip_drag == which:
+		var dx: float = (ev as InputEventMouseMotion).global_position.x - _grip_x0
+		side_w[which] = PageDocks.clamp_w(which, _grip_w0 + (dx if which == "left" else -dx))
+		_sides_apply()
+		_layout_bottom()
+		_dock_note()
+
+
+## the side widths and folds of the page shown now are this page's own from here on
+func _dock_note() -> void:
+	if pg_docks == null:
+		return
+	var e := pg_docks.entry(cur_page)
+	e["w"] = {"left": side_w["left"], "right": side_w["right"]}
+	e["fold"] = {"left": fold["left"], "right": fold["right"], "bottom": fold["bottom"]}
+
+
+## the floating panels of a page: id -> {ctl, owner (can be shown now), open, close, move}
+func _dock_windows(pg: String) -> Dictionary:
+	var out := {}
+	match pg:
+		"MODEL":
+			var p = ui_root.get_node_or_null(ModelChecksUI.NAME) if ui_root != null else null
+			out["checks"] = {"ctl": p, "owner": kmed != null and kmed.on, "move": false,
+				"open": func(): ModelChecksUI.toggle(self),
+				"close": func(): if p != null: p.visible = false}
+		"SCULPT":
+			var pr = ksc.presets if ksc != null else null
+			out["presets"] = {"ctl": pr, "owner": ksc != null and ksc.on and pr != null, "move": false,
+				"open": func(): pr.open(), "close": func(): pr.close()}
+		"SURFACE":
+			var uv = kmed.uved if kmed != null else null
+			out["uv"] = {"ctl": uv, "owner": kmed != null and kmed.on, "move": false,   # the editor is docked under the Materials panel (kmesh_material_ui.gd places it every frame): visibility only
+
+				"open": func(): kmed.toggle_uv_editor(),
+				"close": func(): kmed.toggle_uv_editor()}
+	return out
+
+
+func _dock_leave(pg: String) -> void:
+	if pg_docks == null or not PAGES.has(pg):
+		return
+	var wins := _dock_windows(pg)
+	if wins.is_empty():
+		return
+	var e := pg_docks.entry(pg)
+	var stored: Dictionary = e.get("win", {})
+	var all_owned := true
+	for id in wins:
+		all_owned = all_owned and bool(wins[id]["owner"])
+	if not all_owned or (not stored.is_empty() and not bool(_dock_win_ok.get(pg, false))):
+		return   # nothing to read yet, or the saved panels were never put back this visit: keep what is saved
+	var w := {}
+	for id in wins:
+		var c = wins[id]["ctl"]
+		var v: bool = c != null and (c as Control).visible
+		w[id] = {"on": v, "x": (c as Control).position.x if c != null else 0.0, "y": (c as Control).position.y if c != null else 0.0}
+	e["win"] = w
+	pg_docks.save_file()
+
+
+func _dock_enter(pg: String, windows := true) -> void:
+	if pg_docks == null or not PAGES.has(pg):
+		return
+	var e: Dictionary = pg_docks.pages.get(pg, {})
+	var changed := false
+	var nw := {"left": float(LEFT_W), "right": float(RIGHT_W)}
+	if e.has("w"):
+		nw = {"left": float(e["w"]["left"]), "right": float(e["w"]["right"])}
+	if nw["left"] != side_w["left"] or nw["right"] != side_w["right"]:
+		side_w = nw
+		changed = true
+	if e.has("fold"):
+		for k in fold:
+			if fold[k] != bool(e["fold"][k]):
+				fold[k] = bool(e["fold"][k])
+				changed = true
+	var wins := _dock_windows(pg) if windows else {}
+	var owned := not wins.is_empty()
+	for id in wins:
+		owned = owned and bool(wins[id]["owner"])
+	if windows:
+		_dock_win_ok[pg] = owned
+	if owned and e.has("win"):
+		for id in wins:
+			var sw: Dictionary = e["win"].get(id, {})
+			if sw.is_empty():
+				continue
+			var cur: bool = wins[id]["ctl"] != null and (wins[id]["ctl"] as Control).visible
+			if bool(sw["on"]) != cur:
+				(wins[id]["open"] if sw["on"] else wins[id]["close"]).call()
+			var c2 = _dock_windows(pg)[id]["ctl"]
+			if bool(sw["on"]) and bool(wins[id]["move"]) and c2 != null:
+				(c2 as Control).position = Vector2(float(sw["x"]), float(sw["y"]))
+	if changed:
+		_sides_apply()
+		_layout_bottom()
+		_fit_rows.call_deferred()
+
+
+## "View: reset this page's panel layout": the page goes back to the app's own widths, folds and closed floating panels
+func dock_reset(pg := "") -> void:
+	if pg == "":
+		pg = cur_page
+	if pg_docks == null:
+		return
+	pg_docks.forget(pg)
+	if pg == cur_page:
+		side_w = {"left": float(LEFT_W), "right": float(RIGHT_W)}
+		for k in fold:
+			fold[k] = _page_want(pg, k)
+		var wins := _dock_windows(pg)
+		for id in wins:
+			var w: Dictionary = wins[id]
+			if w["owner"] and w["ctl"] != null and (w["ctl"] as Control).visible:
+				w["close"].call()
+		_sides_apply()
+		_layout_bottom()
+		_fit_rows.call_deferred()
+	pg_docks.save_file()
+	_say("%s page: panels back to their default layout" % pg)
 
 
 func _pw_ws() -> WorkLayouts:
@@ -17693,6 +17877,7 @@ func _pw_save() -> void:
 	hk.learn.save_file()
 	if pg_spaces != null:
 		pg_spaces.save_file()
+	_dock_leave(cur_page)
 
 
 ## a command ran: count it; a habit (3+ runs, no key) gets one small non-modal suggestion per session
@@ -18113,6 +18298,7 @@ func _commands() -> Array:
 	add.call("Voxel remesh", "", _sculpt_remesh, "remesh voxel even topology quads rebuild retopo sculpt sphere uniform", true, "the test sphere becomes an even mesh at 1.5 cm voxels: its surface is rebuilt; one undo step (Ctrl+Z takes it back)")
 	add.call("Sculpt: a test sphere (preview)", "", _sculpt_start, "sculpt brush draw clay inflate smooth flatten pinch crease grab snake hook pressure tablet zbrush", false, "add a test sphere to the stage and sculpt it: drag to stroke, D C I S F P E G K brushes, [ ] radius, Shift+[ ] strength, O falloff, X symmetry, Ctrl invert, Shift smooth, Ctrl+Z undo, Esc leaves (nothing is saved)")
 	add.call("Import rig (glTF): animate your own skeleton", "", func(): _rig_ui().import_ask(), "import rig gltf glb own skeleton creature animal tail quadruped non human bones custom pose key", false, "pick a .glb / .gltf with a skeleton that is not a human one: it becomes this scene's own rig, drawn in the view; click a bone, turn it, key it, play it back. Saved in the scene")
+	add.call("View: reset this page's panel layout", "", func(): dock_reset(), "reset page panel layout widths folds default workspace dock inspector browser presets checks uv editor", false, "this page's side panel widths, folds and floating panels go back to the app's defaults; the other pages keep their own (L123)")
 	add.call("Rig: bone editor (add / delete / parent bones)", "", func(): _bone_ui().toggle(), "bone bones rig skeleton add delete parent extrude roll rest edit armature tail chain joint", false, "open / close the bone editor: your own bones on the body (E extrude from a tail, Shift+A add, X delete, drag the end balls; name, parent, length, roll in its panel). Each edit is one undo step; the body's own skeleton is not edited")
 	add.call("Model: edit a test cube (preview)", "", _kmesh_edit_start, "model mesh cube edit select vertex edge face box lasso xray polygon modeling", false, "add a 4x4-per-side test cube to the stage and select on it: click, Shift+click, B box, L lasso, X x-ray, 1/2/3 vertex / edge / face, Esc leaves (nothing is saved)")
 	add.call("Character: import a rigged character (glb / fbx)", "", func(): CharImportApp.ask(self), "character import rigged rig skin skinned mesh blendshape blend shape fbx glb mixamo unreal rigify vrm own model mapping bring in", false, "a .glb / .fbx with a skinned mesh becomes the fighter: its mesh, skin weights and blend shapes, its skeleton mapped onto Kine's body (names, then geometry; a map screen to fix bones). Kine's poses, limits, balance and contacts then drive it, on its own proportions")
