@@ -153,20 +153,23 @@ static func place(card: Control, hb: Control, view: Rect2, blk: Array, body: Rec
 ## KineDockNative.first_free is the same loop in C++ (single-precision Rect2 steps); _first_free_gd is the GDScript twin and the reference
 ## (PerfDoc.refresh_full). The scan of a long list that is all rejected (a body wider than the room) was most of the card's cost.
 static var _native := -1   # -1 not asked, 0 no, 1 yes
+static var _door = null    # scripts/dock_native.gd once KineDockNative is known to exist
 static var native_calls := 0   # tests
 
 
 static func native_ok() -> bool:
 	if _native < 0:
 		_native = 1 if NativeExt.ensure("kine_native", "KineDockNative") else 0
-	return _native == 1
+		if _native == 1:
+			_door = load("res://scripts/dock_native.gd")
+	return _native == 1 and _door != null
 
 
 static func first_free(spots: PackedFloat64Array, ps: Vector2, body: Rect2, avoid: bool, pts: Array) -> int:
 	if PerfDoc.refresh_full or not native_ok():
 		return _first_free_gd(spots, ps, body, avoid, pts)
 	native_calls += 1
-	return KineDockNative.first_free(spots, ps.x, ps.y, body, avoid, PackedVector2Array(pts), 2.0)
+	return _door.first_free(spots, ps.x, ps.y, body, avoid, PackedVector2Array(pts), 2.0)
 
 
 static func _first_free_gd(spots: PackedFloat64Array, ps: Vector2, body: Rect2, avoid: bool, pts: Array) -> int:

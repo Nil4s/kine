@@ -338,20 +338,23 @@ func arrays_of(mi: MeshInstance3D, mesh: Mesh) -> Array:
 ## L64: vs[i] += dv[i] * amp for the vertices in ai. KineDockNative.push is the same loop in C++; _push_gd is the GDScript twin and
 ## the reference (PerfDoc.refresh_full).
 static var _native := -1
+static var _door = null   # scripts/dock_native.gd
 static var native_pushes := 0   # tests
 
 
 static func native_ok() -> bool:
 	if _native < 0:
 		_native = 1 if NativeExt.ensure("kine_native", "KineDockNative") else 0
-	return _native == 1
+		if _native == 1:
+			_door = load("res://scripts/dock_native.gd")
+	return _native == 1 and _door != null
 
 
 static func push(vs: PackedVector3Array, dv: PackedVector3Array, ai: PackedInt32Array, amp: float) -> PackedVector3Array:
 	if PerfDoc.refresh_full or not native_ok():
 		return _push_gd(vs, dv, ai, amp)
 	native_pushes += 1
-	return KineDockNative.push(vs, dv, ai, amp)
+	return _door.push(vs, dv, ai, amp)
 
 
 static func _push_gd(vs: PackedVector3Array, dv: PackedVector3Array, ai: PackedInt32Array, amp: float) -> PackedVector3Array:

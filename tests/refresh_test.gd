@@ -261,7 +261,7 @@ func equality() -> void:
 			pts.append(Vector2(rng.randf_range(0, 1400), rng.randf_range(0, 800)))
 		for avoid in [true, false]:
 			var a := HandsDock._first_free_gd(spots, ps, body, avoid, pts)
-			var b := KineDockNative.first_free(spots, ps.x, ps.y, body, avoid, PackedVector2Array(pts), 2.0)
+			var b: int = HandsDock._door.first_free(spots, ps.x, ps.y, body, avoid, PackedVector2Array(pts), 2.0)
 			if a != b:
 				bad_ff += 1
 			if a >= 0:
@@ -281,7 +281,7 @@ func equality() -> void:
 		for i in rng.randi_range(0, n):
 			ai.append(rng.randi_range(0, n - 1))
 		var amp := 0.013 * rng.randf_range(0.0, 1.0)
-		if Corrective._push_gd(vs, dv, ai, amp) != KineDockNative.push(vs, dv, ai, amp):
+		if Corrective._push_gd(vs, dv, ai, amp) != Corrective._door.push(vs, dv, ai, amp):
 			bad_p += 1
 	ok(bad_p == 0, "R5 push: native == GDScript twin on 200 random meshes (bit for bit), %d differ" % bad_p)
 
