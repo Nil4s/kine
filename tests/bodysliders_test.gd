@@ -65,14 +65,14 @@ func clone(k: KMesh) -> KMesh:
 func joint(sk: Skeleton3D, nm: String) -> Vector3:
 	for b in sk.get_bone_count():
 		if sk.get_bone_name(b).to_lower() == nm:
-			return sk.get_bone_global_pose(b).origin
+			return sk.global_transform * sk.get_bone_global_pose(b).origin
 	return Vector3.ZERO
 
 
 func bones(sk: Skeleton3D) -> PackedVector3Array:
 	var o := PackedVector3Array()
 	for b in sk.get_bone_count():
-		o.append(sk.get_bone_global_pose(b).origin)
+		o.append(sk.global_transform * sk.get_bone_global_pose(b).origin)
 	return o
 
 
@@ -160,7 +160,7 @@ func _init() -> void:
 	BodySliders.stroke_undoable(us, ks, sk, REG, "soft", 0.0)
 	var cv1: float = BodySliders.curvature_variance(ks, ids)
 	var gs1: float = BodySliders.girth(ks, sk, REG)
-	ok(cv0 > 0.0 and cv1 <= 0.90 * cv0, "bar 3: soft, curvature variance %.3e -> %.3e (ratio %.3f, <= 0.90)" % [cv0, cv1, cv1 / maxf(cv0, 1e-30)])
+	ok(cv0 > 0.0 and cv1 <= 0.90 * cv0, "bar 3: soft, curvature variance %.10f -> %.10f (ratio %.3f, <= 0.90)" % [cv0, cv1, cv1 / maxf(cv0, 1e-30)])
 	ok(absf(gs1 - gs0) <= 0.005, "bar 3: soft, girth change %.2f mm (<= 5)" % [(gs1 - gs0) * 1000.0])
 	var lms := landmark_move(rough.verts, ks.verts, lm, 0.015)
 	ok(lms <= 0.0005, "bar 3: soft, landmark verts moved %.3f mm (<= 0.5)" % [lms * 1000.0])
