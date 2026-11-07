@@ -360,6 +360,7 @@ var guided_pose: GuidedPose   # C16: opt-in guided first pose (palette command o
 var onboard: Onboarding     # ONBOARDING (scripts/onboarding.gd, R25): the first-launch 3-step guide
 var build_choose: BuildChoose   # BUILD's "What do you want to build?" chooser (scripts/build_choose.gd)
 var model_cards: ModelCards   # MODEL's task cards, "What do you want to do?" (scripts/model_cards.gd)
+var task_coach: TaskCoach   # P19 (scripts/task_coach.gd): BODY, MODEL, SURFACE, POSE walk with live checks
 var page_tour: PageTour     # P01 (scripts/page_tour.gd): BODY / MODEL / SCULPT / SURFACE, a 5-step tour the first time each opens
 var easy: EasyMode           # EASY MODE (scripts/easy_mode.gd): the 13-button bar; Expert = every panel and tool
 var ui_top_bar: Control      # the top strip (Easy hides it and shows its own bar)
@@ -3409,6 +3410,9 @@ func _ready() -> void:
 	onboard.build(ui_root)
 	guided_pose.build(ui_root)
 	page_tour.build(ui_root)
+	task_coach = TaskCoach.new(self)
+	add_child(task_coach)
+	task_coach.build(ui_root)
 	model_cards.build(ui_root)
 	build_choose.build(ui_root)
 	page_tour.auto = not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour")   # P01: a test turns it on itself
@@ -17851,6 +17855,7 @@ func _commands() -> Array:
 	add.call("Stop macro recording", "", _macro_stop, "macro stop end save finish recording", false, "save the macro being recorded under its name; it then shows in the S box as 'Macro: <name>'")
 	add.call("Play macro...", "", func(): ui_cmd.open_with("macro:"), "macro play run list saved", false, "the S box lists the saved macros: click or Enter plays one on the part picked now (ONE undo step)")
 	add.call("Guided first pose", "", func(): guided_pose.begin(), "guided first pose tutorial onboarding learn beginner steps", false, "a six-step guide to your first pose (body, click a part, drag, second part, clip, play); each step moves on by doing it, Skip closes it")
+	add.call("Task coach: make a fighter", "", func(): task_coach.start(), "task coach guide walk steps body model surface pose fighter make tutorial", false, "a small panel walks BODY, MODEL, SURFACE, POSE: each step has a live check from the real app state, and Next waits until it is green; Cancel changes nothing")
 	add.call("Page tour", "", func(): page_tour.replay(), "page tour help guide learn body model sculpt surface intro onboarding", false, "the five-step tour of the page you are on (BODY, MODEL, SCULPT or SURFACE; BODY from any other page), seen or not")
 	add.call("First steps tour", "", _tour_start, "tour help start begin learn new intro guide", false, "five steps that show the poser by doing: click a part, drag it, clip two cards, play, check")
 	add.call("Help: show the tour", "", easy.tour_start, "help tour easy beginner first steps learn guide intro", false, "the Easy tour: five steps (drag a hand, key the pose, move the playhead, key again, play), each moved on by doing it")
