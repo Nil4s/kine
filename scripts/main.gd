@@ -27085,7 +27085,7 @@ func _proportions_dialog() -> void:
 		ui_prop_preset.item_selected.connect(func(i):
 			var k: String = PROP_KEYS[i]
 			if k != "custom":
-				ui_prop_stature.set_value_no_signal(Units.to_unit(Proportions.DEFAULT_STATURE if k == "" else float(Proportions.PRESETS[k]["stature"])))
+				ui_prop_stature.set_value_no_signal(Units.to_unit(Proportions.DEFAULT_STATURE if k == "" else float(Proportions.PRESETS[k]["stature"]))))
 		v.add_child(ui_prop_preset)
 		var h := HBoxContainer.new()
 		var l := Label.new()
