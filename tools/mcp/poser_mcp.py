@@ -63,6 +63,9 @@ TOOLS = {
     "sockets": ("sockets", "Engine sockets placed from the anatomy of a preset body: weapon_r, weapon_l (palm grip centre), back_sheath (between the scapulae), hip_holster_r (greater trochanter, on the hip), head_fx (above the vertex). "
                 "Each has a parent bone, a local position in that bone's rest frame and a skeleton-space position; they follow stature, segment length and girth and are written into the engine export.",
                 {"type": "object", "properties": {"preset": S, "mass": N}, "additionalProperties": False}),
+    "animtools": ("animtools", "Animation tools (L07 L09 L10 L11): op onion {frame, before, after, step} lists the ghost frames; breakdown {card, factor -0.5..1.5, parts} blends the card between its neighbours; "
+                  "retime {card, frames, ripple} moves a key in time (ripple shifts the later keys, no ripple refuses a move across a neighbour); keyset {name, parts, active} makes a keying set that auto-key then uses. One undo step each.",
+                  {"type": "object", "properties": {"op": S, "frame": N, "before": N, "after": N, "step": N, "card": N, "factor": N, "frames": N, "ripple": {"type": "boolean"}, "name": S, "parts": {"type": "array", "items": S}, "active": {"type": "boolean"}}, "required": ["op"], "additionalProperties": False}),
     "dyntopo": ("dyntopo", "Dynamic topology step: under the sculpt brush edges longer than L_max = detail x radius are split and edges shorter than 0.4 L_max are collapsed. "
                 "Runs one step on a test sphere and returns tris before/after, splits, collapses, edges in the brush outside the band (band_bad), min/max edge in mm, manifold, native, ms.",
                 {"type": "object", "properties": {"radius": N, "detail": N, "levels": N}, "additionalProperties": False}),
@@ -147,7 +150,7 @@ TOOLS = {
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets"]
+MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets", "animtools"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:

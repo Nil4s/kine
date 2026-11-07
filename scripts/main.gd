@@ -7096,12 +7096,45 @@ func _place_akey_frame() -> void:
 	ui_akey.queue_redraw()
 
 
+## L11: with auto-key on and a KEYING SET active (part_sets.gd), the change keys only that set's parts at the playhead, as
+## part keys (no card). Returns true when it did (or the set has nothing to key); false = no active set, the old card key.
+func _autokey_set() -> bool:
+	var ps := PartSets.of(self)
+	var nm := ps.active()
+	if nm == "":
+		return false
+	var parts := PartSets.keyable(ps.parts_of("keying", nm))
+	if S.cards.is_empty() or parts.is_empty():
+		return true
+	var t := clampf(playhead, 0.0, S.length())
+	for j in parts:
+		PartKeys.put(S.part_keys, j, t, B.ang[j])
+	_say("Auto-key: keying set '%s' keyed %d parts at %s" % [nm, parts.size(), Units.time(t, S.fps)])
+	return true
+
+
+## L10 RETIME KEY (scripts/anim_tools.gd): card i's arrival moved by df frames, later keys rippling along or not. One undo step.
+func _retime_key(i: int, df: int, ripple: bool) -> Dictionary:
+	var why := AnimTools.retime_refuse(S, i, df, ripple)
+	if why != "":
+		_say("retime: %s" % why)
+		return {"ok": false, "why": why, "frames": 0}
+	_step_hint = "Retime key"
+	_retime_begin()
+	var r := AnimTools.retime_apply(S, i, df, ripple)
+	_retime_step(true)
+	_say("retime: key %d moved %+d frames%s" % [i + 1, df, " with ripple (the later keys follow)" if ripple else ", the other keys stay"])
+	return r
+
+
 ## a change to the body at the playhead, once it is made (the undo step is already pushed: it covers the card too)
 func _autokey_card() -> void:
 	if not auto_key or undo.is_empty():
 		return
 	if undo.back().get("body") == B.state():
 		return   # nothing moved: no card
+	if _autokey_set():
+		return   # L11: an active keying set takes the keys, as part keys on its parts only
 	var ci := LimbIK.card_at(S, playhead)
 	if ci >= 0:
 		S.cards[ci]["pose"] = B.to_dict()
@@ -17883,6 +17916,8 @@ func _commands() -> Array:
 	add.call("Fix moves through the body", "", _clear_scene, "collision pass", true, "add pass-by cards so no move goes through the body")
 	add.call("Breakdowner 25%", "", _breakdowner.bind(0.25), "slerp neighbour tween", true, "the picked card's pose (selected parts, else the whole body) a quarter of the way from the card before to the card after, joint by joint")
 	add.call("Breakdowner 50%", "", _breakdowner.bind(0.5), "slerp neighbour tween halfway", true, "the picked card's pose (selected parts, else the whole body) halfway between the card before and the card after, joint by joint")
+	for rt in [["Retime key: +1 frame, later keys follow", 1, true], ["Retime key: -1 frame, later keys follow", -1, true], ["Retime key: +1 frame, other keys stay", 1, false], ["Retime key: -1 frame, other keys stay", -1, false]]:
+		add.call(rt[0], "", func(): _retime_key(sel_card, rt[1], rt[2]), "retime key move time ripple drag frame later shift", true, "moves the picked card's key by one frame; with ripple every later key moves the same; without it the other keys stay and a move that would cross a neighbour is refused; one undo step (L10)")
 	add.call("Breakdowner slider", "Shift+E", _breakdowner_popup, "slerp neighbour tween slider overshoot", false, "opens a slider: the picked card between the card before (0) and after (1), joint by joint; past the ends overshoots (-50% to 150%)")
 	add.call("Breakdowner 75%", "", _breakdowner.bind(0.75), "slerp neighbour tween", true, "the picked card's pose (selected parts, else the whole body) three quarters of the way from the card before to the card after")
 	add.call("Push from the in-between", "Ctrl+E", _inbetween.bind("push"), "breakdown exaggerate tween", true, "the picked card's pose (the selected parts, else the whole body) moves 25% AWAY from the mix of its two neighbours; stops at joint limits and says so")

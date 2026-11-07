@@ -1095,3 +1095,4 @@ EXTRA="$EXTRA fightbake:w"   # L76 FIGHTBAKE: region_react / impact_align / body
 EXTRA="$EXTRA graphed:h"   # L84 weighted tangents, buffer curves, curve modifiers via curve_graph tool (tests/graphed_test.gd)
 EXTRA="$EXTRA sockets:w"   # N089: engine sockets from anatomy: regions, proportions, export round trip, controls (tests/sockets_test.gd)
 EXTRA="$EXTRA refresh:w"   # L64 L-REFRESH: playback _refresh skips unchanged work (R1 <5 ms, R2 4 fighters lower, R3 hash equal + planted control, R4 same-frame updates)
+EXTRA="$EXTRA animtools:w"   # L87 ANIMTOOLS: onion every N frames per part, breakdown on a selection, ripple retime of keys, keying sets + set-restricted auto-key, one undo step each (tests/animtools_test.gd)
