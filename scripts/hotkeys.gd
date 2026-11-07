@@ -47,6 +47,8 @@ var pending := ""           # a key that conflicted: the same key again moves it
 var synth := ""             # the built-in key of the command being run from a key: main's own match runs it
 var scoped := PageKeys.new()   # P06: keys bound globally or to one page (scripts/page_keys.gd), consulted first by dispatch
 var learn := CmdLearn.new()    # P18: how often each command runs (scripts/cmd_learn.gd)
+var scope_sel := ""          # the editor's scope: "" = Global, else a page id (P06)
+var scope_dd: OptionButton
 var hold := -1              # keycode of the ? that is down (the cheat sheet hides when it is released)
 var ui: PanelContainer      # the editor (built on first open)
 var search: LineEdit
@@ -297,8 +299,7 @@ func dispatch(k: InputEventKey) -> bool:
 	if sid != "":
 		var sc := _find(cmds, sid)
 		if not sc.is_empty():
-			learn.record(sid)
-			(sc["run"] as Callable).call()
+			(sc["run"] as Callable).call()   # main's registry wrapper counts it (CmdLearn)
 			return true
 	var c := holder(cmds, combo)
 	if c.is_empty():
@@ -308,6 +309,8 @@ func dispatch(k: InputEventKey) -> bool:
 		hold = k.keycode
 		return true
 	if String(c.get("default", c["keys"])) == combo:
+		if not bool(m._pressing):
+			learn.record(String(c["id"]))   # a real key press: main's own match runs it (a command run from a palette is counted by the wrapper)
 		return false   # still its own key: main's own match runs it, as it always did
 	m._step_hint = String(c["name"])
 	synth = String(c.get("default", c["keys"]))
@@ -342,9 +345,25 @@ func take_input(ev: InputEvent) -> bool:
 	return false
 
 
+static func scope_pages() -> Array:
+	return ["body", "pose", "animate", "stage", "check", "deliver", "model", "sculpt", "surface"]
+
+
 func _capture_key(k: InputEventKey) -> void:
 	var combo := combo_of(k)
 	var id := capture
+	if scope_sel != "":
+		var rs := scoped.bind(combo, id, scope_sel, combo == pending and combo != "")
+		if rs.has("conflict"):
+			pending = combo
+			status.text = String(rs["msg"])
+			return
+		capture = ""
+		pending = ""
+		status.text = String(rs["msg"])
+		m._pw_save_keys()
+		rebuild_rows()
+		return
 	var r := set_key(id, combo, combo == pending and combo != "")
 	if r.has("conflict"):
 		pending = combo
@@ -386,6 +405,18 @@ func open_editor() -> void:
 		v.add_child(status)
 		var bar := HBoxContainer.new()
 		v.add_child(bar)
+		scope_dd = OptionButton.new()
+		scope_dd.name = "hk_scope"
+		scope_dd.tooltip_text = "Global: the key works on every page. A page: the key works only there and wins over a global one"
+		scope_dd.add_item("Global")
+		for pg in scope_pages():
+			scope_dd.add_item(String(pg).capitalize())
+		scope_dd.item_selected.connect(func(i: int):
+			scope_sel = "" if i <= 0 else String(scope_pages()[i - 1])
+			capture = ""
+			pending = ""
+			rebuild_rows())
+		bar.add_child(scope_dd)
 		var reset_b := Button.new()
 		reset_b.name = "hk_reset"
 		reset_b.text = "Reset to defaults"
@@ -450,6 +481,12 @@ func rebuild_rows() -> void:
 		var b := Button.new()
 		b.name = "hk_" + String(c["id"])
 		b.text = String(c["keys"]) if String(c["keys"]) != "" else "(no key)"
+		if scope_sel != "":
+			var own := ""
+			for sb in scoped.items:
+				if String(sb["cmd"]) == String(c["id"]) and String(sb["scope"]) == scope_sel:
+					own = String(sb["key"])
+			b.text = own if own != "" else "(global key)"
 		b.custom_minimum_size.x = 150
 		b.pressed.connect(begin_capture.bind(String(c["id"])))
 		row.add_child(b)

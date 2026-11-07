@@ -91,7 +91,12 @@ func toast() -> Control:
 func palette_run(name: String, n: int) -> void:
 	for i in n:
 		m.ui_cmd.open_with(name)
-		await idle(1)
+		await idle(2)
+		if not m.ui_cmd.box.has_focus():
+			m.ui_cmd.box.grab_focus()
+			await idle(1)
+		if i < 2:
+			print("   palette run %d: focus %s, first row %s" % [i, m.ui_cmd.box.has_focus(), String(m.ui_cmd.shown[0]["name"]) if m.ui_cmd.shown.size() > 0 else "-"])
 		await key(KEY_ENTER)
 
 
@@ -173,9 +178,6 @@ func control_bars() -> void:
 	await key(KEY_1)
 	ok(hit[0] == 1, "CONTROL planted: a scoped binding on the 1 key fires its command (%d)" % hit[0])
 	m.hk.scoped.unbind("1", "pose")
-	var c := cmd(XID)
-	if c.has("raw"):
-		c["run"] = func(): (c["raw"] as Callable).call()   # drop the counting wrapper's effect on later bars: raw is the command itself
 
 
 func keys_bars() -> void:
@@ -211,6 +213,8 @@ func space_bars() -> void:
 	m._page_set("MODEL", false)
 	await idle(2)
 	var lu = m.bld.shell.layouts_ui
+	lu.open_dialog()   # builds the dialog's status line (drop() writes to it)
+	await idle(2)
 	var base := rect_of(m, "part", "browser")
 	lu.drop("part", "browser", "right", Vector2(900, 300))
 	ws.set_open("part", "timeline", false)
@@ -255,9 +259,10 @@ var moved_final := Rect2()
 
 
 func toast_bars() -> void:
+	m.bld.shell.layouts_ui.close_dialog()
 	m._page_set("POSE", false)
 	await idle(2)
-	var name_a := "Scene: hide cost per character"
+	var name_a := "hide cost per character"
 	var id_a := "scene_hide_cost_per_character"
 	m.hk.scoped.items.clear()   # the keyless commands must stay keyless for the learn bars
 	ok(toast() == null, "TOAST none before any run")
@@ -271,7 +276,7 @@ func toast_bars() -> void:
 	ok(toast() == null and m.hk.learn.is_dismissed(id_a), "TOAST a real click on Dismiss closes it and remembers it")
 	await palette_run(name_a, 10)
 	ok(toast() == null, "TOAST 10 more runs: no toast")
-	await palette_run("Scene: show cost per character", 4)
+	await palette_run("show cost per character", 4)
 	ok(toast() != null, "TOAST another command still gets its toast")
 	if toast() != null:
 		await click((toast().find_child("learn_dismiss", true, false) as Button).get_global_rect().get_center())
@@ -292,7 +297,7 @@ func editor_bars() -> void:
 	dd.select(si)
 	dd.item_selected.emit(si)
 	await idle(1)
-	var id := "scene_show_cost_per_character"
+	var id := "help_forget_my_command_habits"
 	m.hk.begin_capture(id)
 	await key(KEY_K, true, true)
 	ok(m.hk.scoped.resolve("Ctrl+Alt+K", "sculpt") == id and m.hk.scoped.resolve("Ctrl+Alt+K", "animate") == "", "EDITOR with sculpt chosen the captured key binds on sculpt only")
@@ -317,7 +322,7 @@ func save_bars() -> void:
 	await idle(6)
 	m = await boot()
 	ok(m.hk.scoped.resolve(KJ, "sculpt") == YID and m.hk.scoped.resolve(KJ, "animate") == XID, "SAVE the scoped bindings are back after a restart")
-	ok(m.hk.scoped.resolve("Ctrl+Alt+K", "sculpt") == "scene_show_cost_per_character", "SAVE the editor's binding is back too")
+	ok(m.hk.scoped.resolve("Ctrl+Alt+K", "sculpt") == "help_forget_my_command_habits", "SAVE the editor's binding is back too")
 	ok(m.hk.learn.is_dismissed("scene_hide_cost_per_character") and m.hk.learn.is_dismissed("scene_show_cost_per_character"), "SAVE the dismissals are back")
 	ok(m.hk.learn.runs("scene_hide_cost_per_character") >= runs_before and runs_before >= 20, "SAVE the run counts are back (%d)" % m.hk.learn.runs("scene_hide_cost_per_character"))
 	m.bld.shell.ws.reset()
@@ -328,5 +333,5 @@ func save_bars() -> void:
 	var back := rect_of(m, "part", "browser")
 	ok(close_to(back, moved_final), "SAVE the model page layout is back within 1 px (%s vs %s)" % [back, moved_final])
 	m.hk.scoped.items.clear()
-	await palette_run("Scene: hide cost per character", 10)
+	await palette_run("hide cost per character", 10)
 	ok(toast() == null, "SAVE 10 more runs in the fresh app: no toast for a dismissed command")
