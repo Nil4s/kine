@@ -125,10 +125,10 @@ where the two bodies touch, hold, see and remember each other.
 | N042 | **Target anatomy** | Where the hit lands, by muscle and bone tag (liver, chin, thigh), picks the kind of reaction (fold, knees go, leg buckles), not only its direction. (research: sports-medicine knockout and body-shot mechanisms) | A19 anatomy tags, I2, I33 | $$ | |
 | N043 | **Blind-side check** | Can the defender SEE the strike? Field of view from his head and eyes; a strike from outside it makes a fast block "precog" even if the timing is fine. (research: human visual field) | I31 precog (time only) | $ | |
 | N044 | **Hurt memory** | After a hit to the ribs, the fighter guards that side, favours the hurt leg and slows on that side for the rest of the fight. | I33, I34, I37 | $$ | |
-| N045 | **Disarm truth** | A disarm works only when the lever on the wrist beats the grip; Kine says why one works and another doesn't. | N032, grip book, I40 | $$ | |
+| N045 | **Disarm truth** (L74: scripts/disarm_truth.gd, tool disarm_check) | A disarm works only when the lever on the wrist beats the grip; Kine says why one works and another doesn't. | N032, grip book, I40 | $$ | |
 | N046 | **Body collision** | A shoulder charge or tackle shares momentum between the two bodies by their masses; the lighter one moves more, and Kine keys both. | I36, I2 | $$ | |
 | N047 | **Stance matchup** | Orthodox vs southpaw, open or closed: which lanes and targets each fighter's strikes can reach from where they stand. | I18 distance keeper, `range_rings.gd` | $ | |
-| N048 | **One vs many** | In a group fight, Kine schedules the attackers so only as many attack at once as can reach, with real spacing around the hero. | choreo (13), I18, I19 | $$ | |
+| N048 | **One vs many** (L74: scripts/group_fight.gd, tool group_fight) | In a group fight, Kine schedules the attackers so only as many attack at once as can reach, with real spacing around the hero. | choreo (13), I18, I19 | $$ | |
 | N049 | **Lift the opponent** | Picking up and slamming a body uses his real mass: posture, back load and how high he can be lifted. | de Leva masses, `stunt_load.gd` spine | $$ | |
 | N050 | **Two-body targets** | "My right fist to HIS chin at 0.6 s": targets on the other fighter's moving body, solved for both, given by name. | I5 (one body), I3 | $$ | |
 | N051 | **Grab contracts** | "Grab his wrist": the hand stays on the partner's moving limb, with a grip from the grip book, and breaks are reported in cm. | grip book (I50), contact IK (88) | $$ | |

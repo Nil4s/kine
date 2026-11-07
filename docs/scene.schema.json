@@ -614,6 +614,19 @@
      },
      "additionalProperties": false
     },
+    "own_rig": {
+     "type": "object",
+     "description": "OWN RIG (scripts/custom_rig.gd): a non-human skeleton kept as itself; only when there is one. names, parent (index, -1 root), rest (12 numbers per bone: basis rows x y z, then origin), keys (frame f, q = bone -> quaternion x y z w, a delta from the rest rotation), fps",
+     "required": ["names", "parent", "rest"],
+     "properties": {
+      "names": {"type": "array", "items": {"type": "string"}},
+      "parent": {"type": "array", "items": {"type": "integer"}},
+      "rest": {"type": "array", "items": {"type": "array", "items": {"type": "number"}, "minItems": 12, "maxItems": 12}},
+      "keys": {"type": "array", "items": {"type": "object"}},
+      "fps": {"type": "number"}
+     },
+     "additionalProperties": false
+    },
     "bones": {
      "type": "array",
      "description": "J01 BONE EDITOR (scripts/bone_editor.gd): the user's extra bones under the UE5 skeleton or each other; only when any. head / tail = metres in the parent's rest frame (its head the origin), roll = degrees about the bone (armature space), connect = the head stays on the parent's tail",

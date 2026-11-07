@@ -15,6 +15,10 @@ var data_root := ""                  # plugin data is <data_root>/<name>/data/
 var state_file := ""                 # the enable switches (a preference, not work)
 var host: Dictionary = {}            # "scene", "clamp", "has_joint", "begin", "say", "changed", "run": Callables from main
 var found: Array = []                # one record per plugin folder, see _record
+var project_root := "res://"         # write_file / read_file work inside this folder (the app: the project; a test: a temp folder)
+var timeout_ms := 5000               # a command that runs longer is stopped waiting for, rolled back, and its plugin disabled
+var call_log: Dictionary = {}        # every api call made so far, name -> count (the tests read it for coverage)
+var _abandoned: Array = []           # threads of commands that ran past the limit: kept alive, never joined
 
 
 func configure(folders: Array, settings_file: String, data_folder: String) -> void:
@@ -78,8 +82,14 @@ static func check_manifest(m: Variant, folder: String) -> String:
 		return "the folder name '%s' must be lower case letters, digits and _, starting with a letter: rename the folder" % folder
 	if String(d["name"]).strip_edges() == "":
 		return "manifest.json \"name\" is empty: give the plugin a name people will see in the S box"
-	if int(d["api"]) != PluginAPI.VERSION:
+	if not PluginAPI.SUPPORTED.has(int(d["api"])):
 		return "needs api %d and this app has api %d: ask the author for a version that uses api %d" % [int(d["api"]), PluginAPI.VERSION, PluginAPI.VERSION]
+	if d.has("permissions"):
+		if not (d["permissions"] is Array):
+			return "manifest.json \"permissions\" must be a list like [\"files\"]: the known ones are %s" % ", ".join(PluginAPI.PERMISSIONS)
+		for p in d["permissions"]:
+			if not PluginAPI.PERMISSIONS.has(String(p)):
+				return "manifest.json asks for an unknown permission '%s': the known ones are %s" % [String(p), ", ".join(PluginAPI.PERMISSIONS)]
 	if not (d["commands"] is Array) or (d["commands"] as Array).is_empty():
 		return "manifest.json \"commands\" must list at least one command: {\"id\", \"name\", \"desc\"}"
 	for c in d["commands"]:
@@ -124,7 +134,7 @@ func load_plugin(rec: Dictionary) -> String:
 	var obj = sc.new()
 	if obj == null or not obj.has_method("command"):
 		return _msg(rec, "plugin.gd has no func command(api, id)", "add func command(api, id) that runs the commands in manifest.json")
-	var api := PluginAPI.new(rec["folder"], host["scene"], host["clamp"], host["has_joint"], host["begin"], host["say"], data_root)
+	var api := PluginAPI.new(rec["folder"], host, data_root, project_root, rec["manifest"].get("permissions", []), call_log)
 	api.title = String(rec["manifest"]["name"])
 	rec["obj"] = obj
 	rec["api"] = api
@@ -146,15 +156,40 @@ func run(i: int, cid: String) -> String:
 	var api: PluginAPI = rec["api"]
 	api.failed = false
 	api.fail_msg = ""
-	# a command returns true when it is done (documented in docs/PLUGINS.md). api.fail stops it with a reason. A GDScript
-	# runtime error (a null value, a bad index) cannot be caught in GDScript: the call then gives null, which is not true,
-	# so it is a failure too, and the console shows the line that errored
-	var ret = rec["obj"].command(api, cid)
+	# The command runs on a WORKER thread: every api call that needs the app is carried out here, on the main thread, while we
+	# wait. A command that is still running after timeout_ms is abandoned (GDScript cannot kill a thread): its api is revoked,
+	# so it can change nothing any more, and its plugin is disabled. A GDScript runtime error (a null value, a bad index)
+	# cannot be caught: the call then gives null, which is not true, so it is a failure too, and the console shows the line
+	var box := {"done": false, "ret": null}
+	var obj = rec["obj"]
+	var th := Thread.new()
+	th.start(func():
+		box["ret"] = obj.command(api, cid)
+		box["done"] = true)
+	var t0 := Time.get_ticks_msec()
+	while not box["done"] and Time.get_ticks_msec() - t0 < timeout_ms:
+		api._service()
+		OS.delay_usec(300)
+	if not box["done"]:
+		api.revoked = true
+		_abandoned.append(th)
+		_rollback()
+		return _disable(rec, "ran longer than %.1f s in command '%s' and was stopped. Its edits were taken back. A runaway loop cannot be killed from inside the app, so it may keep a CPU busy until Kine is restarted" % [timeout_ms / 1000.0, cid])
+	th.wait_to_finish()
+	api._service()
+	var ret = box["ret"]
 	if api.failed:
+		_rollback()
 		return _disable(rec, "stopped in command '%s': %s" % [cid, api.fail_msg])
 	if ret != true:
+		_rollback()
 		return _disable(rec, "command '%s' did not finish: it returned %s instead of true. Either it hit an error in plugin.gd (the console shows the line) or it returned without true" % [cid, str(ret)])
 	return ""
+
+
+func _rollback() -> void:
+	if host.has("rollback"):
+		host["rollback"].call()
 
 
 func _disable(rec: Dictionary, why: String) -> String:
@@ -217,3 +252,166 @@ func _save_state() -> void:
 	if f != null:
 		f.store_string(JSON.stringify(on, "  "))
 		f.close()
+
+
+# ---- install, update, uninstall (O02 / O09) ---------------------------------------------------------------------------
+
+const MAX_INSTALL_BYTES := 20 * 1024 * 1024
+
+## Install a plugin from a folder or a .zip into the first root. -> {"ok", "why", "action" ("installed" | "updated"), "folder",
+## "version", "from_version"}. A new plugin is OFF. An update keeps the enable switch, the settings and the data (they live
+## outside the plugin's folder) and refuses an older version. Nothing is written until the whole package has been checked.
+func install(src: String) -> Dictionary:
+	if roots.is_empty():
+		return _inst_no("there is no plugins folder to install into", "start Kine normally")
+	var pkg: Dictionary = _read_package(src)
+	if not pkg["ok"]:
+		return pkg
+	var id: String = pkg["id"]
+	var m: Variant = pkg["manifest"]
+	var why := check_manifest(m, id)
+	if why != "":
+		return _inst_no("'%s' cannot be installed: %s" % [id, why], "fix manifest.json and install again")
+	var dest: String = String(roots[0]) + "/" + id
+	var from_v := ""
+	var action := "installed"
+	if DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(dest)):
+		action = "updated"
+		if FileAccess.file_exists(dest + "/manifest.json"):
+			var old: Variant = JSON.parse_string(FileAccess.get_file_as_string(dest + "/manifest.json"))
+			if old is Dictionary:
+				from_v = String(old.get("version", ""))
+		if from_v != "" and _vercmp(String(m["version"]), from_v) < 0:
+			return _inst_no("version %s is older than the installed %s" % [String(m["version"]), from_v], "install the newer one, or uninstall first to go back")
+	# write: the old folder goes, the new one is written file by file
+	_rm_tree(dest)
+	for rel in pkg["files"]:
+		var bytes: PackedByteArray = pkg["read"].call(rel)
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path((dest + "/" + rel).get_base_dir()))
+		var f := FileAccess.open(dest + "/" + rel, FileAccess.WRITE)
+		if f == null:
+			return _inst_no("could not write %s (error %d)" % [rel, FileAccess.get_open_error()], "check the disk and install again")
+		f.store_buffer(bytes)
+		f.close()
+	scan()
+	_changed()
+	return {"ok": true, "why": "", "action": action, "folder": id, "version": String(m["version"]), "from_version": from_v}
+
+
+## remove an installed plugin (not a shipped example). Its data and settings stay unless purge is true.
+func uninstall(i: int, purge := false) -> Dictionary:
+	if i < 0 or i >= found.size():
+		return _inst_no("there is no such plugin", "open the Plugins panel and pick one")
+	var rec: Dictionary = found[i]
+	if rec["source"] != "installed" or not String(rec["dir"]).begins_with(String(roots[0])):
+		return _inst_no("'%s' is a shipped example and cannot be uninstalled" % rec["folder"], "switch it off instead")
+	var folder: String = rec["folder"]
+	unload(rec)
+	rec["enabled"] = false
+	_rm_tree(rec["dir"])
+	if purge:
+		_rm_tree(data_root + "/" + folder)
+	found.remove_at(i)
+	_save_state()
+	_changed()
+	return {"ok": true, "why": ""}
+
+
+func _inst_no(why: String, next: String) -> Dictionary:
+	return {"ok": false, "why": "%s. Next step: %s" % [why, next]}
+
+
+## {"ok", "id", "manifest", "files": [rel], "read": Callable(rel) -> bytes} for a folder or a zip, after the checks
+func _read_package(src: String) -> Dictionary:
+	var files := []
+	var total := 0
+	var base := src.rstrip("/\\")
+	if base.to_lower().ends_with(".zip"):
+		var zr := ZIPReader.new()
+		if zr.open(base) != OK:
+			return _inst_no("could not open '%s' as a zip" % base.get_file(), "pick a .zip made by zipping the plugin folder")
+		var all := zr.get_files()
+		for e in all:
+			var path: String = e
+			if path.contains("..") or path.begins_with("/") or path.contains(":") or path.contains("\\"):
+				zr.close()
+				return _inst_no("the zip has an entry '%s' that leaves the plugin folder (.. or an absolute path); nothing was installed" % path, "ask the author for a clean zip")
+		var prefix := ""
+		if all.has("manifest.json"):
+			prefix = ""
+		else:
+			for e in all:
+				if String(e).ends_with("/manifest.json") and String(e).count("/") == 1:
+					prefix = String(e).get_base_dir() + "/"
+		if not all.has(prefix + "manifest.json"):
+			zr.close()
+			return _inst_no("the zip has no manifest.json at its top (or in one top folder)", "zip the plugin folder so manifest.json is inside it")
+		var m0: Variant = JSON.parse_string(zr.read_file(prefix + "manifest.json").get_string_from_utf8())
+		var id0 := prefix.trim_suffix("/") if prefix != "" else _safe_id(base.get_file().get_basename())
+		for e in all:
+			var path2: String = e
+			if path2.ends_with("/") or not path2.begins_with(prefix):
+				continue
+			total += zr.read_file(path2).size()
+			files.append(path2.substr(prefix.length()))
+		if total > MAX_INSTALL_BYTES:
+			zr.close()
+			return _inst_no("the package is larger than %d MB" % (MAX_INSTALL_BYTES / 1048576), "plugins are small scripts: remove the big files")
+		var cache := {}
+		for rel in files:
+			cache[rel] = zr.read_file(prefix + rel)
+		zr.close()
+		return {"ok": true, "id": id0, "manifest": m0, "files": files, "read": func(rel): return cache[rel]}
+	if not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(base)):
+		return _inst_no("'%s' is neither a folder nor a .zip" % src, "pick the plugin's folder or its zip")
+	if not FileAccess.file_exists(base + "/manifest.json"):
+		return _inst_no("'%s' has no manifest.json" % base.get_file(), "pick the folder that holds manifest.json and plugin.gd")
+	_list_files(base, "", files)
+	for rel in files:
+		total += FileAccess.get_file_as_bytes(base + "/" + rel).size()
+	if total > MAX_INSTALL_BYTES:
+		return _inst_no("the folder is larger than %d MB" % (MAX_INSTALL_BYTES / 1048576), "plugins are small scripts: remove the big files")
+	var m1: Variant = JSON.parse_string(FileAccess.get_file_as_string(base + "/manifest.json"))
+	return {"ok": true, "id": base.get_file(), "manifest": m1, "files": files, "read": func(rel): return FileAccess.get_file_as_bytes(base + "/" + rel)}
+
+
+func _list_files(root: String, rel: String, out: Array) -> void:
+	var da := DirAccess.open(root + ("/" + rel if rel != "" else ""))
+	if da == null:
+		return
+	for d in da.get_directories():
+		if not d.begins_with("."):
+			_list_files(root, (rel + "/" if rel != "" else "") + d, out)
+	for f in da.get_files():
+		if not f.begins_with(".") and not f.ends_with(".uid"):
+			out.append((rel + "/" if rel != "" else "") + f)
+
+
+func _safe_id(s: String) -> String:
+	var out := ""
+	for ch in s.to_lower():
+		out += ch if (ch >= "a" and ch <= "z") or (ch >= "0" and ch <= "9") or ch == "_" else "_"
+	return out
+
+
+## -1, 0, 1 comparing dotted numbers ("1.10.0" > "1.9.2")
+func _vercmp(a: String, b: String) -> int:
+	var pa := a.split(".")
+	var pb := b.split(".")
+	for n in maxi(pa.size(), pb.size()):
+		var x := int(pa[n]) if n < pa.size() else 0
+		var y := int(pb[n]) if n < pb.size() else 0
+		if x != y:
+			return -1 if x < y else 1
+	return 0
+
+
+func _rm_tree(p: String) -> void:
+	var da := DirAccess.open(p)
+	if da == null:
+		return
+	for d in da.get_directories():
+		_rm_tree(p + "/" + d)
+	for f in da.get_files():
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(p + "/" + f))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(p))

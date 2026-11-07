@@ -3870,9 +3870,9 @@ func _process_body(dt: float) -> void:
 	PerfDoc.add("p_props", _p1)
 	PerfDoc.add("p_pre", _pre)
 	var _a_before := playhead   # the sound follows whatever moved the playhead this frame (_audio_tick)
-	if playing and not S.cards.is_empty():
+	if playing and (not S.cards.is_empty() or rig_len() > 0.0):
 		# WW4: inside the preview range, if one is set. ROADMAP 48: how far the playhead moves is the play clock's mode
-		var stp := play_clock.advance(playhead, dt, S.fps, _ps().length(), pv_in, pv_out, S.loop)
+		var stp := play_clock.advance(playhead, dt, S.fps, play_len(), pv_in, pv_out, S.loop)
 		playhead = stp["t"]
 		# ROADMAP 77: while a track sounds, the audio clock drives the playhead (monotonic; the frame clock only
 		# stands in when no track sounds, at a loop or stop, or when the two disagree by more than a quarter second)
@@ -3889,7 +3889,7 @@ func _process_body(dt: float) -> void:
 		if stp["stop"]:
 			playing = false
 		_pp = PerfDoc.t()
-		if not PerfStub.skip("body"):
+		if not PerfStub.skip("body") and not S.cards.is_empty():
 			var ps := _ps()
 			ps.apply(B, ps.play_t(playhead))   # ROADMAP 99: the evaluated time is a tick of the bake grid, the pose a baked one
 		PerfDoc.add("body", _pp)
@@ -4368,6 +4368,73 @@ func _throw_pick(f: int) -> void:
 
 func _throw_toggle() -> void:
 	throw_on = not throw_on
+	_refresh()
+
+
+# ---------------------------------------------------------------- FIGHT BAKE (L76; scripts/fight_bake.gd, fight_panel.gd, fight_bake_serve.gd)
+var fight_on := false
+var fight_panel: FightPanel = null
+var fight_key := 0
+var fight_done := false
+
+
+## every refresh: nothing while off; while on, the contacts are found again only when the cards / the partner changed
+func _fight_refresh() -> void:
+	if not fight_on:
+		if fight_panel != null and fight_panel.visible:
+			fight_panel.visible = false
+		return
+	if fight_panel == null:
+		fight_panel = FightPanel.new()
+		fight_panel.z_index = 40
+		fight_panel.bake_pressed.connect(func(i): _fight_run("bake_reaction", i))
+		fight_panel.fix_pressed.connect(func(i): _fight_run("fix_impact", i))
+		fight_panel.momentum_pressed.connect(func(i): _fight_run("bake_momentum", i))
+		fight_panel.frame_picked.connect(func(f):
+			playing = false
+			playhead = float(f) / float(FightBake.FPS)
+			_ps().apply(B, playhead)
+			_refresh())
+		ui_root.add_child(fight_panel)
+		fight_done = false
+	fight_panel.visible = true
+	_actors_sync()
+	var H := _hero_scene()
+	var key: int = hash([H.cards, H.actors.map(func(a): return [a["xf"], (a["scene"] as Scene).cards])])
+	fight_panel.anchor_top = 1.0
+	fight_panel.anchor_bottom = 1.0
+	fight_panel.offset_left = LEFT_W + 12
+	fight_panel.offset_right = LEFT_W + 12 + FightPanel.W
+	var up := ((ThrowPanel.H + 6.0) if throw_on else 0.0) + ((LockPanel.H + 6.0) if lock_on else 0.0)
+	var h := fight_panel.height()
+	fight_panel.offset_bottom = -bottom_h - 8 - up
+	fight_panel.offset_top = fight_panel.offset_bottom - h
+	if fight_done and key == fight_key:
+		return
+	fight_done = true
+	fight_key = key
+	fight_panel.set_contacts(FightBake.contacts(H, FightBake.FPS), "" if not H.actors.is_empty() else "needs two bodies: this scene has one fighter")
+
+
+func _fight_run(tool: String, i: int) -> void:
+	if fight_panel == null or i >= fight_panel.rows().size():
+		return
+	var r := FightBakeServe.serve(tool, self, {"frame": int(fight_panel.rows()[i]["frame"])})
+	_say(("%s done (one undo step)" % tool) if bool(r.get("ok", false)) else String(r.get("error", "refused")))
+
+
+## after a bake edited the scenes in place: the actors are posed again, the cards redrawn
+func _fight_done() -> void:
+	for a in actors_rt:
+		a["t"] = NAN
+	fight_done = false
+	_rebuild_cards()
+	_refresh()
+
+
+func _fight_toggle() -> void:
+	fight_on = not fight_on
+	fight_done = false
 	_refresh()
 
 
@@ -5594,11 +5661,13 @@ func _place(mi: MeshInstance3D, a: Vector3, b: Vector3, r: float, capsule := tru
 
 func _refresh() -> void:
 	var _rf := PerfDoc.t()
+	var _rx := _rf
 	if ic_ui != null:
 		ic_ui.sync()   # plan 137: the target's flash on its 2 frames
 	PerfDoc.add("r_ic", _rf)
 	_rf = PerfDoc.t()
-	_hands_refresh()   # HANDS (w4-handlock): the hands rows say the state
+	if not PerfDoc.refresh_plant:   # (L64 test control: a refresh that should have run is skipped)
+		_hands_refresh()   # HANDS (w4-handlock): the hands rows say the state
 	PerfDoc.add("r_hands", _rf)
 	_rf = PerfDoc.t()
 	_light_apply()
@@ -5615,21 +5684,36 @@ func _refresh() -> void:
 		ui_akey.queue_redraw()   # the frame reads Tok on each draw: a palette switch shows at once
 	if not sel_more.is_empty() and sel != _group_sel:
 		sel_more = []
+	PerfDoc.add("rx00", _rx)
+	_rx = PerfDoc.t()
 	_sym_prev = B.ang.duplicate()
 	if ui_body != null and ui_body.visible and not ui_body.dragging:
 		ui_body.sync(S.body, B)   # an undo, a load or a retarget moved the body: the sliders and the readout follow
+	PerfDoc.add("rx01", _rx)
+	_rx = PerfDoc.t()
 	var _pk := PerfDoc.t()
 	if not PerfStub.skip("skinning"):
 		Overlays.pose_skeleton(skel, bone_idx, B)
 	CharImportApp.update(self)   # L9: an imported rigged character stands on the pose (scripts/char_import_app.gd)
 	PerfDoc.add("skinning", _pk)
+	PerfDoc.add("rx02", _rx)
+	_rx = PerfDoc.t()
+	var _ck := PerfDoc.t()
+	corr.reuse = not PerfDoc.refresh_full and S.dq_skin <= 0.0 and not B.has_meta("spline_body") and not B.has_stretch() and S.soft.is_empty() and not soft_live.engaged   # L64
 	corr.update(B)
+	PerfDoc.add("sk_corr", _ck)
+	_ck = PerfDoc.t()
 	var spl_dq: bool = B.has_meta("spline_body")   # L33: a back driven by a spline chain
 	if spl_dq and B.has_stretch():
 		dq_skin_pass.update(0.0)   # the stretch pass builds on the rest mesh, not on the DQ one
 	stretch_skin.update(B)   # L33: after the corrective (its mesh is the rest this corrects); nothing without a stretch
+	PerfDoc.add("sk_stretch", _ck)
+	_ck = PerfDoc.t()
 	dq_skin_pass.update(1.0 if (spl_dq and not B.has_stretch()) else S.dq_skin)   # L33: a back driven by a spline chain is skinned by DQ (a plain blend caves in at its bends; with a stretch the stretch pass owns the mesh)
+	PerfDoc.add("sk_dq", _ck)
 	# H04: after the corrective (its mesh is the rest DQ corrects)
+	PerfDoc.add("rx03", _rx)
+	_rx = PerfDoc.t()
 	_face_draw()   # ROADMAP 31 + 74: the jaw, the mouth shape, the brows and the eyes at the playhead (scripts/face.gd)
 	for tg in ui_toggles:
 		(tg[0] as Button).set_pressed_no_signal(tg[1].call())
@@ -5637,11 +5721,16 @@ func _refresh() -> void:
 	_next_sync()
 	_insp_fit.call_deferred()   # RR2: rows shown / hidden change the box's height
 	_sync_weapon()
+	PerfDoc.add("rx04", _rx)
+	_rx = PerfDoc.t()
 	_throw_refresh()   # THROW CHECK (N040, L34)
 	_lock_refresh()   # LOCK CHECK (N041)
+	_fight_refresh()   # L76 FIGHT BAKE
 	_fd_refresh()   # FRAME DATA (ROADMAP 12): the strip and the boxes on active frames
 	if ui_browser != null and ui_browser.visible:
 		ui_browser.follow()
+	PerfDoc.add("rx05", _rx)
+	_rx = PerfDoc.t()
 	_rf = PerfDoc.t()
 	var touching: Dictionary = B.touching_parts_ref() if PerfDoc.slow else B.touching_parts()   # L12: one capsule per part per frame
 	PerfDoc.add("r_touch", _rf)
@@ -5750,6 +5839,8 @@ func _refresh() -> void:
 	tag.text = part_words(sel)
 	tag.position = ((c2[0] as Vector3) + (c2[1] as Vector3)) * 0.5 + Vector3(0, 0.1, 0)
 	PerfDoc.add("r_looks", _rf)
+	PerfDoc.add("rx06", _rx)
+	_rx = PerfDoc.t()
 	_dummy_refresh()
 	_pk = PerfDoc.t()
 	bal.show_body(B)
@@ -5757,8 +5848,12 @@ func _refresh() -> void:
 	_pk = PerfDoc.t()
 	cshadow.show_body(B)
 	PerfDoc.add("cshadow", _pk)
+	PerfDoc.add("rx07", _rx)
+	_rx = PerfDoc.t()
 	_hand_sliders_sync()
 	_auto_pin_sync()
+	PerfDoc.add("rx08", _rx)
+	_rx = PerfDoc.t()
 	if not clean or ov.trail_on or ov.onion_on or not ov.pins.is_empty() or ov.has_rigs():
 		_pk = PerfDoc.t()
 		ov.trail(_ps())
@@ -5768,6 +5863,8 @@ func _refresh() -> void:
 		PerfDoc.add("onion", _pk)
 	if ov.spacing_on or ov.graph_on:
 		ov.trail(_ps())
+	PerfDoc.add("rx09", _rx)
+	_rx = PerfDoc.t()
 	ov.spacing(playhead)
 	if cm_ui != null and cm_ui.pv != null and fp_prev.is_empty():
 		ov.fight_ghost(cm_ui.pv, cm_ui.pv_t, Transform3D.IDENTITY)   # I23: the combo, previewed, on the hero
@@ -5777,6 +5874,8 @@ func _refresh() -> void:
 		ov.fight_ghost(fp_prev.get("scene", null), playhead, fp_prev.get("xf", Transform3D.IDENTITY))   # I11: the defender's answer, previewed
 	ov.take_ghost(reh.get("take", null), Rehearse.take_time(reh["R"]["map"], playhead) if not reh.is_empty() else 0.0)   # I14: you, orange, at your own time for this playhead
 	ov.version_ghost(vdiff.get("scene", null), float(vdiff.get("ghost_t", playhead)))   # COMPARE WITH (ROADMAP 28): the version's body, magenta; the diff report's 'Show both' pins it to the older card's time (ROADMAP 98)
+	PerfDoc.add("rx10", _rx)
+	_rx = PerfDoc.t()
 	_pk = PerfDoc.t()
 	wt.draw(_ps(), playhead)   # weapon trail ribbon + smear (ROADMAP 35)
 	PerfDoc.add("wtrail", _pk)
@@ -5786,6 +5885,8 @@ func _refresh() -> void:
 	if ui_graph != null:
 		ui_graph.visible = ov.graph_on and S.cards.size() >= 2
 		ui_graph.queue_redraw()
+	PerfDoc.add("rx11", _rx)
+	_rx = PerfDoc.t()
 	_pk = PerfDoc.t()
 	if not PerfStub.skip("ui"):
 		_panel()
@@ -5795,8 +5896,12 @@ func _refresh() -> void:
 	_actors_draw()
 	PerfDoc.add("actors", _pk)
 	_pk = PerfDoc.t()
+	PerfDoc.add("rx12", _rx)
+	_rx = PerfDoc.t()
 	_crowd_draw()   # ROADMAP 95: the crowd's copies of this fighter's clip (none without a crowd)
 	PerfDoc.add("crowd", _pk)
+	PerfDoc.add("rx13", _rx)
+	_rx = PerfDoc.t()
 	_fighters_mark()
 	_rings_draw()   # ROADMAP 38: the range rings (View toggle)
 	_ikh_draw()   # IK2: the pinned limbs' target / pole handles
@@ -5804,6 +5909,8 @@ func _refresh() -> void:
 	loa.draw(B)   # ROADMAP 23: the current line of action (View toggle)
 	_frh_draw()   # ROADMAP 6: the reverse-foot handles of the picked foot
 	_rp_draw()   # ROADMAP 91: the root path on the floor and its handles (View toggle)
+	PerfDoc.add("rx14", _rx)
+	_rx = PerfDoc.t()
 	_pk = PerfDoc.t()
 	_sec_draw()   # ROADMAP 26: the secondary chains (ponytail, cloth, bo) at the playhead, from their baked keys
 	_cape_draw()   # ROADMAP 86: the baked cape at the playhead
@@ -5813,10 +5920,14 @@ func _refresh() -> void:
 	PerfDoc.add("soft", _pk)
 	_pk = PerfDoc.t()
 	_rigx_draw()   # J24: the words-made rig (tail, ears, cape) on the body
+	if rig_ui != null or not S.own_rig.is_empty():
+		_rig_ui().draw()   # OWN RIG (L73): its bones, drawn (scripts/own_rig_ui.gd)
 	if bed != null or not S.bones.is_empty():
 		_bone_ui().draw()   # J01: your extra bones (scripts/bone_editor_ui.gd)
 	_hair_draw()   # ROADMAP 87: the hair strands (scripts/hair.gd) at the playhead, from the baked frames
 	PerfDoc.add("hair", _pk)
+	PerfDoc.add("rx15", _rx)
+	_rx = PerfDoc.t()
 	if hitbox_ui != null:
 		hitbox_ui.draw_handles()   # ROADMAP 36: the picked box's end and radius handles
 	if feint_ui != null:
@@ -5825,6 +5936,8 @@ func _refresh() -> void:
 		ao_ui.refresh()   # I37: the ghost of fighter 2 follows the playhead; an edit since the plan was made drops it
 	if counter_ui != null:
 		counter_ui.refresh()   # I3: an edit since the ghosts were made puts them away
+	PerfDoc.add("rx16", _rx)
+	_rx = PerfDoc.t()
 	_foot_plant_draw()   # ROADMAP 8: the footprint under a planted foot
 	_iq_prints_draw()   # VIDEO IQ: the contacts the video import found, as footprints
 	_cons_draw()   # CN: each active constraint's line from the part to what it follows
@@ -6134,6 +6247,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if counter_ui != null and counter_ui.on and counter_ui.input(ev):   # I3: Tab picks the next ghost, Enter places it, Esc puts them away
+		get_viewport().set_input_as_handled()
+		return
+	if rig_ui != null and not S.own_rig.is_empty() and rig_ui.input(ev):   # OWN RIG (L73): a press on one of its bones picks it
 		get_viewport().set_input_as_handled()
 		return
 	if bed != null and bed.on and bed.input(ev):   # J01: the bone editor's keys (E, Shift+A, X, Tab, Esc), picks and end-ball drags
@@ -6597,6 +6713,8 @@ func _lb_step(pull: bool, alt: bool) -> void:
 
 
 func _toggle_keep_balance() -> void:
+	if _own_gate("balance"):
+		return
 	keep_balance = not keep_balance
 	var cf := ConfigFile.new()
 	cf.load(settings)
@@ -6769,6 +6887,49 @@ func _rig_words(text: String) -> Dictionary:
 
 ## BONE EDITOR (ROADMAP_400 J01; scripts/bone_editor.gd + bone_editor_ui.gd): your extra bones, drawn and edited
 var bed: BoneEditUI
+var rig_ui: OwnRigUI   # OWN RIG IN THE APP (L73, scripts/own_rig_ui.gd): import, drawn bones, pick, rotate, key
+
+
+func _rig_ui() -> OwnRigUI:
+	if rig_ui == null:
+		rig_ui = OwnRigUI.new()
+		add_child(rig_ui)
+		rig_ui.setup(self)
+	return rig_ui
+
+
+## the Scene menu's "Import rig (glTF)": "" = done, else why not
+## OWN RIG (L78): the seconds the rig's keys reach (0 = none); Play and the strip use the longer of this and the cards
+func rig_len() -> float:
+	if S == null or S.own_rig.is_empty() or (S.own_rig.get("keys", {}) as Dictionary).is_empty():
+		return 0.0
+	return float(CustomRig.key_frames(S.own_rig)[-1]) / float(S.own_rig.get("fps", 30.0))
+
+
+func play_len() -> float:
+	return maxf(_ps().length(), rig_len())
+
+
+var own_gate_log := {}   # tool -> the "not a human rig" words it was answered with (the test counts them)
+
+
+## the human-only panels (Check, human limits, feasibility, contacts, retarget, keep balance) ask this first: true = the scene's active subject is an
+## own rig, the tool is refused with the reason and must not run
+func _own_gate(tool: String) -> bool:
+	if rig_ui == null or S.own_rig.is_empty() or not rig_ui.active:
+		return false
+	var r := CustomRig.human_tool(S.own_rig, tool)
+	if r["ok"]:
+		return false
+	own_gate_log[tool] = String(r["why"])
+	_say(String(r["why"]))
+	if rig_ui.gate_label != null:
+		rig_ui.gate_label.text = String(r["why"])
+	return true
+
+
+func rig_import(path: String) -> String:
+	return _rig_ui().import_file(path)
 
 
 func _bone_ui() -> BoneEditUI:
@@ -6935,12 +7096,45 @@ func _place_akey_frame() -> void:
 	ui_akey.queue_redraw()
 
 
+## L11: with auto-key on and a KEYING SET active (part_sets.gd), the change keys only that set's parts at the playhead, as
+## part keys (no card). Returns true when it did (or the set has nothing to key); false = no active set, the old card key.
+func _autokey_set() -> bool:
+	var ps := PartSets.of(self)
+	var nm := ps.active()
+	if nm == "":
+		return false
+	var parts := PartSets.keyable(ps.parts_of("keying", nm))
+	if S.cards.is_empty() or parts.is_empty():
+		return true
+	var t := clampf(playhead, 0.0, S.length())
+	for j in parts:
+		PartKeys.put(S.part_keys, j, t, B.ang[j])
+	_say("Auto-key: keying set '%s' keyed %d parts at %s" % [nm, parts.size(), Units.time(t, S.fps)])
+	return true
+
+
+## L10 RETIME KEY (scripts/anim_tools.gd): card i's arrival moved by df frames, later keys rippling along or not. One undo step.
+func _retime_key(i: int, df: int, ripple: bool) -> Dictionary:
+	var why := AnimTools.retime_refuse(S, i, df, ripple)
+	if why != "":
+		_say("retime: %s" % why)
+		return {"ok": false, "why": why, "frames": 0}
+	_step_hint = "Retime key"
+	_retime_begin()
+	var r := AnimTools.retime_apply(S, i, df, ripple)
+	_retime_step(true)
+	_say("retime: key %d moved %+d frames%s" % [i + 1, df, " with ripple (the later keys follow)" if ripple else ", the other keys stay"])
+	return r
+
+
 ## a change to the body at the playhead, once it is made (the undo step is already pushed: it covers the card too)
 func _autokey_card() -> void:
 	if not auto_key or undo.is_empty():
 		return
 	if undo.back().get("body") == B.state():
 		return   # nothing moved: no card
+	if _autokey_set():
+		return   # L11: an active keying set takes the keys, as part keys on its parts only
 	var ci := LimbIK.card_at(S, playhead)
 	if ci >= 0:
 		S.cards[ci]["pose"] = B.to_dict()
@@ -6986,6 +7180,7 @@ func _snapshot() -> Dictionary:
 		"simc": simc.meta.duplicate(true),   # L35: the sim point caches (their files follow), undone like a card
 		"cape": S.cape.duplicate(true),   # the cape (ROADMAP 86), undone like a card
 		"rigx": S.rigx.duplicate(true),   # the words-made rig (rig_words.gd), undone like a card
+		"own_rig": S.own_rig.duplicate(true),   # OWN RIG (L73), undone like a card
 		"bones": S.bones.duplicate(true),   # J01: the user's extra bones (bone_editor.gd), undone like a card
 		"spline": S.spline_chains.duplicate(true),   # L28: their spline-IK chains (spline_chain.gd), undone like a card
 		"hair": S.hair.duplicate(true),   # the hair strands' parameters (ROADMAP 87): undone like a card, the frames baked again
@@ -6994,6 +7189,7 @@ func _snapshot() -> Dictionary:
 		"armour": load("res://scripts/armour_from_body.gd").snap(self),   # B23: the armour parts on the fighter (scripts/armour_from_body.gd)
 		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
 		"drivers": S.drivers.duplicate(true),   # user drivers (drivers.gd), undone like a card
+		"anykeys": S.anykeys.duplicate(true),   # L13/L15 any-property keys, undone like a card
 		"audio_tracks": S.audio_tracks.duplicate(true),   # the sounds on the timeline (AudioTrack, ROADMAP 77), undone like a card
 		"lip": S.lip.duplicate(true),   # the lip-sync channel (lip_sync.gd), undone like a card
 		"face": S.face.duplicate(true),   # THE FACE keys (face.gd), undone like a card
@@ -7220,6 +7416,10 @@ func _restore(u: Dictionary) -> void:
 	if u["scene"] == S and u.has("rigx") and var_to_str(u["rigx"]) != var_to_str(S.rigx):
 		S.rigx = u["rigx"].duplicate(true)   # RIG FROM WORDS (J24), undone like a card
 		ov.mark_dirty()
+	if u["scene"] == S and u.has("own_rig") and var_to_str(u["own_rig"]) != var_to_str(S.own_rig):
+		S.own_rig = u["own_rig"].duplicate(true)   # OWN RIG (L73), undone like a card
+		if rig_ui != null:
+			rig_ui._scene_ref = null
 	if u["scene"] == S and u.has("bones") and var_to_str(u["bones"]) != var_to_str(S.bones):
 		S.bones = u["bones"].duplicate(true)   # BONE EDITOR (J01), undone like a card
 	if u["scene"] == S and u.has("spline") and var_to_str(u["spline"]) != var_to_str(S.spline_chains):
@@ -7235,6 +7435,8 @@ func _restore(u: Dictionary) -> void:
 		S.sets = u["sets"].duplicate(true)   # selection / keying sets (part_sets.gd), undone like a card
 		if ui_browser != null:
 			ui_browser.refresh()
+	if u["scene"] == S and u.has("anykeys") and var_to_str(u["anykeys"]) != var_to_str(S.anykeys):
+		S.anykeys = u["anykeys"].duplicate(true)   # L13/L15
 	if u["scene"] == S and u.has("drivers") and var_to_str(u["drivers"]) != var_to_str(S.drivers):
 		S.drivers = u["drivers"].duplicate(true)   # user drivers (GAP row 15), undone like a card
 	if u.has("body_gen"):
@@ -8581,6 +8783,8 @@ func _ik_pin() -> void:
 ## weapon or the other hand from the playhead on; its tip stays where it is at this frame (one undo step)
 ## ROADMAP 88: contact mode on / off (no body change: no undo step). Read by _drag_joint for the hands.
 func _ik_contact_toggle() -> void:
+	if _own_gate("contacts"):
+		return
 	ik_contact = not ik_contact
 	_say("CONTACT ON: a hand you drag slides along the nearest wall or table in the set, palm on it" if ik_contact else "CONTACT OFF: a hand you drag pulls through everything, as before")
 
@@ -10902,6 +11106,28 @@ func _bake() -> void:
 	_say("BAKED: %d cards became %d (one a frame at %d fps)%s; Ctrl+Z gives them back" % [r["was"], r["cards"], S.fps,
 		("; part keys on %d part%s folded in" % [r["part_keys"], "" if r["part_keys"] == 1 else "s"]) if r["part_keys"] > 0 else ""]
 		+ ("; turned off (now inside the cards): %s" % ", ".join(r["off"]) if not (r["off"] as Array).is_empty() else ""))
+
+
+## ANY KEY (L13/L15, scripts/any_key.gd): key a shape-key weight or any registered property at the playhead, one undo step
+func _anykey_put(id: String, v: Variant) -> void:
+	_step_hint = "Key " + AnyKey.label(id)
+	_push_undo()
+	AnyKey.put(S, id, playhead, v)
+	AnyKey.play(S, playhead)
+	_refresh()
+	_say("keyed %s = %s at %.2f s (Ctrl+Z takes it back)" % [AnyKey.label(id), str(v), playhead])
+
+
+## BAKE FROM ANYTHING (L16): constraints / drivers sampled per frame f0..f1 into plain part keys, optionally removing the source, ONE undo step
+func _bake_any(joints: Array, f0: int, f1: int, remove_source: bool, step := 1) -> Dictionary:
+	_step_hint = "Bake to keys"
+	_push_undo()
+	var GB := Body.new()
+	GB.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var r := AnyKey.bake(S, GB, joints, f0, f1, remove_source, step)
+	_refresh()
+	_say("BAKED %d keys on %d joints over %d frames%s (Ctrl+Z gives the source back)" % [r["keys"], (r["joints"] as Array).size(), r["frames"], ("; removed " + ", ".join(r["removed"])) if not (r["removed"] as Array).is_empty() else ""])
+	return r
 
 
 ## KEY REDUCTION (ROADMAP 68, scripts/key_reduce.gd): a tolerance slider over every joint's part keys. The readout says
@@ -13887,6 +14113,7 @@ func _ui() -> void:
 	tog.call("CHECK", "Frame data", _fd_toggle, func(): return fd_on, "frame data: startup (green) / active (red) / recovery (blue) on the timeline, with the counts (ROADMAP 12)")
 	tog.call("CHECK", "Throw check", _throw_toggle, func(): return throw_on, "throw check (N040): for a scene with two bodies, whether the throw works frame by frame (throw works / no kuzushi / thrower falls / no contact), the key frame, how far the partner's balance is outside his feet and the thrower's own margin; click a frame to jump to it")
 	tog.call("CHECK", "Lock check", _lock_toggle, func(): return lock_on, "lock check (N041): for a scene with two bodies, whether an armbar, wristlock or kimura reaches the partner's joint limit (at limit) or goes past it (past limit: injury), frame by frame, with the joint and the degrees; click a frame to jump to it")
+	tog.call("CHECK", "Fight bake", _fight_toggle, func(): return fight_on, "fight bake (L76): the contact frames of a two-body clip, with Bake reaction (the struck partner reacts by body region, a card, one undo step), Fix impact (a bent wrist / locked knee at the contact is straightened) and Momentum (both bodies pushed by the collision)")
 	tog.call("CHECK", "Frame boxes", _fd_boxes_toggle, func(): return fd_boxes, "hitboxes (red) on active frames and hurtboxes (grey) on every frame, in the view")
 	fd_btn = _button("Frame rate", _fd_cycle_fps, "the frame rate the frame data counts in (24, 30, 60, 120 fps): now %d fps" % fd_fps)
 	ui_ribbon["CHECK"].add_child(fd_btn)
@@ -14806,8 +15033,11 @@ func _ui() -> void:
 	ui_root.add_child(ui_cmd)
 	plugins = Plugins.new()
 	plugins.host = {"scene": func(): return S, "clamp": func(j, v): return B.clamp_ang(j, v), "has_joint": func(j): return B.lim.has(j),
-		"begin": _push_undo, "say": _say, "changed": _plugins_changed, "run": _plugin_run}
+		"begin": _push_undo, "say": _say, "changed": _plugins_changed, "run": _plugin_run,
+		"sel_get": _plugin_sel_get, "sel_card": _plugin_sel_card, "sel_joint": _plugin_sel_joint, "mesh": _plugin_mesh,
+		"tool": _plugin_tool, "export": _plugin_export, "rollback": _plugin_rollback}
 	plugins.configure(["user://plugins", "res://examples/plugins"], "user://plugins.json", "user://plugins")   # the app's own folders
+	plugins.project_root = UserPaths.user_root() if UserPaths.exported() else "res://"
 	plugins.scan()
 	ui_plugins = PluginsPanel.new()
 	ui_plugins.plugins = plugins
@@ -16089,7 +16319,7 @@ func _card_menu_pick(id: int) -> void:
 
 
 const SCENE_MENU := [[0, "Save scene", "save"], [1, "Open scene", "open"], [2, "Versions", "version"], [3, "New empty scene", "new_scene"],
-	[4, "New from template...", "template"], [5, "Delete scene", "trash"]]
+	[4, "New from template...", "template"], [5, "Delete scene", "trash"], [6, "Import rig (glTF)...", "open"]]
 
 
 ## the Scene menu: the same actions the eight buttons had, by the same names (the command search runs them too)
@@ -16112,6 +16342,8 @@ func _scene_menu_pick(id: int) -> void:
 			_template_ask()
 		5:
 			_delete_scene()
+		6:
+			_rig_ui().import_ask()
 
 
 ## the Scene menu opens ABOVE its button when there is no room under it. Godot moves a popup that does not fit back up over
@@ -17576,6 +17808,7 @@ func _commands() -> Array:
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
 	add.call("Voxel remesh", "", _sculpt_remesh, "remesh voxel even topology quads rebuild retopo sculpt sphere uniform", true, "the test sphere becomes an even mesh at 1.5 cm voxels: its surface is rebuilt; one undo step (Ctrl+Z takes it back)")
 	add.call("Sculpt: a test sphere (preview)", "", _sculpt_start, "sculpt brush draw clay inflate smooth flatten pinch crease grab snake hook pressure tablet zbrush", false, "add a test sphere to the stage and sculpt it: drag to stroke, D C I S F P E G K brushes, [ ] radius, Shift+[ ] strength, O falloff, X symmetry, Ctrl invert, Shift smooth, Ctrl+Z undo, Esc leaves (nothing is saved)")
+	add.call("Import rig (glTF): animate your own skeleton", "", func(): _rig_ui().import_ask(), "import rig gltf glb own skeleton creature animal tail quadruped non human bones custom pose key", false, "pick a .glb / .gltf with a skeleton that is not a human one: it becomes this scene's own rig, drawn in the view; click a bone, turn it, key it, play it back. Saved in the scene")
 	add.call("Rig: bone editor (add / delete / parent bones)", "", func(): _bone_ui().toggle(), "bone bones rig skeleton add delete parent extrude roll rest edit armature tail chain joint", false, "open / close the bone editor: your own bones on the body (E extrude from a tail, Shift+A add, X delete, drag the end balls; name, parent, length, roll in its panel). Each edit is one undo step; the body's own skeleton is not edited")
 	add.call("Model: edit a test cube (preview)", "", _kmesh_edit_start, "model mesh cube edit select vertex edge face box lasso xray polygon modeling", false, "add a 4x4-per-side test cube to the stage and select on it: click, Shift+click, B box, L lasso, X x-ray, 1/2/3 vertex / edge / face, Esc leaves (nothing is saved)")
 	add.call("Character: import a rigged character (glb / fbx)", "", func(): CharImportApp.ask(self), "character import rigged rig skin skinned mesh blendshape blend shape fbx glb mixamo unreal rigify vrm own model mapping bring in", false, "a .glb / .fbx with a skinned mesh becomes the fighter: its mesh, skin weights and blend shapes, its skeleton mapped onto Kine's body (names, then geometry; a map screen to fix bones). Kine's poses, limits, balance and contacts then drive it, on its own proportions")
@@ -17708,6 +17941,8 @@ func _commands() -> Array:
 	add.call("Fix moves through the body", "", _clear_scene, "collision pass", true, "add pass-by cards so no move goes through the body")
 	add.call("Breakdowner 25%", "", _breakdowner.bind(0.25), "slerp neighbour tween", true, "the picked card's pose (selected parts, else the whole body) a quarter of the way from the card before to the card after, joint by joint")
 	add.call("Breakdowner 50%", "", _breakdowner.bind(0.5), "slerp neighbour tween halfway", true, "the picked card's pose (selected parts, else the whole body) halfway between the card before and the card after, joint by joint")
+	for rt in [["Retime key: +1 frame, later keys follow", 1, true], ["Retime key: -1 frame, later keys follow", -1, true], ["Retime key: +1 frame, other keys stay", 1, false], ["Retime key: -1 frame, other keys stay", -1, false]]:
+		add.call(rt[0], "", func(): _retime_key(sel_card, rt[1], rt[2]), "retime key move time ripple drag frame later shift", true, "moves the picked card's key by one frame; with ripple every later key moves the same; without it the other keys stay and a move that would cross a neighbour is refused; one undo step (L10)")
 	add.call("Breakdowner slider", "Shift+E", _breakdowner_popup, "slerp neighbour tween slider overshoot", false, "opens a slider: the picked card between the card before (0) and after (1), joint by joint; past the ends overshoots (-50% to 150%)")
 	add.call("Breakdowner 75%", "", _breakdowner.bind(0.75), "slerp neighbour tween", true, "the picked card's pose (selected parts, else the whole body) three quarters of the way from the card before to the card after")
 	add.call("Push from the in-between", "Ctrl+E", _inbetween.bind("push"), "breakdown exaggerate tween", true, "the picked card's pose (the selected parts, else the whole body) moves 25% AWAY from the mix of its two neighbours; stops at joint limits and says so")
@@ -19260,6 +19495,8 @@ func _check_btn() -> void:
 	_sm = sm
 
 func _check(given = null) -> void:
+	if _own_gate("check"):
+		return
 	_previews.clear()   # the previews were for the cards as they were
 	_pv_gen += 1
 	_pv_hover = {}
@@ -20672,14 +20909,14 @@ func _set_fps(f: int) -> void:
 
 
 func _toggle_play() -> void:
-	if S.cards.size() < 2:
+	if S.cards.size() < 2 and rig_len() <= 0.0:   # an own rig with keys plays without cards (L78)
 		_say("a scene needs two cards or more to play: press Enter to add the body as a card (two at least), or open a scene in the list below")
 		return
 	playing = not playing
 	_a_after = -1.0   # the sound starts (or stops) with the next frame
-	if playing and playhead >= _ps().length() - 0.01:
+	if playing and playhead >= play_len() - 0.01:
 		playhead = 0.0
-	var sp := PreviewRange.span(pv_in, pv_out, _ps().length())
+	var sp := PreviewRange.span(pv_in, pv_out, play_len())
 	if playing and not sp.is_empty() and (playhead < sp[0] or playhead >= sp[1] - 0.01):
 		playhead = sp[0]   # WW4: Play starts inside the range
 	if playing:
@@ -21555,6 +21792,85 @@ func _plugin_run(i: int, cid: String) -> void:
 		_say("plugin command done: it changed nothing")
 	else:
 		_say("plugin command done: one undo step (Ctrl+Z takes it back)")
+
+
+func _plugin_sel_get() -> Dictionary:
+	return {"card": sel_card, "joint": sel, "object": sel_obj if sel_obj != "" else ("prop:%d" % sel_prop if sel_prop >= 0 else "")}
+
+
+func _plugin_sel_card(i: int) -> void:
+	sel_card = i
+	sel_end = -1
+	_rebuild_cards()
+
+
+func _plugin_sel_joint(j: String) -> void:
+	sel = j
+
+
+func _plugin_mesh():
+	return kmed.mesh if kmed != null and kmed.mesh != null else null
+
+
+## L70: a plugin command that failed or ran too long takes its edits back: the step it opened is undone and dropped from redo
+func _plugin_rollback() -> void:
+	if not _macro_pushed:
+		return
+	_macro_nest = 0
+	_macro_pushed = false
+	_undo()
+	if not redo.is_empty():
+		redo.pop_back()
+
+
+## L70: api.run_tool: the synchronous lines of the tool language (AgentTools.step always waits a frame, so it cannot run here):
+## card=N  sel=<joint>  set=<joint>:bend,side,twist  name=<text>  pose=<words>  add  update
+func _plugin_tool(tok: String) -> Dictionary:
+	var no := func(why: String): return {"ok": false, "why": why}
+	if tok.begins_with("card="):
+		var n := int(tok.substr(5))
+		if n < 1 or n > S.cards.size():
+			return no.call("no card %d (the scene has %d)" % [n, S.cards.size()])
+		_plugin_sel_card(n - 1)
+	elif tok.begins_with("sel="):
+		var j := tok.substr(4)
+		if not (j in Body.BODY or j in Body.WEAPON):
+			return no.call("no part '%s'" % j)
+		sel = j
+	elif tok.begins_with("set="):
+		var p := tok.substr(4).split(":")
+		var v: PackedStringArray = p[1].split(",") if p.size() == 2 else PackedStringArray()
+		if p.size() != 2 or v.size() != 3 or not p[0] in Body.BODY:
+			return no.call("set=<joint>:bend,side,twist  e.g. set=lowerarm_r:90,0,0")
+		sel = p[0]
+		_do(func(): B.set_ang_safe(p[0], Vector3(float(v[0]), float(v[1]), float(v[2]))))
+	elif tok.begins_with("name="):
+		if sel_card < 0 or tok.substr(5).strip_edges() == "":
+			return no.call("name=<text> names the picked card: pick one first (card=N)")
+		_card_rename(sel_card, tok.substr(5))
+	elif tok.begins_with("pose="):
+		var pr: Dictionary = _pose_words(tok.substr(5))
+		if not pr["ok"]:
+			return no.call(String(pr["error"]))
+	elif tok == "add":
+		_card_add()
+	elif tok == "update":
+		if sel_card < 0:
+			return no.call("pick a card first (card=N)")
+		_card_update(sel_card)
+	else:
+		return no.call("unknown tool line '%s': the lines are card=N, sel=<joint>, set=<joint>:b,s,t, name=<text>, pose=<words>, add, update" % tok)
+	return {"ok": true, "why": "", "said": String(ui_status.text) if ui_status != null else ""}
+
+
+## L70: api.export
+func _plugin_export(kind: String, path: String) -> Dictionary:
+	if kind == "bvh":
+		if S.cards.size() < 2:
+			return {"ok": false, "why": "an animation needs at least 2 cards before it can be exported"}
+		var r := BvhExport.write(S, B, path)
+		return {"ok": r[0] == OK, "why": "" if r[0] == OK else "could not write the file (%s)" % error_string(r[0])}
+	return {"ok": false, "why": "unknown kind"}
 
 
 ## the S box's plugin rows follow the switches (a plugin switched on, off, or disabled itself)
@@ -23894,7 +24210,16 @@ func _face_geo_draw(P: Dictionary) -> void:
 		var hm: Material = (pieces["head"] as MeshInstance3D).material_override
 		if hm is StandardMaterial3D:
 			skin = (hm as StandardMaterial3D).albedo_color
-		face_geo_mask.mesh = FaceGeo.mask_mesh(d, FaceGeo.posed(d, st), skin)
+		var wrk := FaceWrinkle.compute(d, st)
+		face_geo_mask.mesh = FaceWrinkle.mask_mesh(d, wrk["verts"], wrk, skin)
+		# L62 I09: the wrinkle shader only while a wrinkle muscle is driven (a neutral face keeps the head's own StandardMaterial3D)
+		var wr_on := false
+		for gv in FaceWrinkle.gates(au):
+			wr_on = wr_on or gv > 0.0
+		if wr_on and not (face_geo_mask.material_override is ShaderMaterial):
+			face_geo_mask.material_override = FaceWrinkle.material(hm)
+		elif not wr_on and face_geo_mask.material_override is ShaderMaterial:
+			face_geo_mask.material_override = FaceGeo.mask_material(hm)
 		var tf := FaceGeo.eye_transforms(d, st)
 		for i in 2:
 			(face_geo_eye_nodes[i] as Node3D).transform = tf[i]
@@ -23949,6 +24274,8 @@ func _audio_remove() -> void:
 ## and mixed into the playblast's mp4 (PlayblastExport.args). One undo step
 ## ROADMAP 10: the human-limits rules in or out of Check (HumanLimits.on), then Check again
 func _human_check() -> void:
+	if _own_gate("human_limits"):
+		return
 	HumanLimits.on = not HumanLimits.on
 	_check()
 	_say(("Check now asks 'could a human do this?' too: joint speed and tipping against recorded limits (experimental)" if HumanLimits.on else "Check is back to the rulebook alone"))
@@ -23956,6 +24283,8 @@ func _human_check() -> void:
 
 ## "Is this clip physically possible?": Check with the feasibility verdict (scripts/feasible.gd) switched on
 func _feasible_check() -> void:
+	if _own_gate("feasible"):
+		return
 	HumanLimits.on = true
 	_check()
 	if S.cards.size() < 2:
@@ -24393,6 +24722,8 @@ func _retarget_on() -> bool:
 
 
 func _retarget_toggle() -> void:
+	if _own_gate("retarget"):
+		return
 	var on := not _retarget_on()
 	var cf := ConfigFile.new()
 	cf.load(settings)

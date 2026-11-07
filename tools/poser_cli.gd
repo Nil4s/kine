@@ -431,6 +431,11 @@ func _init() -> void:
 			var tpo := TPaintServe.serve(m, tpp)
 			say(JSON.stringify(tpo))
 			done(tpo)
+		"anim_stack":   # L79: anim_stack '{"op": "layer_add", ...}' (JSON), or just anim_stack for the list (scripts/anim_stack.gd)
+			var asp = JSON.parse_string(String(a[1])) if a.size() > 1 else {"op": "list"}
+			var aso := AnimStack.serve(m, asp if asp is Dictionary else {})
+			say(JSON.stringify(aso))
+			done(aso)
 		"blend_matrix":   # N084: blend_matrix [scene.json ...] [blend=S] [a=NAME b=NAME] (scripts/blend_matrix_serve.gd)
 			var bp := {}
 			var bfiles := []
@@ -462,6 +467,18 @@ func _init() -> void:
 			if cwo["ok"]:
 				say(String(cwo["result"]["text"]))
 			done(cwo["result"] if cwo["ok"] else cwo)
+		"game_clip":   # N083/N086/N087/N090: game_clip <scene.json> [dir=PATH] [fps=N]: writes <name>.clip.json (contacts, play-rate range, cancel windows, reactable) and the runtime add-on (scripts/game_clip.gd)
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "game_clip <scene.json> [dir=PATH] [fps=N]  (scripts/game_clip.gd)"})
+				return
+			var gcp := {}
+			for x in a.slice(2):
+				var kvg := String(x).split("=", true, 1)
+				if kvg.size() == 2:
+					gcp[kvg[0]] = int(kvg[1]) if kvg[0] == "fps" else kvg[1]
+			var gco := GameClip.serve(m, gcp)
+			done(gco["result"] if gco["ok"] else gco)
 		"reactable":   # N082 wired (L11): reactable <scene> [frame=N] [latency=MS] [fps=N] (scripts/reactable_serve.gd)
 			if a.size() < 2 or not open_scene(a[1]):
 				if a.size() < 2:

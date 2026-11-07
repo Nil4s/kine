@@ -27,6 +27,11 @@ func _ready() -> void:
 	var t := _label("PLUGINS", 18, "heading")
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(t)
+	var ins := Button.new()
+	ins.text = "Install..."
+	ins.tooltip_text = "install a plugin from a folder or a .zip (it starts switched off; an install over an older version keeps the settings)"
+	ins.pressed.connect(_pick_install)
+	head.add_child(ins)
 	var x := Button.new()
 	x.text = "Close"
 	x.pressed.connect(close)
@@ -106,13 +111,48 @@ func rebuild() -> void:
 			for c in m["commands"]:
 				names.append(String(c.get("name", c.get("id", "?"))))
 			row.add_child(_label("Adds to the S box: " + ", ".join(names), 14, "say"))
+			var perms: Array = m.get("permissions", [])
+			row.add_child(_label("Permissions: " + (", ".join(perms.map(func(p): return String(p))) if not perms.is_empty() else "none (cards, objects, keys and its own data only)")
+				+ ("   Licence: " + String(m["license"]) if m.has("license") else ""), 13, "warn" if not perms.is_empty() else "text:0.8"))
 			if m.has("description"):
 				row.add_child(_label(String(m["description"]), 13, "text:0.8"))
 		if rec["error"] != "" or rec["fault"] != "":
 			var el := _label(String(rec["error"]) + String(rec["fault"]), 14, "fail")
 			el.custom_minimum_size = Vector2(W - 60, 0)
 			row.add_child(el)
+		if rec["source"] == "installed":
+			var un := Button.new()
+			un.text = "Uninstall"
+			un.pressed.connect(_uninstall.bind(i))
+			row.add_child(un)
 		row.add_child(HSeparator.new())
+
+
+func _pick_install() -> void:
+	var dlg := FileDialog.new()
+	dlg.file_mode = FileDialog.FILE_MODE_OPEN_ANY
+	dlg.access = FileDialog.ACCESS_FILESYSTEM
+	dlg.filters = PackedStringArray(["*.zip ; plugin zip"])
+	dlg.title = "Pick a plugin folder or a .zip"
+	dlg.file_selected.connect(_install_from)
+	dlg.dir_selected.connect(_install_from)
+	dlg.canceled.connect(dlg.queue_free)
+	add_child(dlg)
+	dlg.popup_centered(Vector2i(720, 480))
+
+
+func _install_from(path: String) -> void:
+	var r := plugins.install(path)
+	if say_fn.is_valid():
+		say_fn.call(("Plugin %s %s (%s). It is off: switch it on to use it." % [r["folder"], r["action"], r["version"]]) if r["ok"] else String(r["why"]))
+	rebuild()
+
+
+func _uninstall(i: int) -> void:
+	var r := plugins.uninstall(i)
+	if not r["ok"] and say_fn.is_valid():
+		say_fn.call(String(r["why"]))
+	rebuild()
 
 
 func _switched(on: bool, i: int) -> void:

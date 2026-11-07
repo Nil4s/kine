@@ -38,6 +38,11 @@ var canvas: DopeCanvas
 var _btns := {}
 
 
+## L13/L15: the extra rows under the part groups, one per keyed shape weight / property (AnyKey ids)
+static func any_rows(S: Scene) -> Array:
+	return AnyKey.ids(S) if S != null else []
+
+
 static func next_kind(k: String) -> String:
 	return KINDS[(KINDS.find(k) + 1) % KINDS.size()]
 
@@ -112,8 +117,9 @@ class DopeCanvas extends Control:
 		var S := _S()
 		if S == null:
 			return
-		var sig := "%s|%s|%s|%s|%d|%s" % [JSON.stringify(S.times()), JSON.stringify(S.cards.map(func(c): return DopeSheet.kind_of(c))),
-			var_to_str(S.part_keys), sheet.m.playhead, sheet.m.sel_card, size]
+		custom_minimum_size.y = RULER + CARD_H + ROW_H * (DopeSheet.GROUPS.size() + S.anykeys.size()) + 4.0
+		var sig := "%s|%s|%s|%s|%d|%s|%s" % [JSON.stringify(S.times()), JSON.stringify(S.cards.map(func(c): return DopeSheet.kind_of(c))),
+			var_to_str(S.part_keys), sheet.m.playhead, sheet.m.sel_card, size, var_to_str(S.anykeys)]
 		if sig != _sig:
 			_sig = sig
 			queue_redraw()
@@ -158,6 +164,12 @@ class DopeCanvas extends Control:
 					else:
 						at[key] = out.size()
 						out.append({"row": r, "i": -1, "t": t, "x": x_of(t), "y": row_y(r), "kind": "part", "joints": [j], "ktype": kt})
+		var ar := DopeSheet.any_rows(S)
+		for k in ar.size():
+			var rr: int = DopeSheet.GROUPS.size() + k
+			for key in S.anykeys[ar[k]]:
+				var tt: float = key["t"]
+				out.append({"row": rr, "i": -1, "t": tt, "x": x_of(tt), "y": row_y(rr), "kind": "any", "joints": [], "any": ar[k], "ktype": "key"})
 		return out
 
 	func card_hit(p: Vector2) -> int:
@@ -229,7 +241,7 @@ class DopeCanvas extends Control:
 		var best := {}
 		var bd := GRAB
 		for d in diamonds():
-			if d["row"] >= 0 and absf(p.y - float(d["y"])) <= ROW_H * 0.5 and absf(p.x - float(d["x"])) <= bd:
+			if d["row"] >= 0 and not d.has("any") and absf(p.y - float(d["y"])) <= ROW_H * 0.5 and absf(p.x - float(d["x"])) <= bd:
 				bd = absf(p.x - float(d["x"]))
 				best = d
 		return best
@@ -279,12 +291,13 @@ class DopeCanvas extends Control:
 			if major:
 				draw_string(font, Vector2(x_of(k * 0.1) + 2, 11), "%ss" % snappedf(k * 0.1, 0.1), HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Tok.of("ink:0.5"))
 			k += 1
-		for r in range(-1, DopeSheet.GROUPS.size()):
+		var arows := DopeSheet.any_rows(S)
+		for r in range(-1, DopeSheet.GROUPS.size() + arows.size()):
 			var y := row_y(r)
 			var h := CARD_H if r < 0 else ROW_H
 			if r % 2 == 0:
 				draw_rect(Rect2(0, y - h * 0.5, size.x, h), Tok.of("ink:0.05"))
-			draw_string(font, Vector2(4, y + 4), "cards" if r < 0 else String(DopeSheet.GROUPS[r][0]), HORIZONTAL_ALIGNMENT_LEFT, LBL - 6, 11, Tok.of("ink:0.75"))
+			draw_string(font, Vector2(4, y + 4), "cards" if r < 0 else (AnyKey.label(arows[r - DopeSheet.GROUPS.size()]) if r >= DopeSheet.GROUPS.size() else String(DopeSheet.GROUPS[r][0])), HORIZONTAL_ALIGNMENT_LEFT, LBL - 6, 11, Tok.of("ink:0.75"))
 		for d in diamonds():
 			var c := Vector2(d["x"], d["y"])
 			if d["row"] < 0:

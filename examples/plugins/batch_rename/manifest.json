@@ -1,0 +1,11 @@
+{
+  "name": "Batch Rename",
+  "version": "1.0.0",
+  "author": "Teschima Studios",
+  "license": "MIT-0 (free to copy)",
+  "api": 2,
+  "description": "Names every card Take 01, Take 02, ... The prefix is a setting (prefix) the plugin keeps.",
+  "commands": [
+    {"id": "number", "name": "Number the cards", "desc": "renames all cards <prefix> 01, <prefix> 02, ..."}
+  ]
+}

@@ -75,6 +75,7 @@ var building := {}     # BUILD mode (docs/BUILD_PLAN.md; scripts/build/building.
 var props_skipped := []   # kinds the file named that this library does not have (from_dict)
 var part_keys := {}    # PART KEYS (round 41, WW1): {"<joint>": [{"t", "v": Vector3}]} by time; see scripts/part_keys.gd
 var iq := {}          # VIDEO IQ (scripts/video_iq.gd): what the video import knew, {"conf" lane, "spans", "contacts", "keys"...}; in the file as "iq" only when any
+var anykeys := {}     # ANY KEY (ROADMAP_400 L13/L15): {"<id>": [{"t", "v": Vector3}]}: shape-key weights and any property; scripts/any_key.gd; in the file as "anykeys" only when any
 var attrs := {}       # CUSTOM ATTRIBUTES (ROADMAP 82, custom_attr.gd): {"<part>.<name>": {"min", "max", "default", "keys": [{"t", "v": Vector3(x,0,0)}]}}; in the file as "attrs" only when any
 var ik := {}           # IK / FK (GAP_ANALYSIS row 13): {"hand_l": [{"t", "target", "pole", "w", "rot"?}]} by time; scripts/limb_ik.gd
 var sets := {}         # SELECTION + KEYING SETS (GAP_ANALYSIS rows 9, 6): {"select": {name: [parts]}, "keying": {..}, "active"}; scripts/part_sets.gd
@@ -97,6 +98,7 @@ var hair := {}         # HAIR STRANDS (ROADMAP 87): the ponytail's parameters (h
 var rigx := []         # RIG FROM WORDS (J24; scripts/rig_words.gd): extra bone chains (tail, ears, cape); in the file as "rigx" only when there is one
 var spline_chains := []   # SPLINE IK (L28; scripts/spline_chain.gd): bone chains that follow a curve; in the file as "spline_chains" only when there is one
 var spline_body := []   # SPLINE IK ON THE BODY (L33; scripts/spline_chain.gd drive_body): chains of Kine joints (the back) that follow a curve; in the file as "spline_body" only when there is one
+var own_rig := {}      # OWN RIG (J, custom_rig.gd): a non-human skeleton with its keys; in the file as "own_rig" only when there is one
 var bones := []        # BONE EDITOR (J01; scripts/bone_editor.gd): the user's extra bones; in the file as "bones" only when there is one
 var cons := []         # USER CONSTRAINTS (round 51, CN): the stack, played in order after IK; scripts/constraints.gd
 var cons_last := []    # what the last apply()'s constraint pass did (Constraints.play's reports); [] = nothing
@@ -940,6 +942,8 @@ func apply(B: Body, t: float) -> void:
 	if not cons.is_empty():
 		cons_last = Constraints.play(self, B, t)
 	B.fast = was_fast
+	if not anykeys.is_empty():
+		AnyKey.play(self, t)   # L13/L15: keyed shape weights and properties; an unkeyed one is never written
 
 
 ## LAYER (round 43, GATES YY9; docs/ANIM_RESEARCH.md idea 4: Maya's animation layers, Blender's NLA): one whole-scene
@@ -987,6 +991,27 @@ static func key_curve(wk: Array, t: float) -> float:
 	return clampf(float(wk[-1][1]), 0.0, 1.0)
 
 
+## L79 BONE MASK of a layer: "mask" (a Clips mask name) and/or "bones" (an explicit list; when both, the bones are the
+## ones in the mask list too). {} = no mask = every bone. "offset" (the hips' position) is in when the mask drives the root
+static func layer_mask_set(L: Dictionary) -> Dictionary:
+	var mask := String(L.get("mask", "all"))
+	var bones: Array = L.get("bones", [])
+	if mask == "all" and bones.is_empty():
+		return {}
+	var out := {}
+	for j in Clips.mask_joints(mask):
+		out[j] = true
+	if Clips.mask_root(mask):
+		out["offset"] = true
+	if not bones.is_empty():
+		var o2 := {}
+		for j in bones:
+			if mask == "all" or out.has(j):
+				o2[String(j)] = true
+		return o2 if not o2.is_empty() else {"": true}
+	return out
+
+
 func any_solo() -> bool:
 	for L in layers:
 		if bool(L.get("solo", false)):
@@ -1006,7 +1031,10 @@ func add_layers(B: Body, t: float) -> void:
 		var w := layer_weight(L, t)
 		if w <= 0.0:
 			continue
+		var allow := layer_mask_set(L)   # L79: {} = every bone; else only these (and the hips' offset when the mask has the root)
 		for j in L.get("v", {}):
+			if not allow.is_empty() and not allow.has(j):
+				continue
 			if j == "offset":
 				var o: Vector3 = L["v"][j]
 				B.offset = B.offset + o * w if String(L.get("mode", "add")) == "add" else B.offset.lerp(o, w)
@@ -1037,6 +1065,10 @@ static func layer_to_file(L: Dictionary) -> Dictionary:
 	for f in ["mute", "solo", "lock"]:
 		if bool(L.get(f, false)):
 			out[f] = true
+	if String(L.get("mask", "all")) != "all":
+		out["mask"] = String(L["mask"])
+	if not (L.get("bones", []) as Array).is_empty():
+		out["bones"] = (L["bones"] as Array).map(func(b): return String(b))
 	if not (L.get("wk", []) as Array).is_empty():
 		out["wk"] = (L["wk"] as Array).map(func(k): return [snappedf(float(k[0]), 0.0001), snappedf(float(k[1]), 0.0001)])
 	return out
@@ -1051,6 +1083,10 @@ static func layer_from_file(d: Dictionary) -> Dictionary:
 	var out := {"name": String(d.get("name", "layer")), "mode": mode if mode in ["add", "over"] else "add",
 		"w": clampf(float(d.get("w", 1.0)), 0.0, 1.0), "v": v, "mute": bool(d.get("mute", false)),
 		"solo": bool(d.get("solo", false)), "lock": bool(d.get("lock", false)), "wk": []}
+	if String(d.get("mask", "all")) in Clips.MASK_NAMES and String(d.get("mask", "all")) != "all":
+		out["mask"] = String(d["mask"])
+	if not (d.get("bones", []) as Array).is_empty():
+		out["bones"] = (d["bones"] as Array).map(func(b): return String(b))
 	for k in d.get("wk", []):
 		out["wk"].append([float(k[0]), clampf(float(k[1]), 0.0, 1.0)])
 	out["wk"].sort_custom(func(a, b): return a[0] < b[0])
@@ -1744,6 +1780,7 @@ func clone() -> Scene:
 	c.lip = lip.duplicate(true)
 	c.face = face.duplicate(true)   # ROADMAP 74: the face keys
 	c.attrs = attrs.duplicate(true)   # ROADMAP 82: the custom attributes
+	c.anykeys = anykeys.duplicate(true)   # L13/L15
 	c.iq = iq.duplicate(true)   # VIDEO IQ: the import's confidence lane and contacts
 	c.layer = layer.duplicate()   # YY9 (Vector3 values: copies)
 	c.layer_w = layer_w
@@ -1760,6 +1797,7 @@ func clone() -> Scene:
 	c.outl = outl.duplicate(true)   # outliner record (outliner.gd)
 	c.hair = hair.duplicate(true)   # hair strands (hair.gd)
 	c.rigx = rigx.duplicate(true)   # the words-made rig (rig_words.gd)
+	c.own_rig = own_rig.duplicate(true)
 	c.bones = bones.duplicate(true)   # the user's extra bones (bone_editor.gd)
 	c.spline_chains = spline_chains.duplicate(true)   # their spline-IK chains (spline_chain.gd)
 	c.spline_body = spline_body.duplicate(true)   # L33: the body's spline chains
@@ -2414,6 +2452,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["face"] = Face.to_file(face)   # ROADMAP 74: the face keys, only when keyed
 	if not iq.is_empty():
 		out["iq"] = VideoIQ.to_file(iq)   # VIDEO IQ: only when the scene came from a video
+	if not anykeys.is_empty():
+		out["anykeys"] = AnyKey.to_file(anykeys)   # L13/L15: only when keyed
 	if not attrs.is_empty():
 		out["attrs"] = CustomAttr.to_file(attrs)   # ROADMAP 82: the custom attributes, only when there are any
 	if not lip.is_empty():
@@ -2445,6 +2485,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["hair"] = Hair.to_file(hair)   # hair strands: the same, only when set
 	if not rigx.is_empty():
 		out["rigx"] = rigx.duplicate(true)   # the words-made rig: only when there is one
+	if not own_rig.is_empty():
+		out["own_rig"] = CustomRig.to_file(own_rig)   # an own (non-human) rig: only when there is one
 	if not bones.is_empty():
 		out["bones"] = BoneEdit.to_file(bones)   # J01: the user's extra bones, only when there is one
 	if not spline_body.is_empty():
@@ -2483,6 +2525,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "held_parts": "free (
 	"actors": "SIDED: each actor's scene mirrored whole (Scene.mirror_file), its xf pos x negated and its yaw negated",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)",
 	"iq": "SIDED: VideoIQ.mirror_file (the lost-part spans and the contacts move to their twin side: hand_l <-> hand_r, foot_l <-> foot_r, x negated; the lane and times free)",
+	"anykeys": "free (a shape weight or a property is not a side)",
 	"attrs": "SIDED: CustomAttr.mirror_file (each attribute's id moves to its twin part: hand_r.grip -> hand_l.grip; min, max, default and keys free)",
 	"face": "SIDED: Face.mirror_file (brow_l <-> brow_r, eye_yaw negated; jaw, visemes, blink and eye pitch free)",
 	"drivers": "SIDED: Drivers.mirror_file (driven and source to their twins; each factor and offset reflected by its axes' signs)",
@@ -2637,6 +2680,7 @@ func from_dict(d: Dictionary) -> void:
 	audio_tracks = AudioTrack.from_file(d.get("audio", null))   # ROADMAP 77: a dictionary (one sound, as before) or a list
 	face = Face.from_file(d.get("face", {}))   # ROADMAP 74: absent = none
 	iq = VideoIQ.from_file(d.get("iq", {}))   # VIDEO IQ: absent = none
+	anykeys = AnyKey.from_file(d.get("anykeys", {}))   # L13/L15: absent = none
 	attrs = CustomAttr.from_file(d.get("attrs", {}))   # ROADMAP 82: absent = none
 	lip = LipSync.from_file(d.get("lip", {}))   # ROADMAP 31: absent = none
 	props = []
@@ -2663,6 +2707,7 @@ func from_dict(d: Dictionary) -> void:
 	secondary = SecondaryMotion.from_file(d.get("secondary", {}))   # secondary motion: absent = none
 	hair = Hair.from_file(d.get("hair", {}))   # hair strands: absent = none
 	rigx = RigWords.from_file(d.get("rigx", []))   # the words-made rig: absent = none
+	own_rig = CustomRig.from_file(d.get("own_rig", {}))   # absent = none
 	bones = BoneEdit.from_file(d.get("bones", []))   # J01: the user's extra bones: absent = none
 	spline_body = SplineChain.body_from_file(d.get("spline_body", {}))   # L33: absent = none
 	spline_chains = SplineChain.from_file(d.get("spline_chains", {}))   # L28: absent = none

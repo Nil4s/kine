@@ -42,6 +42,8 @@ class_name Clips
 extends RefCounted
 
 const TYPES := ["replace", "add"]
+## L79: the shape of a blend-in / blend-out ramp (x 0..1 -> 0..1, monotone, 0 and 1 fixed); linear is the old ramp
+const CURVES := ["linear", "smooth", "ease_in", "ease_out"]
 const EXTRA := ["nothing", "hold", "hold_forward"]
 const MASK_NAMES := ["all", "legs", "upper", "arms", "arm_l", "arm_r"]
 ## the warp presets (the picked clip's knots); linear = none. Values read off the curve shapes they name
@@ -96,6 +98,18 @@ static func mask_arms(mask: String) -> bool:
 	return mask != "legs"
 
 
+static func ramp(curve: String, x: float) -> float:
+	x = clampf(x, 0.0, 1.0)
+	match curve:
+		"smooth":
+			return x * x * (3.0 - 2.0 * x)
+		"ease_in":
+			return x * x
+		"ease_out":
+			return 1.0 - (1.0 - x) * (1.0 - x)
+	return x
+
+
 ## a clip with every field, from what a caller or a file gives
 static func make(src: String, start: float, opts := {}) -> Dictionary:
 	var c := {"src": src, "start": maxf(0.0, start), "repeat": 1, "speed": 1.0, "bin": 0.0, "bout": 0.0, "type": "replace",
@@ -117,6 +131,8 @@ static func clean(c: Dictionary) -> Dictionary:
 	var mt := match_norm(c.get("match", {}))
 	if not mt.is_empty():
 		out["match"] = mt
+	if String(c.get("curve", "linear")) in CURVES and String(c.get("curve", "linear")) != "linear":
+		out["curve"] = String(c["curve"])   # L79: written only when not linear
 	if bool(c.get("inplace", false)):
 		out["inplace"] = true   # W08: IN PLACE, the hips' floor travel taken out (written only when on)
 	if not out["type"] in TYPES:
@@ -313,6 +329,32 @@ static func warp_norm(a) -> Array:
 	return []
 
 
+## L86 (ROADMAP_400 L05): the STRICT check for a warp a caller hands in (warp_clean quietly drops what is wrong; this refuses). Returns ""
+## when the knots are a legal monotone time curve, else the reason: at most WARP_MAX knots, each [x, y] with x strictly inside (0, 1),
+## x strictly increasing, y in 0..1 and never falling (the source would run backwards)
+static func warp_check(a) -> String:
+	if not a is Array:
+		return "knots must be a list of [x, y] pairs"
+	if (a as Array).size() > WARP_MAX:
+		return "at most %d knots (got %d)" % [WARP_MAX, (a as Array).size()]
+	var px := 0.0
+	var py := 0.0
+	for k in a:
+		if not (k is Array and (k as Array).size() >= 2):
+			return "each knot is an [x, y] pair"
+		var x := float(k[0])
+		var y := float(k[1])
+		if not (x > 0.0 and x < 1.0) or y < 0.0 or y > 1.0:
+			return "knot [%s, %s] is outside the open square (x in 0..1 exclusive, y in 0..1)" % [x, y]
+		if x <= px:
+			return "x must increase: %s after %s" % [x, px]
+		if y < py:
+			return "not monotone: y falls from %s to %s (the source would run backwards)" % [py, y]
+		px = x
+		py = y
+	return ""
+
+
 ## the warp curve at p in 0..1: monotone cubic Hermite through (0,0), the knots and (1,1)
 static func warp_f(knots: Array, p: float) -> float:
 	if knots.is_empty():
@@ -475,9 +517,9 @@ static func at(c: Dictionary, L: float, t: float) -> Dictionary:
 		lt = fposmod(u, L)
 	var w := inf
 	if bi > 0.0:
-		w *= clampf((t - s0) / bi, 0.0, 1.0)
+		w *= ramp(String(c.get("curve", "linear")), (t - s0) / bi)
 	if bo > 0.0:
-		w *= clampf((E - t) / bo, 0.0, 1.0)
+		w *= ramp(String(c.get("curve", "linear")), (E - t) / bo)
 	return {"lt": lt, "k": k, "w": w}
 
 
@@ -516,6 +558,11 @@ static func _play(S: Scene, B: Body, t: float) -> void:
 		var qa: Dictionary = qp[0]
 		var off: Vector3 = (qp[1] as Vector3) + step * int(a["k"])
 		var mt: Dictionary = c.get("match", {}) if c["type"] == "replace" else {}   # ROADMAP 84
+		var cl := {}   # L79 SEAM CLOSURE: a source whose last pose misses its first by a hair (< CLOSE_TOL) is trimmed to close
+		if int(a["k"]) < int(c["repeat"]) - 1 and mt.is_empty():
+			cl = _closure(e, mirror, Q)
+			if not cl.is_empty():
+				off.y += float(cl["y"]) * float(a["lt"]) / float(e["len"])
 		if not mt.is_empty() and mask_root(c["mask"]):
 			off = align(off, mt)
 		if bool(c.get("inplace", false)) and mask_root(c["mask"]):
@@ -530,6 +577,8 @@ static func _play(S: Scene, B: Body, t: float) -> void:
 				continue
 			var x: Vector3 = B.ang[j]
 			var y: Vector3 = qa[j]
+			if not cl.is_empty() and (cl["ang"] as Dictionary).has(j):
+				y += (cl["ang"][j] as Vector3) * float(a["lt"]) / float(e["len"])
 			if j == "pelvis" and not mt.is_empty():
 				y.z += float(mt["yaw"])   # the walk turned as the match says
 			var r := x + y * w if c["type"] == "add" else x + Scene._d(x, y, j) * w
@@ -544,6 +593,39 @@ static func _play(S: Scene, B: Body, t: float) -> void:
 		B.fk()
 		if arms:
 			B.apply_grip()   # a clip that moves the arms: the second hand back onto the weapon (a legs clip leaves the arms alone)
+
+
+## L79 SEAM CLOSURE (repeat > 1): the source's pose at its end vs at its start. Cyclic sources close only to the solver's noise
+## (the floor and the planted feet moved a calf 0.0044 deg between the first and last arrival of a three-card loop); that
+## residual is a visible-never but measurable jump at every loop boundary. When every joint misses by under CLOSE_TOL deg
+## (and the hips' height by under CLOSE_TOL_Y m), each cycle but the last is trimmed by residual x (lt / L), so the cycle ends
+## exactly on the next cycle's first pose. A source that really is not a loop (a walk: degrees off) is left as it is.
+## Returns {} (not closable / already closed) or {"ang": {joint: first - last}, "y": metres}
+const CLOSE_TOL := 0.05
+const CLOSE_TOL_Y := 0.002
+
+
+static func _closure(e: Dictionary, mirror: bool, Q: Body) -> Dictionary:
+	var cache: Dictionary = e.get("cl", {})
+	if cache.has(mirror):
+		return cache[mirror]
+	var p0 := _pose_of(e, 0.0, mirror, Q)
+	var d0: Dictionary = (p0[0] as Dictionary).duplicate()
+	var o0: Vector3 = p0[1]
+	var pL := _pose_of(e, float(e["len"]), mirror, Q)
+	var out := {"ang": {}, "y": (o0.y - (pL[1] as Vector3).y)}
+	var worst := 0.0
+	for j in d0:
+		if not (pL[0] as Dictionary).has(j):
+			continue
+		var d: Vector3 = (d0[j] as Vector3) - ((pL[0] as Dictionary)[j] as Vector3)
+		worst = maxf(worst, d.length())
+		out["ang"][j] = d
+	if worst >= CLOSE_TOL or absf(float(out["y"])) >= CLOSE_TOL_Y or worst + absf(float(out["y"])) == 0.0:
+		out = {}
+	cache[mirror] = out
+	e["cl"] = cache
+	return out
 
 
 ## a clip's words for the timeline and the status line

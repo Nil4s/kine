@@ -128,7 +128,7 @@ func _init() -> void:
 	var items := []
 	for i in sm.item_count:
 		items.append(sm.get_item_text(i))
-	ok(items == ["Save scene", "Open scene", "Versions", "New empty scene", "New from template...", "Delete scene"],
+	ok(items == ["Save scene", "Open scene", "Versions", "New empty scene", "New from template...", "Delete scene", "Import rig (glTF)..."],
 		"the Scene menu holds %s" % [items])
 
 	# 3 the pictures

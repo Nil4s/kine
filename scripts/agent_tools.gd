@@ -15,7 +15,7 @@ const POINTS := ["head", "pelvis", "spine_03", "upperarm_l", "upperarm_r", "lowe
 const METHODS := ["commands", "open", "new", "run", "pose", "state", "measure", "describe", "ask", "check", "diff", "validate", "save", "quit", "assert", "events", "where", "place", "facts", "brief", "dry", "text_view", "lint", "frame_data"]
 ## C06: the methods the MCP server advertises on top of METHODS. They are NOT in METHODS: its list is the "ready" line and the -32601 text of the
 ## byte-for-byte transcript (refs/agent/serve_transcript.jsonl), which tests/agent_tools_test.gd replays. tools/mcp/poser_mcp.py names each of these (advertised with --math / POSER_MCP_MATH=1)
-const MCP_EXTRA := ["cancel_windows", "reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo"]
+const MCP_EXTRA := ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets", "animtools", "anykey", "bake_any", "euler_warp"]
 ## MCPFAST: the CAD tools (scripts/build/mcp_cad.gd); advertised with --cad
 const MCP_CAD := ["cad_part", "cad_asm", "check_fit", "bom", "eval_gd", "cad_reset"]
 
@@ -469,12 +469,27 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# its -32601 message is in the byte-for-byte transcript (refs/agent/serve_transcript.jsonl)
 			var fa := FrameAdvantage.serve(m, p)
 			return _ok(id, fa["result"]) if fa["ok"] else _err(id, -32602, String(fa["error"]))
+		"curve_graph":   # L84: tangent weights, buffer curves (snapshot / swap / compare) and curve modifiers on a joint's part keys (scripts/curve_graph_serve.gd). Not in METHODS
+			var cgr := CurveGraphServe.serve(m, p)
+			return _ok(id, cgr["result"]) if cgr["ok"] else _err(id, -32602, String(cgr["error"]))
+		"sockets":   # N089: the five engine sockets (weapon_r, weapon_l, back_sheath, hip_holster_r, head_fx) placed from the anatomy of a preset body {preset?, mass?} (scripts/sockets_serve.gd). Not in METHODS
+			var skr := SocketsServe.serve(m, p)
+			return _ok(id, skr["result"]) if skr["ok"] else _err(id, -32602, String(skr["error"]))
+		"animtools":   # L87: onion frames, breakdown, ripple retime, keying set {op, ...} (scripts/anim_tools.gd). Not in METHODS
+			var atr := AnimTools.serve(m, p)
+			return _ok(id, atr["result"]) if atr["ok"] else _err(id, -32602, String(atr["error"]))
+		"euler_warp":   # L86: Euler filter / quaternion view / slerp on part keys, and the time warp of a clip (scripts/euler_warp_serve.gd). Not in METHODS
+			var ewr := EulerWarpServe.serve(m, p)
+			return _ok(id, ewr["result"]) if ewr["ok"] else _err(id, -32602, String(ewr["error"]))
 		"dyntopo":   # L52: one dynamic-topology step (split long / collapse short edges under the brush) on a test sphere, with the band numbers {radius?, detail?, levels?} (scripts/dyntopo_serve.gd). Not in METHODS
 			var dtr := DyntopoServe.serve(m, p)
 			return _ok(id, dtr["result"]) if dtr["ok"] else _err(id, -32602, String(dtr["error"]))
 		"texture_paint":   # L53 TPAINT: a screen-space brush stamp onto a UV-mapped shape {shape?, x?, y?, radius?, size?, color?, strength?, hardness?, pad?, w?, h?} (scripts/tpaint_serve.gd). Not in METHODS
 			var tpr := TPaintServe.serve(m, p)
 			return _ok(id, tpr) if tpr["ok"] else _err(id, -32602, String(tpr["error"]))
+		"anim_stack":   # L79: animation layers (bone masks, add / over, weight, mute) and NLA strips (scale, repeat, blend curves, mute) {op, index?, ...}; each edit ONE undo step (scripts/anim_stack.gd). Not in METHODS
+			var asr := AnimStack.serve(m, p)
+			return _ok(id, asr["result"]) if asr["ok"] else _err(id, -32602, String(asr["error"]))
 		"blend_matrix":   # N084: every clip-to-clip crossfade of a moveset checked for limit breaks, self-clash and foot skate {clips?, blend_s?, a?, b?, full?, top?} (scripts/blend_matrix_serve.gd). Not in METHODS
 			var bmr := BlendMatrixServe.serve(m, p)
 			return _ok(id, bmr["result"]) if bmr["ok"] else _err(id, -32602, String(bmr["error"]))
@@ -487,6 +502,18 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"throw_check":   # N040 wired (L34): does the throw work? {clip?, fps?, thrower?} (scripts/throw_serve.gd). Not in METHODS
 			var tcr := ThrowServe.serve(m, p)
 			return _ok(id, tcr["result"]) if tcr["ok"] else _err(id, -32602, String(tcr["error"]))
+		"impact_align", "hit_region", "body_collide":   # L72: N034 impact alignment, N042 hit reaction by region, N046 body collision (scripts/fight2_serve.gd). Not in METHODS
+			var f2r := Fight2Serve.serve(String(method), m, p)
+			return _ok(id, f2r["result"]) if f2r["ok"] else _err(id, -32602, String(f2r["error"]))
+		"disarm_check", "group_fight":   # L74: N045 disarm truth, N048 one vs many (scripts/fight3_serve.gd). Not in METHODS
+			var f3r := Fight3Serve.serve(String(method), m, p)
+			return _ok(id, f3r["result"]) if f3r["ok"] else _err(id, -32602, String(f3r["error"]))
+		"effort_face", "pain_face":   # L75: I13 effort face from torque {clip?, fps?}, I14 pain face from hit force {impulse, contact?, length?, fps?} (scripts/face_pain.gd). Not in METHODS
+			var fpr := FacePain.serve(String(method), m, p)
+			return _ok(id, fpr["result"]) if fpr["ok"] else _err(id, -32602, String(fpr["error"]))
+		"bake_reaction", "fix_impact", "bake_momentum":   # L76: the fight maths baked as cards, one undo step (scripts/fight_bake_serve.gd). Not in METHODS
+			var fbr := FightBakeServe.serve(String(method), m, p)
+			return _ok(id, fbr["result"]) if fbr["ok"] else _err(id, -32602, String(fbr["error"]))
 		"lock_check":   # N041 wired: does the lock reach his limit, or go past it? {clip?, fps?, locker?} (scripts/lock_serve.gd). Not in METHODS
 			var lcr := LockServe.serve(m, p)
 			return _ok(id, lcr["result"]) if lcr["ok"] else _err(id, -32602, String(lcr["error"]))
@@ -519,6 +546,18 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			return _ok(id, prc) if bool(prc["ok"]) else _err(id, -32602, String(prc["error"]))
 
 
+		"anykey":   # L13/L15: key a shape-key weight ("shape:<mesh>:<key>") or any property ("prop:<target>:<path>") at the playhead (or t), one undo step; no value = read the curve. Not in METHODS
+			var akid := String(p.get("id", ""))
+			if akid == "":
+				return _ok(id, {"rows": AnyKey.ids(m.S)})
+			if p.has("t"):
+				m.playhead = float(p["t"])
+			if p.has("value"):
+				m._anykey_put(akid, float(p["value"]))
+			return _ok(id, {"id": akid, "t": m.playhead, "value": AnyKey.float_at(m.S, akid, m.playhead), "rows": AnyKey.ids(m.S)})
+		"bake_any":   # L16: bake constraints / drivers per frame into plain part keys: {joints, first, last, remove_source, step}; one undo step. Not in METHODS
+			var bar: Dictionary = m._bake_any(p.get("joints", []), int(p.get("first", 0)), int(p.get("last", 29)), bool(p.get("remove_source", true)), int(p.get("step", 1)))
+			return _ok(id, bar)
 		"look_facts":   # item 242: numbers for how the final picture LOOKS per piece / kind / nature item (scripts/build/look_facts.gd). Not in METHODS
 			var lf: Dictionary = await LookFacts.serve(m, p)
 			return _ok(id, lf) if bool(lf["ok"]) else _err(id, -32602, String(lf["error"]))
@@ -557,6 +596,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"explain":   # N091 EXPLAIN THIS MOTION (scripts/explain_motion.gd): phases, power, read, one thing to try; scene untouched. Not in METHODS
 			var xm := ExplainMotion.serve(m, p)
 			return _ok(id, xm) if xm["ok"] else _err(id, -32602, String(xm["error"]))
+		"teach_chain", "teach_landing", "teach_stance":   # TEACHING (scripts/teach.gd): why the strike / landing / stance fails, from the clip's own numbers; {apply?: true} = the first fix as one undo step. Not in METHODS
+			var th := Teach.serve(m, method.trim_prefix("teach_"), p)
+			return _ok(id, th) if th["ok"] else _err(id, -32602, String(th["error"]))
 		"brief":   # N011: the scene in under N tokens (scripts/scene_brief.gd)
 			return await SceneBrief.serve(self, id, p)
 		"text_view":

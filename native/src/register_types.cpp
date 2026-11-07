@@ -18,6 +18,7 @@
 #include "kine_spline_native.h"
 #include "kine_skin_native.h"
 #include "kine_clock_native.h"
+#include "kine_wrinkle_native.h"
 #include "kine_render_native.h"
 
 
@@ -32,6 +33,7 @@
 #include "kine_dyntopo_native.h"
 #include "kine_tpaint_native.h"
 #include "kine_props_native.h"
+#include "kine_dock_native.h"
 
 using namespace godot;
 
@@ -54,6 +56,7 @@ void kine_native_initialize(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(KineSplineNative);
 	GDREGISTER_ABSTRACT_CLASS(KineSkinNative);
 	GDREGISTER_ABSTRACT_CLASS(KineClockNative);
+	GDREGISTER_ABSTRACT_CLASS(KineWrinkleNative);
 	GDREGISTER_ABSTRACT_CLASS(KineRenderNative);
 
 
@@ -68,6 +71,7 @@ void kine_native_initialize(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(KineDyntopoNative);
 	GDREGISTER_CLASS(KineTPaintNative);
 	GDREGISTER_ABSTRACT_CLASS(KinePropsNative);
+	GDREGISTER_ABSTRACT_CLASS(KineDockNative);
 }
 
 void kine_native_terminate(ModuleInitializationLevel p_level) {

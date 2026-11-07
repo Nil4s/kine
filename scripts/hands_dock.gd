@@ -127,8 +127,12 @@ static func place(card: Control, hb: Control, view: Rect2, blk: Array, body: Rec
 	for avoid_body in [true, false]:
 		for wi in WIDTHS.size():
 			var w: float = WIDTHS[wi]
+			var _t0 := PerfDoc.t()
 			_compact(card, hb, wi >= PLAIN)
+			PerfDoc.add("hd_cm", _t0)
+			_t0 = PerfDoc.t()
 			var ps := measure(card, hb, w, wi >= PLAIN)
+			PerfDoc.add("hd_ms", _t0)
 			if ps.x > view.size.x or ps.y > view.size.y:
 				continue
 			var key := "%d|%s" % [wi, str(ps)]
@@ -136,18 +140,50 @@ static func place(card: Control, hb: Control, view: Rect2, blk: Array, body: Rec
 				_lists[key] = free_spots(view, blk, ps)
 				rebuilds += 1
 			var spots: PackedFloat64Array = _lists[key]
-			for i in range(0, spots.size(), 2):
-				var r := Rect2(spots[i], spots[i + 1], ps.x, ps.y)
-				if not (avoid_body and r.intersects(body)) and not PickDodge.covers(r, pts, 2.0):
-					_compact(card, hb, wi >= PLAIN)
-					hb.custom_minimum_size = Vector2(w - 20.0, 0)
-					card.size = ps
-					card.position = Vector2(spots[i], spots[i + 1])
-					return true
+			var _t1 := PerfDoc.t()
+			var hit := first_free(spots, ps, body, avoid_body, pts)
+			PerfDoc.add("hd_ff", _t1)
+			if hit >= 0:
+				_compact(card, hb, wi >= PLAIN)
+				hb.custom_minimum_size = Vector2(w - 20.0, 0)
+				card.size = ps
+				card.position = Vector2(spots[2 * hit], spots[2 * hit + 1])
+				return true
 	_compact(card, hb, false)
 	hb.custom_minimum_size = Vector2(WIDTHS[0] - 20.0, 0)
 	card.reset_size()
 	return false
+
+
+## L64: the first spot of the list (index into the pairs) that the body (when avoid) and the pick points do not reject, else -1.
+## KineDockNative.first_free is the same loop in C++ (single-precision Rect2 steps); _first_free_gd is the GDScript twin and the reference
+## (PerfDoc.refresh_full). The scan of a long list that is all rejected (a body wider than the room) was most of the card's cost.
+static var _native := -1   # -1 not asked, 0 no, 1 yes
+static var _door = null    # scripts/dock_native.gd once KineDockNative is known to exist
+static var native_calls := 0   # tests
+
+
+static func native_ok() -> bool:
+	if _native < 0:
+		_native = 1 if NativeExt.ensure("kine_native", "KineDockNative") else 0
+		if _native == 1:
+			_door = load("res://scripts/dock_native.gd")
+	return _native == 1 and _door != null
+
+
+static func first_free(spots: PackedFloat64Array, ps: Vector2, body: Rect2, avoid: bool, pts: Array) -> int:
+	if PerfDoc.refresh_full or not native_ok():
+		return _first_free_gd(spots, ps, body, avoid, pts)
+	native_calls += 1
+	return _door.first_free(spots, ps.x, ps.y, body, avoid, PackedVector2Array(pts), 2.0)
+
+
+static func _first_free_gd(spots: PackedFloat64Array, ps: Vector2, body: Rect2, avoid: bool, pts: Array) -> int:
+	for i in range(0, spots.size(), 2):
+		var r := Rect2(spots[i], spots[i + 1], ps.x, ps.y)
+		if not (avoid and r.intersects(body)) and not PickDodge.covers(r, pts, 2.0):
+			return i / 2
+	return -1
 
 
 ## sets the card's width (via `hb`, the buttons' flow) and its position; returns true when a spot with no overlap was found
@@ -194,6 +230,12 @@ static func place_fresh(card: Control, hb: Control, view: Rect2, blk: Array, bod
 ## compact: 12 px type on the buttons and the state line, 2 px between rows (the same words, a smaller card)
 static func _compact(card: Control, hb: Control, on: bool) -> void:
 	var box := hb.get_parent() as Control
+	# L64: the overrides are the same for the same `on` (and the same children): setting them again changes nothing but costs a theme
+	# notification per control (about 25 controls, up to 20 calls per placement). PerfDoc.refresh_full = the old, always-set path.
+	var csig: Array = [on, hb.get_child_count(), box.get_child_count() if box != null else 0]
+	if not PerfDoc.refresh_full and hb.has_meta("_dock_cs") and hb.get_meta("_dock_cs") == csig:
+		return
+	hb.set_meta("_dock_cs", csig)
 	hb.add_theme_constant_override("h_separation", 3 if on else 4)
 	hb.add_theme_constant_override("v_separation", 2 if on else 4)
 	if box != null:

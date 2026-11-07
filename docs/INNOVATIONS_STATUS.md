@@ -123,3 +123,94 @@ I11-I19 are all open (ARKit 52 export, retarget, effort / pain / breath face, fa
 | M2 agent-first | mostly done | INNOVATIONS waves 1-2 built (see above); MCP guide in README_AI.md and docs/API_FOR_AGENTS.md; the "3 of 3 with a score bar" gate run is not recorded |
 | M3 public beta | not started | tools/build_installer.sh and docs/C78_INSTALLER.md exist; no auto-update, docs site, crash reporter; not public by Nick's decision |
 | M4 1.0 | not started | star-star-star items 14 of 15; Linux and macOS untested; engine add-ons not started |
+
+## All N001-N100 rows still missing above (lane L66, 2026-11-06)
+
+Evidence rule: **done** = script + test + commit found; **partial** = a script or commit exists but the item's named bar or hook is missing (the text says which); **open** = grep found no script, test or commit. These rows were made by file-name and commit grep, not by re-running suites.
+
+| id | name | status | evidence | missing |
+|---|---|---|---|---|
+| N003 | Dry run any command | partial | scripts/dry_run.gd, tests/dryrun_test.gd | not every command answers dry run |
+| N005 | Fix until it passes | partial | scripts/fix_loop.gd, c070715d (serve fix_until, CLI fixuntil) | no test row checked; realism bar wiring unverified |
+| N007 | Body-frame numbers | partial | scripts/body_frame.gd | agent-facing input in body frame not confirmed for every serve call |
+| N008 | Path to a pose | partial | scripts/pose_path.gd | ordering that never breaks a limit on the way not verified |
+| N009 | Screen-reader mode | open | no script, test or commit found by grep | the whole item |
+| N010 | Replay proof | open | no script, test or commit found by grep | the whole item |
+| N011 | Scene brief | partial | scripts/scene_brief.gd | token bound not checked |
+| N012 | Ask why at a time | partial | scripts/why.gd, tests/why_test.gd | curves only; no joint-number cause chain in words |
+| N013 | Safe range sweep | partial | scripts/range_sweep.gd | interval sweep exists; not wired to the balance and reach pair named in the item |
+| N014 | Noticeable or not | open | no script, test or commit found by grep | the whole item |
+| N016 | Move recognizer | partial | scripts/move_recognizer.gd | naming exists; distance from textbook form not verified |
+| N019 | Try N ways | partial | scripts/try_n.gd | undo-tree branch scoring exists; not checked against the 5-variant call |
+| N020 | Trust labels | partial | scripts/trust.gd | labels not on every API number |
+| N021 | Guardrails | open | no script, test or commit found by grep | the whole item |
+| N022 | Human facts API | partial | scripts/human_facts.gd | cited tables exist; not every fact asked for |
+| N023 | Findings stream | open | no script, test or commit found by grep | the whole item |
+| N024 | Kine-Bench | partial | scripts/kine_bench.gd | runner exists; graded task set not verified |
+| N025 | Move knobs | partial | scripts/move_knobs.gd | knob set exists; re-solve with contacts kept not verified |
+| N026 | How-human dial | open | no script, test or commit found by grep | the whole item |
+| N029 | Weight-transfer check | partial | scripts/weight_xfer.gd, 81ce511c, c550e2f1 | test row not located; shift offer not verified |
+| N030 | Jump budget | open | no script, test or commit found by grep | the whole item |
+| N031 | Whole-body speed caps | partial | scripts/body_caps.gd, tests/bodycaps_test.gd | limb caps; whole-body start / stop caps not verified |
+| N032 | Grip hold check | open | no script, test or commit found by grep | the whole item |
+| N033 | Load posture | open | no script, test or commit found by grep | the whole item |
+| N034 | Impact alignment | open | no script, test or commit found by grep | the whole item |
+| N035 | Floor material | open | no script, test or commit found by grep | the whole item |
+| N036 | Injury profile | open | no script, test or commit found by grep | the whole item |
+| N037 | Real sway in holds | open | no script, test or commit found by grep | the whole item |
+| N038 | Stance strength map | partial | scripts/push_limits.gd | one stance (R24); polar map not built |
+| N039 | Strength curves | open | no script, test or commit found by grep | the whole item |
+| N042 | Target anatomy | open | no script, test or commit found by grep | the whole item |
+| N043 | Blind-side check | open | no script, test or commit found by grep | the whole item |
+| N044 | Hurt memory | partial | scripts/hit_habits.gd (I46) | learned reaction sizes; no per-side hurt memory |
+| N045 | Disarm truth | open | no script, test or commit found by grep | the whole item |
+| N046 | Body collision | open | no script, test or commit found by grep | the whole item |
+| N047 | Stance matchup | partial | scripts/range_rings.gd | rings exist; orthodox vs southpaw matchup not verified |
+| N048 | One vs many | open | no script, test or commit found by grep | the whole item |
+| N049 | Lift the opponent | open | no script, test or commit found by grep | the whole item |
+| N050 | Two-body targets | open | no script, test or commit found by grep | the whole item |
+| N051 | Grab contracts | open | no script, test or commit found by grep | the whole item |
+| N052 | Landmark snap | open | no script, test or commit found by grep | the whole item |
+| N053 | Draw-path check | open | no script, test or commit found by grep | the whole item |
+| N054 | Armour limits the body | partial | scripts/rom_clash.gd, tests/romclash_test.gd | flags clash, does not change limits |
+| N055 | Tailor's tape | open | no script, test or commit found by grep | the whole item |
+| N056 | Stylised proportions, with consequences | open | no script, test or commit found by grep | the whole item |
+| N057 | Fist test | open | no script, test or commit found by grep | the whole item |
+| N058 | Can this body stand? | open | no script, test or commit found by grep | the whole item |
+| N059 | Materials by anatomy | open | no script, test or commit found by grep | the whole item |
+| N060 | Looks strong enough? | open | no script, test or commit found by grep | the whole item |
+| N061 | Helmet vision check | open | no script, test or commit found by grep | the whole item |
+| N062 | Brush in kilograms | open | no script, test or commit found by grep | the whole item |
+| N063 | Reach envelope | open | no script, test or commit found by grep | the whole item |
+| N064 | Ouch meter | partial | scripts/ouch_meter.gd:29, tests/ouch_test.gd | commit not located in log |
+| N067 | Touch tool | open | no script, test or commit found by grep | the whole item |
+| N068 | Part-first actions | open | no script, test or commit found by grep | the whole item |
+| N069 | Weight split | open | no script, test or commit found by grep | the whole item |
+| N070 | Stances that fit the body | open | no script, test or commit found by grep | the whole item |
+| N071 | Best view for this joint | open | no script, test or commit found by grep | the whole item |
+| N072 | Stop reason | open | no script, test or commit found by grep | the whole item |
+| N073 | Difficulty stars | open | no script, test or commit found by grep | the whole item |
+| N074 | Red spots on the body | partial | scripts/red_spots.gd, tests/redspots_test.gd, 417862c7 | click-to-fix not verified |
+| N075 | What this body can do | open | no script, test or commit found by grep | the whole item |
+| N076 | Phase-by-phase builder | open | no script, test or commit found by grep | the whole item |
+| N077 | Into the band | partial | scripts/gait_band.gd | shows the band; does not pull curves into it |
+| N078 | Say what looks wrong | done | scripts/whywrong.gd, tests/whywrong_test.gd, 0a25e758 (merge wt-whywrong) | none noted |
+| N079 | Hurtboxes from the real mesh | partial | scripts/hit_boxes.gd, tests/hit_boxes_test.gd | mannequin capsules; not fitted to the mesh |
+| N081 | Cancel windows from the body | done | scripts/cancel_windows.gd:10, tests/n081_test.gd, 79ca57d0 + 5865be68 | none noted |
+| N083 | Play-rate safe range | partial | scripts/play_speed.gd | speed control exists; 0.8x-1.25x range report not verified |
+| N084 | Blend matrix | done | scripts/blend_matrix.gd, tests/n084_test.gd + n084w_test.gd, 3e08bac5 + 2cdf0259 | none noted |
+| N085 | Ragdoll export | open | no script, test or commit found by grep | the whole item |
+| N086 | Contact curves | partial | scripts/foot_plant.gd | foot-plant detection exists; no per-clip curve export |
+| N087 | Body-aware compression | partial | scripts/key_reduce.gd | reduction exists; error measured in degrees, not cm at hands and feet |
+| N088 | LOD by body region | open | no script, test or commit found by grep | the whole item |
+| N089 | Sockets from anatomy | open | no script, test or commit found by grep | the whole item |
+| N090 | Runtime body check | open | no script, test or commit found by grep | the whole item |
+| N092 | Which muscles fire | open | no script, test or commit found by grep | the whole item |
+| N093 | What drives what | open | no script, test or commit found by grep | the whole item |
+| N094 | Lesson from my mistake | open | no script, test or commit found by grep | the whole item |
+| N095 | Drills | open | no script, test or commit found by grep | the whole item |
+| N096 | Living glossary | open | no script, test or commit found by grep | the whole item |
+| N097 | Pro comparison | open | no script, test or commit found by grep | the whole item |
+| N098 | Before / after per fix | open | no script, test or commit found by grep | the whole item |
+| N099 | My progress | open | no script, test or commit found by grep | the whole item |
+| N100 | The 12 principles as physics | partial | scripts/critique.gd | critique exists; physical cause sentence per principle not verified |

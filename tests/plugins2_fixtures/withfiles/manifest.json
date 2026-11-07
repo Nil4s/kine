@@ -1,0 +1,1 @@
+{"name": "With Files", "version": "1.0.0", "author": "test", "api": 2, "permissions": ["files"], "commands": [{"id": "try", "name": "try"}]}
