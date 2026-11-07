@@ -2394,6 +2394,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 			cs[-1]["ktype"] = c["ktype"]   # XX3: a key's Blender type (breakdown, moving_hold, extreme); never written for a plain key
 		if c.has("weight_i"):
 			cs[-1]["weight_i"] = c["weight_i"]   # ROADMAP 40: the inertia (kg m2) the swing's timing now fits; only on a contact card timed to a weapon
+		if c.has("weight_s"):
+			cs[-1]["weight_s"] = c["weight_s"]   # L23: the mass slider (log2 of the mass ratio) the timing now fits; only on a contact card
 	var out := {"scene": name, "kind": kind, "natural": natural, "on_floor": on_floor, "floor_body": floor_body, "pin": pin, "fps": fps, "length_s": snappedf(length(), 0.001), "cards": cs,
 		"bad_frames": bad,
 		"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other."}
@@ -2543,7 +2545,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "held_parts": "free (
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
 	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "walk": "free", "lift": "free", "ease": "free", "ease_bias": "free", "expr": "free",
-	"take": "SIDED: the holding hands _l <-> _r (the grip is re-read from the mirrored pose)", "drop": "free", "drop_rig": "SIDED: the baked fall reflected (x negated, the turn (w, x, -y, -z))", "air": "free", "ktype": "free", "weight_i": "free", "from": "free (Easy: the move the card came from, \"punch|<serial>\")"}
+	"take": "SIDED: the holding hands _l <-> _r (the grip is re-read from the mirrored pose)", "drop": "free", "drop_rig": "SIDED: the baked fall reflected (x negated, the turn (w, x, -y, -z))", "air": "free", "ktype": "free", "weight_i": "free", "weight_s": "free", "from": "free (Easy: the move the card came from, \"punch|<serial>\")"}
 
 
 ## the ease_bias slider's value on one card (ROADMAP 55): clamped to -1..1 and rounded to 0.01; 0 erases the key, so a
@@ -2770,6 +2772,8 @@ func from_dict(d: Dictionary) -> void:
 			cards[-1]["ktype"] = String(c["ktype"])   # XX3
 		if c.has("weight_i"):
 			cards[-1]["weight_i"] = maxf(0.0, float(c["weight_i"]))   # ROADMAP 40
+		if c.has("weight_s"):
+			cards[-1]["weight_s"] = clampf(float(c["weight_s"]), -2.0, 3.0)   # L23
 	ImpactFrames.rehydrate(self, d.get("impact", {}))   # I13: the impact frames' tags on cards and camera keys
 
 
