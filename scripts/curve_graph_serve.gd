@@ -35,7 +35,12 @@ static func serve(m: Node, p: Dictionary) -> Dictionary:
 		return _err("action is one of read, weight, snapshot, swap, compare, mod, unmod, drop")
 	var pk: Dictionary = m.S.part_keys
 	var j := String(p.get("joint", ""))
-	if not pk.has(j) or (pk[j] as Array).is_empty():
+	if p.has("au"):   # L94: a face AU channel (Scene.face) instead of a joint; same tools, value clamped to the channel's range
+		pk = m.S.face
+		j = String(p["au"])
+		if not pk.has(j) or (pk[j] as Array).is_empty():
+			return _err("au needs a face channel that has keys (got '%s')" % j)
+	elif not pk.has(j) or (pk[j] as Array).is_empty():
 		return _err("joint needs a joint that has part keys (got '%s')" % j)
 	var keys: Array = pk[j]
 	match a:
@@ -47,7 +52,7 @@ static func serve(m: Node, p: Dictionary) -> Dictionary:
 			for i in CurveBuffer.slots.size():
 				if CurveBuffer.slots[i]["joint"] == j:
 					bufs.append({"slot": i, "name": CurveBuffer.slots[i]["name"], "keys": (CurveBuffer.slots[i]["keys"] as Array).size()})
-			return {"ok": true, "result": {"joint": j, "keys": ws, "mods": PartKeys.mods_of(keys), "buffers": bufs}}
+			return {"ok": true, "result": {"joint": j, "range": AuCurves.range_of(j) if p.has("au") else null, "keys": ws, "mods": PartKeys.mods_of(keys), "buffers": bufs}}
 		"snapshot":
 			var sn := CurveBuffer.snapshot(pk, j, String(p.get("name", "")))
 			return {"ok": true, "result": {"slot": sn, "keys": keys.size()}}
@@ -80,6 +85,12 @@ static func serve(m: Node, p: Dictionary) -> Dictionary:
 			if ty == "cycles" and PartKeys.mods_of(keys).any(func(x): return String(x.get("type", "")) == "cycles"):
 				return _err("this curve already has a cycles modifier")
 			var md: Dictionary = (DEFAULTS[ty] as Dictionary).duplicate()
+			if p.has("au"):
+				md["ch"] = 0   # the AU lives in x
+				if ty == "limits":
+					var rg := AuCurves.range_of(j)
+					md["min"] = rg.x
+					md["max"] = rg.y
 			for f in md.keys():
 				if p.has(f):
 					md[f] = p[f]

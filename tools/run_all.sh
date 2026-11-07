@@ -1093,6 +1093,7 @@ EXTRA="$EXTRA rigown:w rigown_app:w"   # L69 RIGOWN: non-human glTF skeleton kep
 EXTRA="$EXTRA rigown:w rigown_app:w rigown_ik:w"   # L69 RIGOWN: non-human glTF skeleton kept as its own rig, FK, keys, export, bone edit (tests/rigown_test.gd)
 EXTRA="$EXTRA fightbake:w"   # L76 FIGHTBAKE: region_react / impact_align / body_collide baked onto a two-body clip as cards, one undo step each, FIGHT panel + tools bake_reaction, fix_impact, bake_momentum (tests/fightbake_test.gd)
 EXTRA="$EXTRA graphed:h"   # L84 weighted tangents, buffer curves, curve modifiers via curve_graph tool (tests/graphed_test.gd)
+EXTRA="$EXTRA aucurves:h"   # L94 face AU channels in the graph editor with the L84 tools (tests/aucurves_test.gd)
 EXTRA="$EXTRA sockets:w"   # N089: engine sockets from anatomy: regions, proportions, export round trip, controls (tests/sockets_test.gd)
 EXTRA="$EXTRA refresh:w"   # L64 L-REFRESH: playback _refresh skips unchanged work (R1 <5 ms, R2 4 fighters lower, R3 hash equal + planted control, R4 same-frame updates)
 EXTRA="$EXTRA animtools:w"   # L87 ANIMTOOLS: onion every N frames per part, breakdown on a selection, ripple retime of keys, keying sets + set-restricted auto-key, one undo step each (tests/animtools_test.gd)

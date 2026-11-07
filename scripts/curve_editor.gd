@@ -25,6 +25,7 @@ const MOVE_MIN := 3.0  # px: a drag starts after this much movement (a click tha
 
 var scene: Scene = null
 var joint := ""
+var au := false             # L94: `joint` names a face AU channel (scene.face), drawn clamped to its range
 var playhead := 0.0
 var fps := 24
 var limit: Callable = Callable()    # (joint, Vector3) -> Vector3, the legal angles
@@ -175,7 +176,7 @@ func tangent_cmd(unify: bool) -> bool:
 		return false
 	if begin.is_valid():
 		begin.call()
-	var r := PartKeys.unify(scene.part_keys, joint, i) if unify else PartKeys.break_handles(scene.part_keys, joint, i)
+	var r := PartKeys.unify(_store(), joint, i) if unify else PartKeys.break_handles(_store(), joint, i)
 	queue_redraw()
 	if changed.is_valid():
 		changed.call()
@@ -305,9 +306,9 @@ func mod_item(id: int) -> int:
 	var r := 0
 	match id:
 		0:
-			r = PartKeys.add_mod(scene.part_keys, joint, {"type": "noise", "ch": ch, "strength": 4.0, "scale": 0.3, "phase": 0.0, "seed": ks.size(), "mix": 1.0})
+			r = PartKeys.add_mod(_store(), joint, {"type": "noise", "ch": ch, "strength": 4.0, "scale": 0.3, "phase": 0.0, "seed": ks.size(), "mix": 1.0})
 		1:
-			r = PartKeys.add_mod(scene.part_keys, joint, {"type": "stepped", "ch": ch, "step": 2.0 / float(maxi(fps, 1)), "offset": 0.0, "mix": 1.0})
+			r = PartKeys.add_mod(_store(), joint, {"type": "stepped", "ch": ch, "step": 2.0 / float(maxi(fps, 1)), "offset": 0.0, "mix": 1.0})
 		2:
 			var lo := INF
 			var hi := -INF
@@ -316,12 +317,12 @@ func mod_item(id: int) -> int:
 					if ch < 0 or c == ch:
 						lo = minf(lo, (k["v"] as Vector3)[c])
 						hi = maxf(hi, (k["v"] as Vector3)[c])
-			r = PartKeys.add_mod(scene.part_keys, joint, {"type": "limits", "ch": ch, "min": lo, "max": hi, "mix": 1.0})
+			r = PartKeys.add_mod(_store(), joint, {"type": "limits", "ch": ch, "min": lo, "max": hi, "mix": 1.0})
 		3:
 			ms[-1]["mix"] = clampf(_factor.value, 0.0, 1.0)
 			r = ms.size() - 1
 		4:
-			PartKeys.remove_mod(scene.part_keys, joint, ms.size() - 1)
+			PartKeys.remove_mod(_store(), joint, ms.size() - 1)
 	queue_redraw()
 	if changed.is_valid():
 		changed.call()
@@ -329,9 +330,21 @@ func mod_item(id: int) -> int:
 
 
 func keys() -> Array:
-	if scene == null or joint == "" or not scene.part_keys.has(joint):
+	if scene == null or joint == "" or not _store().has(joint):
 		return []
-	return scene.part_keys[joint]
+	return _store()[joint]
+
+
+func _store() -> Dictionary:
+	return scene.face if au else scene.part_keys
+
+
+func _val(ks: Array, t: float, c: int) -> float:
+	var v: float = PartKeys.value_at(ks, t)[c]
+	if au:
+		var r := Face.range_of(joint)
+		v = clampf(v, r.x, r.y)
+	return v
 
 
 func plot() -> Rect2:
@@ -493,7 +506,7 @@ func ghost_line(c: int) -> PackedVector2Array:
 	var n := int(ceilf(plot().size.x / 2.0))
 	for i in n + 1:
 		var t := t0 + (t1 - t0) * float(i) / float(n)
-		pts.append(Vector2(t_to_x(t), cv_to_y(c, PartKeys.value_at(ghost_keys, t)[c])))
+		pts.append(Vector2(t_to_x(t), cv_to_y(c, _val(ghost_keys, t, c))))
 	return pts
 
 
@@ -512,7 +525,7 @@ func polyline(c: int) -> PackedVector2Array:
 			ts.append(float(k["t"]))
 	ts.sort()
 	for t in ts:
-		pts.append(Vector2(t_to_x(t), cv_to_y(c, PartKeys.value_at(ks, t)[c])))
+		pts.append(Vector2(t_to_x(t), cv_to_y(c, _val(ks, t, c))))
 	return pts
 
 
@@ -807,7 +820,7 @@ func drag_handle(at: Vector2) -> void:
 	var dv := cy_to_v(c, at.y) - (k["v"] as Vector3)[c]
 	if (x_to_t(at.x) < float(k["t"])) != (side == "in"):
 		len = 0.0   # a handle dragged across its key has no length: it stops at the shortest
-	PartKeys.set_tangent(scene.part_keys, joint, i, side, c, len, dv)
+	PartKeys.set_tangent(_store(), joint, i, side, c, len, dv)
 	queue_redraw()
 	if changed.is_valid():
 		changed.call()
