@@ -167,7 +167,7 @@ func _init() -> void:
 	S.outl = {}
 	var yaw0 := [0.0, 20.0, 45.0, 10.0]
 	var px := [0.0, 1.2, 2.4, 3.5]   # the first run (x -3..1, z 3..4) clicked into nothing: those screen points are under the left UI; the 4th prop (3.5, 6) always picked
-	var pz := [6.0, 6.0, 6.0, 6.0]
+	var pz := [5.6, 6.0, 6.4, 6.8]
 	for i in 4:
 		S.props.append(Props.make("box", Props.xf_at(Vector3(px[i], 0, pz[i]), yaw0[i])))
 	m.sel_prop = -1
