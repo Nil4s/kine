@@ -7631,36 +7631,58 @@ func _pu_note(kind: String, page: String, u) -> void:
 		ksc.undo.redos.clear()
 	if kmed != null and kmed.undo != u:
 		kmed.undo.redos.clear()
+	if bld != null and bld.asm != null and bld.asm != u:
+		bld.asm.asm_redo.clear()
+	var vpn: Node = get_node_or_null("kmesh_vpaint")
+	if vpn != null and vpn.tp != null and vpn.tp != u:
+		vpn.tp._redo.clear()
 
 
 ## KMeshUndo.commit calls this for every mesh step: the sculpt sphere's and the model cube's are noted, any other list's is not
 func _pu_mesh_step(u) -> void:
-	if ksc != null and ksc.undo == u:
+	if ksc != null and ksc.on and ksc.undo == u:   # the body sculpt shares the body editor's list: the sculpt, while it is open
 		_pu_note("sculpt", "SCULPT", u)
 	elif kmed != null and kmed.undo == u:
-		_pu_note("model", "MODEL", u)
+		_pu_note("model", cur_page if ExpertPages.PAGES.has(cur_page) and cur_page != "SCULPT" else "MODEL", u)
+	elif ksc != null and ksc.undo == u:
+		_pu_note("sculpt", "SCULPT", u)
 
 
-## does the list an entry belongs to still have its step (and is it the list the page shows now)?
-func _pu_has(e: Dictionary, back: bool) -> bool:
+## which UI takes this entry's step back now: "pose", "sculpt", "model", "asm", "tex" or "" (its list is gone, closed or has no step)
+func _pu_owner(e: Dictionary, back: bool) -> String:
+	var u = e["u"]
 	match String(e["k"]):
 		"pose":
-			return not (undo if back else redo).is_empty()
-		"sculpt":
-			return ksc != null and ksc.undo == e["u"] and not (e["u"].steps if back else e["u"].redos).is_empty()
-		"model":
-			return kmed != null and kmed.undo == e["u"] and not (e["u"].steps if back else e["u"].redos).is_empty()
-	return false
+			return "pose" if not (undo if back else redo).is_empty() else ""
+		"sculpt", "model":
+			var has: bool = u != null and not (u.steps if back else u.redos).is_empty()
+			if has and ksc != null and ksc.on and ksc.undo == u:
+				return "sculpt"
+			if has and kmed != null and kmed.on and kmed.undo == u:
+				return "model"
+		"asm":
+			if bld != null and bld.asm != null and bld.asm == u and not (u.asm_undo if back else u.asm_redo).is_empty():
+				return "asm"
+		"tex":
+			var vp: Node = get_node_or_null("kmesh_vpaint")
+			if vp != null and vp.on and vp.tex_mode and vp.tp == u and (u.can_undo() if back else not u._redo.is_empty()):
+				return "tex"
+	return ""
+
+
+func _pu_has(e: Dictionary, back: bool) -> bool:
+	return _pu_owner(e, back) != ""
 
 
 ## Ctrl+Z / Ctrl+Y over every page: the newest step anywhere, on its own page. true = a step was taken
 func _pu_route(back: bool) -> bool:
-	if bld != null and bld.asm != null and bld.on:
-		return false   # the Assembly screen keeps its own steps
 	var e: Dictionary = pu.take(back, _pu_has)
 	if e.is_empty():
 		return false
+	var owner := _pu_owner(e, back)
 	var pg := String(e["page"])
+	if owner == "model" and pg == "SCULPT":
+		pg = "MODEL"   # a body sculpt step, the sculpt left: the body editor owns it
 	var pose_on_mesh := String(e["k"]) == "pose" and ExpertPages.PAGES.has(pg)
 	if pg != cur_page and not pose_on_mesh:
 		_page_set(pg)
@@ -7668,10 +7690,15 @@ func _pu_route(back: bool) -> bool:
 		"pose":
 			if back: _undo_pose()
 			else: _redo_pose()
-		"sculpt":
-			ksc.undo_redo(back)
-		"model":
-			kmed.undo_redo(back)
+		"asm":
+			bld.asm.undo_redo(back)
+		"tex":
+			get_node("kmesh_vpaint").tex_undo_redo(back)
+		_:
+			if owner == "sculpt":
+				ksc.undo_redo(back)
+			else:
+				kmed.undo_redo(back)
 	pu.give(e, back)
 	return true
 
@@ -8139,6 +8166,7 @@ func _tree_go(id: int) -> void:
 		e2["name"] = _step_label(_tree.node(fw[k]))
 		redo.append(e2)
 	_restore(target)
+	pu.sync_pose(undo.size(), redo.size(), cur_page)   # the ordered log follows the swapped pose list
 	_say("history: %d step%s done" % [undo.size(), "" if undo.size() == 1 else "s"])
 	_undo_tips()
 	_history_rows()

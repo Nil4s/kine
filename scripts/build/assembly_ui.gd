@@ -614,6 +614,11 @@ func _apply_fields() -> void:
 		rot[i] = _num((rot_edits[i] as LineEdit).text, float(p["rot"][i]))
 	var pos0: Array = p["pos"].duplicate()
 	var rot0: Array = p["rot"].duplicate()
+	var moved := false
+	for i in 3:
+		moved = moved or absf(pos[i] - float(pos0[i])) > 0.0005 or absf(rot[i] - float(rot0[i])) > 0.0005
+	if moved:
+		push_undo("move " + String(p["name"]))   # L126: a typed position is one undo step
 	Assembly.set_pose(p, pos, rot)
 	AssemblyDof.enforce(p, pos0, rot0)   # C15: a locked axis keeps its value
 	_refresh(false)
@@ -881,6 +886,9 @@ func _input(ev: InputEvent) -> void:
 		if p.is_empty():
 			drag = {}
 			return
+		if not drag.has("pushed"):
+			drag["pushed"] = true
+			push_undo("move " + String(p["name"]))   # L126: one undo step per drag, at its first motion
 		var delta: Vector2 = mv.position - (drag["start"] as Vector2)
 		var ax: int = int(drag["axis"])
 		var pos0: Array = p["pos"].duplicate()
@@ -1076,6 +1084,7 @@ func export_video(opts := {}) -> Dictionary:
 func push_undo(label: String) -> void:
 	asm_undo.append({"asm": asm.duplicate(true), "label": label})
 	asm_redo.clear()
+	m._pu_note("asm", "BUILD", self)   # L126: the Assembly screen's step joins the ordered log
 
 
 ## Ctrl+Z (back) / Ctrl+Y: false when this screen has no step, so the scene's own undo runs as before
