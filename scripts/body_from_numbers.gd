@@ -7,9 +7,9 @@
 ##            percentile readout; BodyModel.ANSUR holds the same numbers).
 ##   MASS     ANSUR II median/log-sigma (BodyModel.ANSUR); the body's segment masses are de Leva 1996 (J Biomech 29:1223) via
 ##            Proportions.masses, which renormalises them to the body's mass (so the weight you give is the weight it has).
-##   BREADTHS ANSUR II biacromial breadth / stature, rounded from the summary tables: men 0.227, women 0.218; hip breadth
-##            (bitrochanteric region) / stature men 0.206, women 0.227. APPROXIMATE (not re-read from the raw files: stated).
-##            They grow with the person's BMI relative to the ANSUR sex mean (men 27.0, women 25.5) to the power 0.25 (a
+##   BREADTHS ANSUR II biacromial breadth / stature men 0.2367, women 0.2244; hip breadth (standing) / stature men 0.1969,
+##            women 0.2173: VERIFIED on the public files (L138, see BREADTH below).
+##            They grow with the person's BMI relative to the ANSUR sex mean (men 27.69, women 25.50) to the power 0.25 (a
 ##            breadth is a length, mass goes as length^3-4: MINE, an estimate) and a build step (lean 0.97, average 1, heavy 1.04,
 ##            MINE). They are REPORTED; the skeleton's segment scale is uniform (see BodyModel), so what reaches the body is the
 ##            weight: the skin thickens across each bone by the ANSUR II girth elasticities (Proportions.girth_lambda).
@@ -20,8 +20,11 @@ class_name BodyFromNumbers
 extends RefCounted
 
 const WINTER := {"upper_arm": 0.186, "forearm": 0.146, "hand": 0.108, "thigh": 0.245, "shank": 0.246, "foot": 0.152}
-const BREADTH := {"male": {"shoulder": 0.227, "hip": 0.206}, "female": {"shoulder": 0.218, "hip": 0.227}}
-const BMI_MEAN := {"male": 27.0, "female": 25.5}
+## VERIFIED 2026-11-07 (L138): mean biacromial breadth / mean stature and mean (standing) hip breadth / mean stature, ANSUR II public
+## files (https://www.openlab.psu.edu/ansur2/), men 4082, women 1986; BMI_MEAN = mean of mass / stature^2. The memory values were
+## 0.227 / 0.206 men, 0.218 / 0.227 women, BMI 27.0 men (3-4 % off).
+const BREADTH := {"male": {"shoulder": 0.2367, "hip": 0.1969}, "female": {"shoulder": 0.2244, "hip": 0.2173}}
+const BMI_MEAN := {"male": 27.69, "female": 25.50}
 const BUILD_K := {"lean": 0.97, "average": 1.0, "heavy": 1.04}
 const BUILDS := ["lean", "average", "heavy"]
 const LOSS_PER_YEAR_CM := 0.08

@@ -10,13 +10,15 @@ extends RefCounted
 ## and 1 from 30 % to 70 %: the joint rings (shoulder, elbow) stay where they are. A bulk/lean stroke is closed-loop: the
 ## girth is measured and the scale corrected (up to 3 passes) until the change is within 0.5 % of the amount.
 ## BOUNDS: girth is clamped to mean +- 3 SD of the ANSUR II (Gordon et al. 2014, NATICK/TR-15/007) "biceps circumference,
-## flexed" for the sex. The numbers below are UNVERIFIED (from memory; not checked against the report, no DOI/PMID). Not
+## flexed" for the sex. The numbers below are VERIFIED against the public ANSUR II files (L138, 2026-11-07). Not
 ## scaled by stature or mass; only the upper arm has a table so far (other regions are unbounded and say so).
 ## Pure (no nodes). stroke() edits in place; stroke_undoable() brackets it as ONE KMeshUndo step.
 
 const BRUSHES := ["lean", "bulk", "soft"]
-## metres: ANSUR II biceps circumference flexed, mean and SD (UNVERIFIED, from memory)
-const ANSUR := {"upperarm": {"male": [0.339, 0.032], "female": [0.296, 0.030]}}
+## metres: ANSUR II biceps circumference flexed, mean and SD. VERIFIED 2026-11-07 (L138) against the ANSUR II public files
+## (https://www.openlab.psu.edu/ansur2/; 4082 men, 1986 women): men 358.14 / 34.62 mm, women 305.58 / 30.76 mm
+## (the memory values 0.339 / 0.032 and 0.296 / 0.030 were 5 % and 3 % low)
+const ANSUR := {"upperarm": {"male": [0.3581, 0.0346], "female": [0.3056, 0.0308]}}
 const SOFT_PASSES := 6
 const SOFT_LAMBDA := 0.5
 const SOFT_MU := -0.53
@@ -153,7 +155,7 @@ static func stroke(mesh: KMesh, sk: Skeleton3D, region: String, brush: String, a
 			var lim := minf(maxf(tgt, float(bd["min"])), float(bd["max"]))
 			want = lim - g0
 			res["clamped"] = true
-			res["message"] = "%s stopped at the ANSUR II limit: %s girth %.0f mm (%s mean %.0f %s 3 SD of %.0f mm; Gordon 2014, UNVERIFIED table)" % [
+			res["message"] = "%s stopped at the ANSUR II limit: %s girth %.0f mm (%s mean %.0f %s 3 SD of %.0f mm; Gordon 2014, verified on the public ANSUR II files)" % [
 				brush, _kind(region), lim * 1000.0, sex, float(bd["mean"]) * 1000.0, "+" if tgt > g0 else "-", float(bd["sd"]) * 1000.0]
 	res["amount"] = want
 	if absf(want) < 1e-6:
