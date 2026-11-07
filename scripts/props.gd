@@ -1040,6 +1040,7 @@ static func _column_blocked_c(cache: Array, x: float, z: float, y0: float, y1: f
 ## FASTSAVE: a uniform grid (2 m cells) over the cache's bounding circles. _near(cache, x, z) = the solids whose circle could reach (x, z),
 ## in the cache's own order (a solid with no circle, a wedge, or one spanning many cells is in every answer). Built once per cache object.
 const GRID_CELL := 2.0
+static var _grid_mu := Mutex.new()
 static var _gr_for: Array = []
 static var _gr_cells := {}
 static var _gr_always: Array = []
@@ -1048,6 +1049,13 @@ static var _gr_always: Array = []
 static func _near(cache: Array, x: float, z: float) -> Array:
 	if cache.size() < 64:
 		return cache
+	_grid_mu.lock()   # L61: the grid statics are rebuilt by whichever thread meets a new cache first (bake worker vs main)
+	var r := _near_locked(cache, x, z)
+	_grid_mu.unlock()
+	return r
+
+
+static func _near_locked(cache: Array, x: float, z: float) -> Array:
 	if not is_same(cache, _gr_for):
 		_gr_for = cache
 		_gr_cells = {}
