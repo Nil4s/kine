@@ -60,7 +60,7 @@ func _init() -> void:
 			var t := float(i) / 49.0
 			w1 = maxf(w1, absf(AuCurves.value_at(S.face, CH, t) - float(Face.values_at(S.face, t)[CH])))
 	var mid := AuCurves.value_at(S.face, CH, 0.5)
-	ok(w1 <= 1e-6 and absf(mid - 0.5) > 0.01 and mid <= 0.7 + 1e-9, "1 graph == playback at 50 samples (plain and with a limits stack): worst %.2e (<= 1e-6); the stack shows in both (mid %.4f, capped at 0.7)" % [w1, mid])
+	ok(w1 <= 1e-6 and absf(mid - 0.5) > 0.01 and mid <= 0.7 + 1e-9, "1 graph == playback at 50 samples (plain and with a limits stack): worst %.8f (<= 1e-6); the stack shows in both (mid %.4f, capped at 0.7)" % [w1, mid])
 	# 2 weight
 	S.face = {CH: k4()}
 	var s0 := seg(S.face, CH, 0.0, 1.0, 100)
@@ -159,7 +159,7 @@ func _init() -> void:
 	for i in 50:
 		var t := 3.0 * float(i) / 49.0
 		w7 = maxf(w7, absf(AuCurves.value_at(S.face, CH, t) - AuCurves.value_at(S2.face, CH, t)))
-	ok(var_to_str(S.face) == var_to_str(S2.face) and w7 <= 1e-6, "7 save/reload: keys, weights and stack identical %s, worst sample error %.2e (<= 1e-6)" % [var_to_str(S.face) == var_to_str(S2.face), w7])
+	ok(var_to_str(S.face) == var_to_str(S2.face) and w7 <= 1e-6, "7 save/reload: keys, weights and stack identical %s, worst sample error %.8f (<= 1e-6)" % [var_to_str(S.face) == var_to_str(S2.face), w7])
 	# 8 editor
 	S.face = {CH: k4()}
 	PartKeys.add_mod(S.face, CH, {"type": "noise", "ch": 0, "strength": 0.6, "scale": 0.2, "phase": 0.0, "seed": 2, "mix": 1.0})
@@ -179,6 +179,6 @@ func _init() -> void:
 	var inside := true
 	for pt in pl:
 		inside = inside and ed.y_to_v(pt.y) <= 1.0 + 1e-6 and ed.y_to_v(pt.y) >= -1e-6
-	ok(ed.keys() == S.face[CH] and pl.size() > 100 and wy <= 1e-3 and inside, "8 editor au mode: keys() is scene.face[jaw], %d polyline points, worst y error %.2e px (<= 1e-3), all inside 0..1 %s" % [pl.size(), wy, inside])
+	ok(ed.keys() == S.face[CH] and pl.size() > 100 and wy <= 1e-3 and inside, "8 editor au mode: keys() is scene.face[jaw], %d polyline points, worst y error %.8f px (<= 1e-3), all inside 0..1 %s" % [pl.size(), wy, inside])
 	print("AUCURVES TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)
