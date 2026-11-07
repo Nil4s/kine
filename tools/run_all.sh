@@ -1083,3 +1083,4 @@ EXTRA="$EXTRA partckpt:w"   # L57 PART CHECKPOINTS: replay of many joined steps 
 EXTRA="$EXTRA kmeshnat:w"   # L60: KMesh from_array_mesh/rebuild/is_manifold, Catmull-Clark subdivide and boolean in C++ (KineKMeshNative), native == GDScript, speed bars (tests/kmeshnat_test.gd)
 EXTRA="$EXTRA fastsave:w"   # L56 FASTSAVE: save/USD with 1000 props <= 300 ms warm, file byte-identical (tests/fastsave_test.gd)
 EXTRA="$EXTRA propsgrid:w"   # L58 PROPSGRID: Props.settle in C++ with a grid (GDScript twin), undo without re-settle, _props_show keeps nodes per prop (tests/propsgrid_test.gd)
+EXTRA="$EXTRA anykey:w"   # L13/L15/L16 ANYKEY: shape-key weights and any property keyed in the dope sheet, bake constraints/drivers to plain keys (tests/anykey_test.gd)
