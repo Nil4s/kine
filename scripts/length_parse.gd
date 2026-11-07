@@ -42,11 +42,11 @@ static func parse_length(text: String, project_unit: String = "mm") -> Dictionar
 
 ## mm shown in the project unit: "38.1 mm" or, with dual on, "38.1 mm (1.50 in)" (the other unit is inches, or mm for an inch project)
 static func label(mm: float, project_unit: String = "mm", dual := false) -> String:
-	var main := "%s %s" % [_n(mm / float(MM_PER.get(project_unit, 1.0))), project_unit]
+	var main := Units.fmt_as(mm / 1000.0, project_unit if MM_PER.has(project_unit) else "mm")   # P14: units.gd writes it
 	if not dual:
 		return main
 	if project_unit == "in":
-		return "%s (%s mm)" % [main, _n(mm)]
+		return "%s (%s)" % [main, Units.fmt_as(mm / 1000.0, "mm")]
 	return "%s (%.2f in)" % [main, mm / 25.4]
 
 
