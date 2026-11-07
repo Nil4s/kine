@@ -167,6 +167,15 @@ func _init() -> void:
 	var t0_old := float(B.plants[0]["t0"])
 	var foot_old := foot_at(B, t0_old)
 	var before := state_of(B)
+	# DIAGNOSTIC (not a bar): the same foot drift on B before any transfer
+	var d_b := 0.0
+	var tb0 := float(B.plants[0]["t0"])
+	var fb0 := foot_at(B, tb0)
+	var tq := tb0
+	while tq <= float(B.plants[0]["t1"]):
+		d_b = maxf(d_b, (foot_at(B, tq) - fb0).length())
+		tq += 1.0 / 30.0
+	print("diag: foot_l drift over the plant in B BEFORE the transfer: %.2f mm" % (d_b * 1000.0))
 
 	# 5, 6, 9, 10 transfer A -> B
 	m.undo.clear()
