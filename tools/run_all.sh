@@ -1109,3 +1109,4 @@ EXTRA="$EXTRA floorinjury:h"   # L98 floor material (mu) + injury profile (tests
 EXTRA="$EXTRA uiwire:w"   # L95 UIWIRE: AnyKey registry + Key this property, graph ghost + Alt-drag weight, AU picker, rig/react/weight palette + slider, Interp menu slerp, quaternion readout (tests/uiwire_test.gd)
 EXTRA="$EXTRA bodycheck2:h"   # L102 N056 style breaks + N058 can this body stand + N060 looks strong enough (tests/bodycheck2_test.gd)
 EXTRA="$EXTRA pagehot:h"   # L107 P06 per-page hotkeys + P07 per-page workspaces + P18 learn-from-me hotkeys (tests/pagehot_test.gd)
+EXTRA="$EXTRA pagewire:w"   # L108 P06/P07/P18 wired into the real app (tests/pagewire_test.gd)
