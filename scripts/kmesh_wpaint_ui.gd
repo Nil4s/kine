@@ -304,8 +304,28 @@ func _local(wpt: Vector3) -> Vector3:
 	return ed.view.global_transform.affine_inverse() * wpt
 
 
+
+var _pie_mouse := Vector2(-1, -1)   # the last mouse motion seen (events carry it; the OS cursor can differ under a pushed event)
+
+
+## P04 follow-up: the brush pie (option m.pie_on, off by default); a release on a wedge picks it (scripts/ring_menu.gd, release_pick)
+func _open_pie() -> void:
+	var its: Array = []
+	for b in KMeshWPaint.MODES:
+		its.append({"name": b, "run": func():
+			brush = b
+			_sync_panel()
+			_status()})
+	m.ui_pie.open(_pie_mouse if _pie_mouse.x >= 0.0 else m.get_viewport().get_pie_mouse_position(), "Brush", its)
+
+
 ## true = used
 func input(ev: InputEvent) -> bool:
+	if ev is InputEventMouseMotion:
+		_pie_mouse = (ev as InputEventMouseMotion).position
+	if ev is InputEventKey and ev.pressed and not ev.echo and ev.keycode == KEY_Q and not ev.ctrl_pressed and not ev.alt_pressed 			and not ev.shift_pressed and m.pie_on and m.ui_pie != null:
+		_open_pie()   # the brush pie (Q is free on this page; snap-90 stays on the S search line)
+		return true
 	if ev is InputEventKey and ev.pressed:
 		var ke := ev as InputEventKey
 		var k := ke.keycode
