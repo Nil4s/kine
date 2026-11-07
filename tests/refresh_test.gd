@@ -237,7 +237,7 @@ func profile(tag: String) -> void:
 		sres.append("%s %.2f" % [r[1], r[0]])
 	print("INFO profile %s: %s" % [tag, ", ".join(sres)])
 	PerfDoc.acc = {}
-	print("INFO dock stats: cached_calls %d rebuilds %d recomputes %d memo_hits %d none %d key %d held %d" % [HandsDock.cached_calls, HandsDock.rebuilds, HandsDock.recomputes, HandsDock.memo_hits, HandsDock.memo_none, HandsDock.memo_key, HandsDock.memo_held])
+	print("INFO natives: dock scans %d, corrective pushes %d; dock lists built %d" % [HandsDock.native_calls, Corrective.native_pushes, HandsDock.rebuilds])
 
 
 ## R5: the two C++ loops equal their GDScript twins, bit for bit, on random inputs

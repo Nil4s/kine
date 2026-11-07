@@ -136,18 +136,45 @@ static func place(card: Control, hb: Control, view: Rect2, blk: Array, body: Rec
 				_lists[key] = free_spots(view, blk, ps)
 				rebuilds += 1
 			var spots: PackedFloat64Array = _lists[key]
-			for i in range(0, spots.size(), 2):
-				var r := Rect2(spots[i], spots[i + 1], ps.x, ps.y)
-				if not (avoid_body and r.intersects(body)) and not PickDodge.covers(r, pts, 2.0):
-					_compact(card, hb, wi >= PLAIN)
-					hb.custom_minimum_size = Vector2(w - 20.0, 0)
-					card.size = ps
-					card.position = Vector2(spots[i], spots[i + 1])
-					return true
+			var hit := first_free(spots, ps, body, avoid_body, pts)
+			if hit >= 0:
+				_compact(card, hb, wi >= PLAIN)
+				hb.custom_minimum_size = Vector2(w - 20.0, 0)
+				card.size = ps
+				card.position = Vector2(spots[2 * hit], spots[2 * hit + 1])
+				return true
 	_compact(card, hb, false)
 	hb.custom_minimum_size = Vector2(WIDTHS[0] - 20.0, 0)
 	card.reset_size()
 	return false
+
+
+## L64: the first spot of the list (index into the pairs) that the body (when avoid) and the pick points do not reject, else -1.
+## KineDockNative.first_free is the same loop in C++ (single-precision Rect2 steps); _first_free_gd is the GDScript twin and the reference
+## (PerfDoc.refresh_full). The scan of a long list that is all rejected (a body wider than the room) was most of the card's cost.
+static var _native := -1   # -1 not asked, 0 no, 1 yes
+static var native_calls := 0   # tests
+
+
+static func native_ok() -> bool:
+	if _native < 0:
+		_native = 1 if NativeExt.ensure("kine_native", "KineDockNative") else 0
+	return _native == 1
+
+
+static func first_free(spots: PackedFloat64Array, ps: Vector2, body: Rect2, avoid: bool, pts: Array) -> int:
+	if PerfDoc.refresh_full or not native_ok():
+		return _first_free_gd(spots, ps, body, avoid, pts)
+	native_calls += 1
+	return KineDockNative.first_free(spots, ps.x, ps.y, body, avoid, PackedVector2Array(pts), 2.0)
+
+
+static func _first_free_gd(spots: PackedFloat64Array, ps: Vector2, body: Rect2, avoid: bool, pts: Array) -> int:
+	for i in range(0, spots.size(), 2):
+		var r := Rect2(spots[i], spots[i + 1], ps.x, ps.y)
+		if not (avoid and r.intersects(body)) and not PickDodge.covers(r, pts, 2.0):
+			return i / 2
+	return -1
 
 
 ## sets the card's width (via `hb`, the buttons' flow) and its position; returns true when a spot with no overlap was found
