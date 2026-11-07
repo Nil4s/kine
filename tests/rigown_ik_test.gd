@@ -188,7 +188,7 @@ func _init() -> void:
 	ok(CustomRig.set_limit(R, "tail_3", Vector3(-30, -30, -30), Vector3(30, 30, 30)) == "", "3 set_limit tail_3 answers ok")
 	for t in ["tail_1", "tail_2", "tail_4"]:
 		CustomRig.set_limit(R, t, Vector3(-30, -30, -30), Vector3(30, 30, 30))
-	CustomRig.set_limit(R, "leg_fl_lower", Vector3(-10, -5, -5), Vector3(80, 5, 5))
+	CustomRig.set_limit(R, "leg_fl_lower", Vector3(-80, -60, -60), Vector3(80, 60, 60))
 	CustomRig.set_limit(R, "leg_fl_upper", Vector3(-80, -60, -60), Vector3(80, 60, 60))
 	ok(CustomRig.set_limit(R, "nope", Vector3.ZERO, Vector3.ZERO) != "", "3 control: a limit on a bone that is not there is refused")
 	ok(CustomRig.set_limit(R, "tail_2", Vector3(20, 0, 0), Vector3(-20, 0, 0)) != "", "3 control: min above max is refused")
@@ -196,10 +196,10 @@ func _init() -> void:
 	var e1 := eul("leg_fl_lower")
 	print("     FK leg_fl_lower asked 120 deg, limit 80: reads %.4f" % e1.x)
 	ok(absf(e1.x - 80.0) < 1e-3, "3 FK past the limit is clamped to it (%.5f)" % e1.x)
-	m.rig_ui.rotate_deg("leg_fl_lower", Vector3(-50, 0, 0))
-	ok(absf(eul("leg_fl_lower").x + 10.0) < 1e-3, "3 FK below the limit is clamped to it")
+	m.rig_ui.rotate_deg("leg_fl_lower", Vector3(-100, 0, 0))
+	ok(absf(eul("leg_fl_lower").x + 80.0) < 1e-3, "3 FK below the limit is clamped to it")
 	var wild := Quaternion(Basis.from_euler(Vector3(deg_to_rad(120), 0, 0)))
-	var wo := over(wild, Vector3(-10, -5, -5), Vector3(80, 5, 5))
+	var wo := over(wild, Vector3(-80, -60, -60), Vector3(80, 60, 60))
 	ok(wo > 30.0, "3 control: the violation measure catches an unclamped 120 deg pose (%.1f deg over)" % wo)
 	m.rig_ui.rotate_deg("leg_fl_lower", Vector3(0, 0, 0))
 
@@ -305,7 +305,7 @@ func _init() -> void:
 	var viol := over(m.S.own_rig["pose"]["leg_fl_lower"], Vector3(-10, -5, -5), Vector3(20, 5, 5))
 	print("     IK with a tight knee limit: limited=%s, reached=%s, violation %.6f deg" % [str(res4.get("limited")), str(res4.get("reached")), viol])
 	ok(viol < 1e-3 and (res4.get("limited", false) or res4.get("reached", false)), "4 a tight knee limit is never exceeded by IK")
-	CustomRig.set_limit(m.S.own_rig, "leg_fl_lower", Vector3(-10, -5, -5), Vector3(80, 5, 5))
+	CustomRig.set_limit(m.S.own_rig, "leg_fl_lower", Vector3(-80, -60, -60), Vector3(80, 60, 60))
 
 	# 5 tail CCD
 	var tail := ["tail_1", "tail_2", "tail_3", "tail_4", "tail_5"]
