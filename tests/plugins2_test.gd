@@ -358,7 +358,7 @@ func _init() -> void:
 	planted.append("zz_fake_call")
 	ok(planted.filter(func(nm): return not seen.has(nm)) == ["zz_fake_call"], "PLANTED: a documented call nobody calls is reported missing")
 	var pub := []
-	for md in (PluginAPI as GDScript).get_script_method_list():
+	for md in (load("res://scripts/plugin_api.gd") as GDScript).get_script_method_list():
 		var nm: String = md["name"]
 		if not nm.begins_with("_"):
 			pub.append(nm)
@@ -389,7 +389,7 @@ func _init() -> void:
 	ok(scene_json() == before, "loop_cards: Ctrl+Z restores bytes")
 	u0 = m.undo.size()
 	run_row("Batch Rename: Number the cards")
-	var names := m.S.cards.map(func(c): return String(c["name"]))
+	var names: Array = m.S.cards.map(func(c): return String(c["name"]))
 	ok(m.undo.size() == u0 + 1 and names == ["Take 01", "Take 02", "Take 03"], "batch_rename: %s, 1 undo step" % str(names))
 	m._undo()
 	ok(scene_json() == before, "batch_rename: Ctrl+Z restores bytes")

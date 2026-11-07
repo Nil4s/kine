@@ -14802,8 +14802,11 @@ func _ui() -> void:
 	ui_root.add_child(ui_cmd)
 	plugins = Plugins.new()
 	plugins.host = {"scene": func(): return S, "clamp": func(j, v): return B.clamp_ang(j, v), "has_joint": func(j): return B.lim.has(j),
-		"begin": _push_undo, "say": _say, "changed": _plugins_changed, "run": _plugin_run}
+		"begin": _push_undo, "say": _say, "changed": _plugins_changed, "run": _plugin_run,
+		"sel_get": _plugin_sel_get, "sel_card": _plugin_sel_card, "sel_joint": _plugin_sel_joint, "mesh": _plugin_mesh,
+		"tool": _plugin_tool, "export": _plugin_export, "rollback": _plugin_rollback}
 	plugins.configure(["user://plugins", "res://examples/plugins"], "user://plugins.json", "user://plugins")   # the app's own folders
+	plugins.project_root = UserPaths.user_root() if UserPaths.exported() else "res://"
 	plugins.scan()
 	ui_plugins = PluginsPanel.new()
 	ui_plugins.plugins = plugins
@@ -21551,6 +21554,57 @@ func _plugin_run(i: int, cid: String) -> void:
 		_say("plugin command done: it changed nothing")
 	else:
 		_say("plugin command done: one undo step (Ctrl+Z takes it back)")
+
+
+func _plugin_sel_get() -> Dictionary:
+	return {"card": sel_card, "joint": sel, "object": sel_obj if sel_obj != "" else ("prop:%d" % sel_prop if sel_prop >= 0 else "")}
+
+
+func _plugin_sel_card(i: int) -> void:
+	sel_card = i
+	sel_end = -1
+	_rebuild_cards()
+
+
+func _plugin_sel_joint(j: String) -> void:
+	sel = j
+
+
+func _plugin_mesh():
+	return kmed.mesh if kmed != null and kmed.mesh != null else null
+
+
+var _plugin_agent = null   # AgentTools for api.run_tool, made on first use
+
+## L70: a plugin command that failed or ran too long takes its edits back: the step it opened is undone and dropped from redo
+func _plugin_rollback() -> void:
+	if not _macro_pushed:
+		return
+	_macro_nest = 0
+	_macro_pushed = false
+	_undo()
+	if not redo.is_empty():
+		redo.pop_back()
+
+
+## L70: api.run_tool: one line of the tool language through the same code the local API uses (no waiting for frames here)
+func _plugin_tool(tok: String) -> Dictionary:
+	if _plugin_agent == null:
+		_plugin_agent = load("res://scripts/agent_tools.gd").new(self)
+	var st: Variant = _plugin_agent.step(tok)
+	if not (st is Dictionary):
+		return {"ok": false, "why": "'%s' waits for frames and cannot run from a plugin" % tok}
+	return {"ok": bool(st.get("ok", false)), "why": String(st.get("error", "")), "said": String(st.get("said", ""))}
+
+
+## L70: api.export
+func _plugin_export(kind: String, path: String) -> Dictionary:
+	if kind == "bvh":
+		if S.cards.size() < 2:
+			return {"ok": false, "why": "an animation needs at least 2 cards before it can be exported"}
+		var r := BvhExport.write(S, B, path)
+		return {"ok": r[0] == OK, "why": "" if r[0] == OK else "could not write the file (%s)" % error_string(r[0])}
+	return {"ok": false, "why": "unknown kind"}
 
 
 ## the S box's plugin rows follow the switches (a plugin switched on, off, or disabled itself)

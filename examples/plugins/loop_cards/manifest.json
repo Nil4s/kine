@@ -1,0 +1,11 @@
+{
+  "name": "Loop Cards",
+  "version": "1.0.0",
+  "author": "Teschima Studios",
+  "license": "MIT-0 (free to copy)",
+  "api": 2,
+  "description": "Appends a copy of the first card at the end, so the move plays as a loop. One undo step.",
+  "commands": [
+    {"id": "close_loop", "name": "Close the loop", "desc": "adds a last card with the first card's pose"}
+  ]
+}
