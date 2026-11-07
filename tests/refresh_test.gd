@@ -133,9 +133,8 @@ func block_bytes() -> PackedByteArray:
 
 ## the status and mouse-hint labels are blockers of the card and follow the real clock: the same text for every pass
 func pin_labels() -> void:
-	for lb in [m.ui_status, m.ui_mouse]:
-		if lb != null:
-			lb.text = "status line"
+	if m.ui_status != null:
+		m.ui_status.text = "status line"
 
 
 func hash_frames(mode: String) -> Dictionary:
@@ -255,7 +254,8 @@ func equality() -> void:
 			spots.append(float(rng.randi_range(0, 200)) * 6.0 + (0.5 if c % 7 == 0 else 0.0))
 			spots.append(float(rng.randi_range(0, 120)) * 6.0)
 		var ps := Vector2(rng.randf_range(100, 560), rng.randf_range(40, 300))
-		var body := Rect2(rng.randf_range(0, 1200), rng.randf_range(0, 700), rng.randf_range(0, 900), rng.randf_range(0, 600))
+		var big := c % 2 == 0   # half the bodies are wider than the room: every spot rejected (the `none` outcome)
+		var body := Rect2(rng.randf_range(0, 100), rng.randf_range(0, 50), rng.randf_range(1300, 2200), rng.randf_range(800, 1400)) if big else Rect2(rng.randf_range(0, 1200), rng.randf_range(0, 700), rng.randf_range(0, 900), rng.randf_range(0, 600))
 		var pts := []
 		for k in rng.randi_range(0, 80):
 			pts.append(Vector2(rng.randf_range(0, 1400), rng.randf_range(0, 800)))

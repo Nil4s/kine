@@ -127,8 +127,12 @@ static func place(card: Control, hb: Control, view: Rect2, blk: Array, body: Rec
 	for avoid_body in [true, false]:
 		for wi in WIDTHS.size():
 			var w: float = WIDTHS[wi]
+			var _t0 := PerfDoc.t()
 			_compact(card, hb, wi >= PLAIN)
+			PerfDoc.add("hd_cm", _t0)
+			_t0 = PerfDoc.t()
 			var ps := measure(card, hb, w, wi >= PLAIN)
+			PerfDoc.add("hd_ms", _t0)
 			if ps.x > view.size.x or ps.y > view.size.y:
 				continue
 			var key := "%d|%s" % [wi, str(ps)]
@@ -136,7 +140,9 @@ static func place(card: Control, hb: Control, view: Rect2, blk: Array, body: Rec
 				_lists[key] = free_spots(view, blk, ps)
 				rebuilds += 1
 			var spots: PackedFloat64Array = _lists[key]
+			var _t1 := PerfDoc.t()
 			var hit := first_free(spots, ps, body, avoid_body, pts)
+			PerfDoc.add("hd_ff", _t1)
 			if hit >= 0:
 				_compact(card, hb, wi >= PLAIN)
 				hb.custom_minimum_size = Vector2(w - 20.0, 0)
@@ -224,6 +230,12 @@ static func place_fresh(card: Control, hb: Control, view: Rect2, blk: Array, bod
 ## compact: 12 px type on the buttons and the state line, 2 px between rows (the same words, a smaller card)
 static func _compact(card: Control, hb: Control, on: bool) -> void:
 	var box := hb.get_parent() as Control
+	# L64: the overrides are the same for the same `on` (and the same children): setting them again changes nothing but costs a theme
+	# notification per control (about 25 controls, up to 20 calls per placement). PerfDoc.refresh_full = the old, always-set path.
+	var csig: Array = [on, hb.get_child_count(), box.get_child_count() if box != null else 0]
+	if not PerfDoc.refresh_full and hb.has_meta("_dock_cs") and hb.get_meta("_dock_cs") == csig:
+		return
+	hb.set_meta("_dock_cs", csig)
 	hb.add_theme_constant_override("h_separation", 3 if on else 4)
 	hb.add_theme_constant_override("v_separation", 2 if on else 4)
 	if box != null:
