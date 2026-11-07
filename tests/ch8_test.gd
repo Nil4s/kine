@@ -213,7 +213,7 @@ func _e_mug() -> void:
 		return
 	var F = Fluid.make()
 	F.set_threads(8)
-	var m := FluidScenes.mug(F, 0.003)
+	var m := FluidScenes.mug(F, 0.002)   # Nick 11-06: finer grid; at 3 mm the voxel cup holds only 85.1 % of cap (the bar's ceiling), at 2 mm 93.8 %
 	if m.is_empty():
 		ok(false, "(e) the mug part built no mesh")
 		return
@@ -223,9 +223,11 @@ func _e_mug() -> void:
 	var cz: float = m["cz"]
 	var rim: float = m["rim"]
 	var cap: float = m["cap"]
-	var step_t := 0.003
-	var half := 0.014
+	var step_t := 0.002   # CFL at the 2 mm cell
+	var half := 0.008   # Nick 11-06: a kettle-like pour of 0.1-0.3 L/s (was a 28 mm stream at ~1.8 L/s, "like a wave"); bars unchanged
+	var every := 7       # Nick 11-06 picked 0.10 L/s from the video: one slab of height h every 7 steps, entering at h / (7 step_t), a continuous stream (~0.093 L/s, soda-fountain range 44-133 mL/s)
 	var poured := 0.0
+	var t_stop := 0.0
 	var max_in_solid := 0
 	var leak := 0
 	var t := 0.0
@@ -237,12 +239,13 @@ func _e_mug() -> void:
 		F.advance(step_t)
 		t += step_t
 		nsteps += 1
-		if pouring:
-			var n: int = F.add_fluid_box(Vector3(cx - half, rim + 0.03, cz - half), Vector3(cx + half, rim + 0.03 + h, cz + half), Vector3(0, -1.0, 0), seed_i)
+		if pouring and nsteps % every == 0:
+			var n: int = F.add_fluid_box(Vector3(cx - half, rim + 0.03, cz - half), Vector3(cx + half, rim + 0.03 + h, cz + half), Vector3(0, -h / (every * step_t), 0), seed_i)
 			seed_i += 1
 			poured += float(n) / 8.0 * h * h * h
 			if poured >= 1.5 * cap:
 				pouring = false
+				t_stop = t
 				t_end = t + 0.8
 		if nsteps % 10 == 0:
 			max_in_solid = maxi(max_in_solid, F.particles_in_solid())
@@ -251,7 +254,7 @@ func _e_mug() -> void:
 				for p in ps:
 					if p.y < rim - 3.0 * h and Vector2(p.x - cx, p.z - cz).length() > m["R_out"] + 2.0 * h:
 						leak += 1
-		if (not pouring and t >= t_end) or t > 4.0:
+		if (not pouring and t >= t_end) or t > 8.0:
 			break
 	var ps2: PackedVector3Array = F.positions()
 	var n_all := ps2.size()
@@ -265,6 +268,7 @@ func _e_mug() -> void:
 			spilled += 1
 	var held := float(inside) / 8.0 * h * h * h
 	var mesh_n: int = F.particles_in_mesh(m["verts"], m["tris"])
+	print("      pour rate %.3f L/s (stream %.0f mm wide)" % [poured * 1000.0 / maxf(t_stop, 1e-6), 2000.0 * half])
 	print("      pour: %.1f s simulated, %d particles, poured %.3f L (cup holds %.3f L), %d steps" % [t, n_all, poured * 1000.0, cap * 1000.0, nsteps])
 	ok(max_in_solid == 0 and F.particles_in_solid() == 0, "(e) 0 particles in wall voxels at every check (max %d)" % max_in_solid)
 	ok(mesh_n == 0, "(e) 0 particles inside the mesh by ray parity (found %d)" % mesh_n)

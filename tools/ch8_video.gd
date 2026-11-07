@@ -148,7 +148,7 @@ func _mug(n: int) -> void:
 	cam.position = Vector3(cx + 0.05, rim * 1.5, cz + 0.30)
 	cam.look_at(Vector3(cx, rim * 0.7, cz))
 	var step_t := 0.003
-	var half := 0.014
+	var half := float(OS.get_environment("MUG_HALF")) if OS.has_environment("MUG_HALF") else 0.008   # ch8 (e) pour: 16 mm stream (Nick 11-06)
 	var poured := 0.0
 	var seed_i := 100
 	var pouring := true
