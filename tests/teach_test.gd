@@ -127,7 +127,7 @@ func stance_scene(fam: int, v: float) -> Scene:
 	var S := Scene.new()
 	S.name = "zz_teach_stance"
 	S.pin = false
-	if fam == 4:
+	if fam == 4 or fam >= 8:
 		S.free_limits = true
 	S.add("stand", B.to_dict())
 	match fam:
@@ -156,6 +156,14 @@ func stance_scene(fam: int, v: float) -> Scene:
 				B.set_ang(j, Vector3(v, 0, 0))
 			for sd in ["_l", "_r"]:
 				B.set_ang("upperarm" + sd, Vector3(90, 0, 0))
+		6, 7:   # the right leg out to the side (v deg, the sign picks the side): the weight sits between the feet, past the left one
+			B.set_ang("thigh_r", Vector3(0, v if fam == 6 else -v, 0))
+			B.set_ang("upperarm_r", Vector3(0, 90.0 if fam == 6 else -90.0, 0))
+		8, 9:   # the right leg bent up AND the trunk bent sideways v deg a joint (raw, past the limits), toward either side
+			B.set_ang("thigh_r", Vector3(60, 0, 0))
+			B.set_ang("calf_r", Vector3(100, 0, 0))
+			for j in ["spine_01", "spine_02", "spine_03"]:
+				B.ang[j] = Vector3(0, v if fam == 8 else -v, 0)
 	B.fk()
 	S.add("lean", B.to_dict())
 	S.cards[0]["move"] = -1.0
@@ -191,7 +199,7 @@ func held_margin(S: Scene) -> float:
 
 ## scan every family; the first whose margin reaches want_cm (hard) plants the fault; soft = the first v 2.5 cm or more past hard
 func plant_stance(want_cm: float) -> Dictionary:
-	var fams := [[0, range(0, 61, 2)], [1, range(0, -21, -2)], [2, range(20, 111, 10)], [3, range(0, 41, 2)], [5, range(0, 21, 2)], [4, range(0, 61, 2)]]
+	var fams := [[0, range(0, 61, 2)], [1, range(0, -21, -2)], [2, range(20, 111, 10)], [3, range(0, 41, 2)], [5, range(0, 21, 2)], [4, range(0, 61, 2)], [6, range(0, 61, 5)], [7, range(0, 61, 5)], [8, range(0, 41, 4)], [9, range(0, 41, 4)]]
 	for fam in fams:
 		var vals: Array = []
 		for k in fam[1]:
@@ -422,7 +430,7 @@ func _init() -> void:
 	# ---- 5 not canned
 	var rl2 := Teach.landing(lf2, body())
 	var rs2: Dictionary = Teach.stance(sf2, body()) if sf2 != null else {}
-	ok(int(rl2.get("n", 0)) == 1 and int(rs2.get("n", 0)) == 1, "5 the second landing (calf 30) and the second stance (margin %.1f cm) are also found" % pl["m_soft"])
+	ok(int(rl2.get("n", 0)) == 1 and int(rs2.get("n", 0)) == 1, "5 the second landing (calf 30) and the second stance (margin %.1f cm) are also found" % pl.get("m_soft", 0.0))
 	if has_l and has_s and int(rl2.get("n", 0)) == 1 and int(rs2.get("n", 0)) == 1:
 		ok(rl2["findings"][0]["text"] != fl["text"] and absf(float(rl2["findings"][0]["numbers"]["knee_deg"]) - float(nl["knee_deg"])) > 3.0 and rs2["findings"][0]["text"] != fs["text"]
 			and absf(float(rs2["findings"][0]["numbers"]["margin_cm"]) - float(ns["margin_cm"])) > 2.0,
