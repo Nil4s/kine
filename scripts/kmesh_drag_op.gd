@@ -198,7 +198,7 @@ func set_typed() -> void:
 	if not typed.is_valid_float():
 		_say()
 		return
-	var a := typed.to_float()
+	var a := Units.typed_m(typed)
 	if kind == "inset":
 		a = maxf(a, INSET_MIN)
 	_preview(a)
@@ -259,5 +259,5 @@ func cancel() -> void:
 
 func _say() -> void:
 	var what := "extrude" if kind == "extrude" else "inset"
-	var val := ("type %s" % typed) if typed != "" else Units.len(amount)
+	var val := Units.typed_text(typed) if typed != "" else Units.len(amount)
 	ui.m._say("Model: %s %s%s. Mouse moves it; type a number for an exact one; click or Enter confirms, Esc or right click cancels" % [what, val, ", each face on its own" if each else ""])

@@ -319,6 +319,7 @@ func _settings_box() -> PanelContainer:
 	_show_check.toggled.connect(_show_toggled)
 	v.add_child(_show_check)
 	v.add_child(_sticky_row())   # C11
+	v.add_child(_access_rows())   # L115
 	v.add_child(_lang_row())   # FRIDAY 99: Language: English / Português
 	var close_btn := _button("Close", "settings_close")
 	close_btn.pressed.connect(_close)
@@ -336,6 +337,7 @@ func show_screen(at_boot := false) -> void:
 		build()
 	_fit()
 	_refresh()
+	_access_sync()
 	visible = true
 	_relayout()
 	move_to_front()
@@ -886,6 +888,77 @@ func _sticky_row() -> CheckBox:
 		StickyKeys.save(v))
 	return c
 
+
+
+## L115: Font size, Colour-blind colours, Length unit, Brush pie menu (scripts/access_prefs.gd remembers them)
+func _access_rows() -> VBoxContainer:
+	var v := VBoxContainer.new()
+	v.name = "settings_access_rows"
+	v.add_theme_constant_override("separation", 10)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 10)
+	h.add_child(_label("Text size", 14, "text"))
+	var fs := OptionButton.new()
+	fs.name = "settings_font_scale"
+	fs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for f in AccessPrefs.SCALES:
+		fs.add_item("%d%%" % roundi(f * 100.0))
+	fs.select(maxi(0, AccessPrefs.SCALES.find(Access.scale)))
+	fs.item_selected.connect(func(i: int):
+		Access.set_font_scale(m, AccessPrefs.SCALES[i])
+		AccessPrefs.save("font_scale", AccessPrefs.SCALES[i]))
+	h.add_child(fs)
+	v.add_child(h)
+	var cb := CheckBox.new()
+	cb.name = "settings_colourblind"
+	cb.text = "Colour-blind safe colours"
+	cb.button_pressed = Access.cb
+	cb.toggled.connect(func(on: bool):
+		Access.set_colourblind(on)
+		AccessPrefs.save("colourblind", on))
+	v.add_child(cb)
+	var h2 := HBoxContainer.new()
+	h2.add_theme_constant_override("separation", 10)
+	h2.add_child(_label("Length unit", 14, "text"))
+	var un := OptionButton.new()
+	un.name = "settings_unit"
+	un.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for u in Units.UNITS:
+		un.add_item(String(u))
+	un.select(maxi(0, Units.UNITS.find(Units.unit)))
+	un.item_selected.connect(func(i: int):
+		Units.set_unit(String(Units.UNITS[i]))
+		AccessPrefs.save("unit", String(Units.UNITS[i])))
+	h2.add_child(un)
+	v.add_child(h2)
+	var pie := CheckBox.new()
+	pie.name = "settings_pie"
+	pie.text = "Brush pie menu on the sculpt page (Q)"
+	pie.button_pressed = bool(m.pie_on)
+	pie.toggled.connect(func(on: bool):
+		m.pie_on = on
+		AccessPrefs.save("pie", on)
+		var sc := m.find_child("sculpt_pie", true, false) as CheckBox   # L135: the sculpt page's own box is the same setting
+		if sc != null:
+			sc.set_pressed_no_signal(on))
+	v.add_child(pie)
+	return v
+
+
+## the Settings rows show the live state (the remembered choices are applied at boot, maybe after this screen was built)
+func _access_sync() -> void:
+	var fs := find_child("settings_font_scale", true, false) as OptionButton
+	if fs != null:
+		fs.select(maxi(0, AccessPrefs.SCALES.find(Access.scale)))
+	var cb := find_child("settings_colourblind", true, false) as CheckBox
+	if cb != null:
+		cb.set_pressed_no_signal(Access.cb)
+	var un := find_child("settings_unit", true, false) as OptionButton
+	if un != null:
+		un.select(maxi(0, Units.UNITS.find(Units.unit)))
+	var pie := find_child("settings_pie", true, false) as CheckBox
+	if pie != null:
+		pie.set_pressed_no_signal(bool(m.pie_on))
 
 
 func _lang_row() -> HBoxContainer:

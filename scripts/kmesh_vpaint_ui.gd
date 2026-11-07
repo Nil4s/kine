@@ -44,6 +44,9 @@ var _blank := ""        # L55: the SHA-256 of the texture as Texture mode made i
 var _last_px := Vector2.ZERO
 var dropper := false    # the panel's eyedropper: the next click on the mesh picks its colour
 var _stroking := false
+var pen_target := "strength"   # P09 tablet: what pen pressure scales: strength | radius | both | off (a mouse is always full)
+var _pen := KMeshPen.new()
+var _stroke_r := 0.12
 var _hover := {}        # {"point" (world), "face"} under the mouse, or {}
 var _ov: Control
 var panel: PanelContainer
@@ -197,8 +200,8 @@ func _tex_stamp(p: Vector2) -> int:
 	var model: Transform3D = view.global_transform
 	var mvp := cam.get_camera_projection() * Projection(cam.global_transform.affine_inverse() * model)
 	var wp: Vector3 = s["point"]
-	var rpx := cam.unproject_position(wp).distance_to(cam.unproject_position(wp + cam.global_transform.basis.x * radius * model.basis.get_scale().x))
-	return tp.stamp(mvp, model.affine_inverse() * cam.global_position, Vector2i(m.get_viewport().get_visible_rect().size), p, rpx, color, strength, 1.0 - softness, 2)
+	var rpx := cam.unproject_position(wp).distance_to(cam.unproject_position(wp + cam.global_transform.basis.x * radius * _pen.rk() * model.basis.get_scale().x))   # P09: pen radius
+	return tp.stamp(mvp, model.affine_inverse() * cam.global_position, Vector2i(m.get_viewport().get_visible_rect().size), p, rpx, (Color.WHITE if _pen.erasing() else color), strength * _pen.sk(), 1.0 - softness, 2)
 
 
 func _tex_to(p: Vector2, first: bool) -> void:
@@ -252,7 +255,10 @@ func params(ev: InputEvent = null) -> Dictionary:
 	var b := blur
 	if ev is InputEventWithModifiers and (ev as InputEventWithModifiers).shift_pressed:
 		b = true
-	return {"color": color, "mode": mode, "radius": radius, "strength": strength, "falloff": falloff, "blur": b, "sym_x": sym_x, "hardness": 1.0 - softness}
+	_pen.target = pen_target
+	var md := KMeshPen.inverse_vmode(mode) if _pen.erasing() else mode   # P09: the eraser end: add <-> subtract, lighten <-> darken
+	var col := Color.WHITE if _pen.erasing() and mode == KMeshVPaint.MIX else color   # and a mix erases back to white
+	return {"color": col, "mode": md, "radius": radius, "strength": strength, "falloff": falloff, "blur": b, "sym_x": sym_x, "hardness": 1.0 - softness}
 
 
 func _status() -> void:
@@ -269,6 +275,13 @@ func surface_at(cam: Camera3D, p: Vector2) -> Dictionary:
 
 func _local(wp: Vector3) -> Vector3:
 	return view.global_transform.affine_inverse() * wp
+
+
+## the ordered log takes a texture stroke back (back) or forward
+func tex_undo_redo(back: bool) -> void:
+	var r: bool = tp.undo() if back else tp.redo()
+	_tex_refresh()
+	m._say("Paint: texture stroke %s" % (("undone" if back else "redone") if r else "- nothing to take"))
 
 
 ## F / the panel / "op:vpaint_fill": the model's selection takes the colour (blend mode, strength), one undo step
@@ -301,19 +314,35 @@ func _unhandled_input(ev: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
+
+var _pie_mouse := Vector2(-1, -1)   # the last mouse motion seen (events carry it; the OS cursor can differ under a pushed event)
+
+
+## P04 follow-up: the brush pie (option m.pie_on, off by default); a release on a wedge picks it (scripts/ring_menu.gd, release_pick)
+func _open_pie() -> void:
+	var its: Array = []
+	for b in KMeshVPaint.MODES + ["blur"]:
+		its.append({"name": b, "run": func():
+			blur = (b == "blur")
+			if not blur:
+				mode = b
+			_status()})
+	m.ui_pie.open(_pie_mouse if _pie_mouse.x >= 0.0 else m.get_viewport().get_pie_mouse_position(), "Brush", its)
+
+
 ## true = used
 func input(ev: InputEvent) -> bool:
 	if not on:
 		return false
+	if ev is InputEventMouseMotion:
+		_pie_mouse = (ev as InputEventMouseMotion).position
+	if ev is InputEventKey and ev.pressed and not ev.echo and ev.keycode == KEY_Q and not ev.ctrl_pressed and not ev.alt_pressed 			and not ev.shift_pressed and m.pie_on and m.ui_pie != null:
+		_open_pie()   # the brush pie (Q is free on this page; snap-90 stays on the S search line)
+		return true
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var ke := ev as InputEventKey
 		if tex_mode and ke.ctrl_pressed and ke.keycode == KEY_Z and tp != null:
-			if ke.shift_pressed:
-				tp.redo()
-			elif not tp.undo():
-				return false
-			_tex_refresh()
-			m._say("Paint: texture stroke %s" % ("redone" if ke.shift_pressed else "undone"))
+			m._redo() if ke.shift_pressed else m._undo()   # L126: the one ordered log (P12); tex_undo_redo takes the texture step
 			return true
 		if ke.ctrl_pressed or ke.alt_pressed:
 			return false   # Ctrl+Z and the rest: the model preview's
@@ -364,7 +393,9 @@ func input(ev: InputEvent) -> bool:
 				return true
 			ui.undo.begin(mesh)
 			vp.begin(mesh, params(mb))
-			vp.to(_local(s["point"]), 1.0, int(s["face"]))
+			_stroke_r = float(vp.p["radius"])
+			_pen_dab()
+			vp.to(_local(s["point"]), _pen.sk(), int(s["face"]))
 			_stroking = true
 			view.mark_dirty()
 			return true
@@ -373,6 +404,8 @@ func input(ev: InputEvent) -> bool:
 		_stroking = false
 		if tex_mode:
 			var tn := tp.end_stroke()
+			if tn > 0:
+				m._pu_note("tex", m.cur_page, tp)   # L126: the texture stroke joins the ordered log
 			m._say("Paint: one texture stroke (%d texels), one undo step (Ctrl+Z takes it back)" % tn)
 			return true
 		vp.end()
@@ -384,15 +417,25 @@ func input(ev: InputEvent) -> bool:
 		var mm := ev as InputEventMouseMotion
 		_hover = surface_at(cam, mm.position)
 		_ov.queue_redraw()
+		_pen.target = pen_target
+		_pen.note(mm)
 		if not _stroking:
 			return false
 		if not _hover.is_empty() and tex_mode:
 			_tex_to(mm.position, false)
 		elif not _hover.is_empty():
-			vp.to(_local(_hover["point"]), KMeshSculpt.pressure_of(mm))
+			_pen_dab()
+			vp.to(_local(_hover["point"]), _pen.sk())
 			view.mark_dirty()
 		return true
 	return false
+
+
+## P09: before a dab, the pen's radius factor (radius mode) goes into the running stroke
+func _pen_dab() -> void:
+	var rk := _pen.rk()
+	if rk != 1.0:
+		vp.p["radius"] = _stroke_r * rk
 
 
 func _draw_overlay() -> void:
@@ -481,6 +524,8 @@ func _build_panel() -> void:
 	ss.value_changed.connect(_panel_set.bind("softness"))
 	so.add_child(ss)
 	_w["softness"] = ss
+	PenPicker.load_into(self, "vpaint")
+	PenPicker.add(box, self, "vpaint")
 	_build_sticker_panel(box)
 	var row := HBoxContainer.new()
 	box.add_child(row)

@@ -360,6 +360,7 @@ var guided_pose: GuidedPose   # C16: opt-in guided first pose (palette command o
 var onboard: Onboarding     # ONBOARDING (scripts/onboarding.gd, R25): the first-launch 3-step guide
 var build_choose: BuildChoose   # BUILD's "What do you want to build?" chooser (scripts/build_choose.gd)
 var model_cards: ModelCards   # MODEL's task cards, "What do you want to do?" (scripts/model_cards.gd)
+var task_coach: TaskCoach   # P19 (scripts/task_coach.gd): BODY, MODEL, SURFACE, POSE walk with live checks
 var page_tour: PageTour     # P01 (scripts/page_tour.gd): BODY / MODEL / SCULPT / SURFACE, a 5-step tour the first time each opens
 var easy: EasyMode           # EASY MODE (scripts/easy_mode.gd): the 13-button bar; Expert = every panel and tool
 var ui_top_bar: Control      # the top strip (Easy hides it and shows its own bar)
@@ -395,15 +396,17 @@ func _chrome_sync() -> void:
 
 
 func lw() -> float:
-	return 0.0 if big_view or easy.on or _hides("sides") else float(RAIL_W if fold["left"] else LEFT_W)
+	return 0.0 if big_view or easy.on or _hides("sides") else float(RAIL_W if fold["left"] else side_w["left"])
 
 
 func rw() -> float:
-	return 0.0 if big_view or easy.on or _hides("sides") else float(RAIL_W if fold["right"] else RIGHT_W)
+	return 0.0 if big_view or easy.on or _hides("sides") else float(RAIL_W if fold["right"] else side_w["right"])
 
 
 func _fold(which: String, on: bool, save := true) -> void:
 	fold[which] = on
+	if save:
+		_dock_note()   # L123: this page's own fold
 	_sides_apply()
 	_layout_bottom()
 	_fit_rows.call_deferred()
@@ -437,6 +440,7 @@ func _sides_apply() -> void:
 			ui_rails[k].visible = not big_view and fold[k] and not clean and not easy.on and not pose_only
 		if ui_fold_btn.has(k):
 			ui_fold_btn[k].visible = not big_view and not fold[k] and not clean and not easy.on and not pose_only
+	_dock_widths()
 	if ui_body != null:
 		ui_body.visible = cur_page == "BODY" and not big_view and not fold["left"] and not clean and not easy.on
 		if ui_body.visible:
@@ -678,6 +682,9 @@ const LIBRARY := "user://library"
 var library := LIBRARY        # a test's own: user://zz_lib_<pid>, removed on exit
 var ui_props_root: Node3D
 var sel_prop := -1
+var sel_props: Array = []   # L120 P10: with 2 or more props picked (Shift / Ctrl-click) this holds all of them, sel_prop the last one
+var multi_panel: MultiPanel
+var _multi_starts := {}
 var sel_obj_part := ""   # m.sel when sel_obj was picked: a part picked since lets go of the object
 var sel_obj := ""   # L36 OUTLINER: the picked object that is not a prop ("light:key", "cam:0", "body:hero"...); a prop is sel_prop
 var _prop_drag := {}
@@ -3204,6 +3211,7 @@ func _ps() -> Scene:
 
 
 func _ready() -> void:
+	KMeshUndo.on_step = _pu_mesh_step   # P12: the mesh pages' steps join the one ordered history
 	# THE QUALITY WORKER (Easy's My scenes badges): Kine --headless --kine-quality-worker <list.json> grades the list and quits
 	# before anything else starts (no UI, no autosave). Checked first, so the app's start-up never runs in that process.
 	var wargs := OS.get_cmdline_args()
@@ -3258,6 +3266,7 @@ func _ready() -> void:
 	BootProfile.mark("load skeleton+limits")
 	var testing: bool = Engine.get_main_loop().get_script() != null
 	sticky.set_on(StickyKeys.saved() if (not testing or OS.get_environment("KINE_STICKY_FILE") != "") else false)   # C11
+	AccessPrefs.apply(self, testing)   # L115: the remembered font scale / colour-blind colours / unit / brush pie
 	KineLang.apply_saved(testing)   # FRIDAY 99: the remembered language (English unless Portugues was picked in the start screen's Settings)
 	if testing:
 		settings = "user://poser_test_%d.cfg" % OS.get_process_id()
@@ -3371,6 +3380,7 @@ func _ready() -> void:
 	hk.load_from(settings)
 	hk.scoped.load_file()   # P06: the page keys (user://kine_pagekeys.json); the run counts and dismissals (P18) load with hk.learn
 	pg_spaces = PageSpaces.new()   # P07: each page's panel layout (user://kine_page_spaces.json)
+	pg_docks = PageDocks.new()   # L123 P07: every app page's own side widths, folds and floating panels (user://kine_page_docks.json)
 	camnav = CamNav.new(self)   # W01: camera navigation settings (scripts/cam_nav.gd)
 	camnav.load_from(settings)
 	camnav_ui = CamNavUI.new(self, camnav)
@@ -3399,6 +3409,7 @@ func _ready() -> void:
 		if not testing and cf.get_value("layout", "fold_" + k, FOLD_DEFAULT[k]):
 			_fold(k, true, false)
 	_pages_load(cf)
+	_dock_enter(cur_page)   # L123: the layout this page was left with (a restart)
 	shading.load_cfg(self)   # K01 / K02: the remembered shading mode, matcap, studio lights and sky (a test's own file)
 	BootProfile.mark("pages+shading")
 	_fit_rows.call_deferred()
@@ -3407,6 +3418,9 @@ func _ready() -> void:
 	onboard.build(ui_root)
 	guided_pose.build(ui_root)
 	page_tour.build(ui_root)
+	task_coach = TaskCoach.new(self)
+	add_child(task_coach)
+	task_coach.build(ui_root)
 	model_cards.build(ui_root)
 	build_choose.build(ui_root)
 	page_tour.auto = not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour")   # P01: a test turns it on itself
@@ -4989,7 +5003,7 @@ static func _fighters_measure(hs: Scene, others: Array) -> Dictionary:
 		var who: String = names[0] if h["by"] == "hero" else names[h["vs"]]
 		var whom: String = names[h["vs"]] if h["by"] == "hero" else names[0]
 		var what: String = "weapon" if Body.is_wep(h["part"]) else String(h["part"])
-		txt += "\n%.2fs  %s  %s: %s's %s on %s's %s  %.1f m/s  %.1f cm deep" % [h["t"], h["zone"], h["kind"], who, what, whom, h["on"], h["speed"], float(h["depth"]) * 100.0]
+		txt += "\n%.2fs  %s  %s: %s's %s on %s's %s  %.1f m/s  %s deep" % [h["t"], h["zone"], h["kind"], who, what, whom, h["on"], h["speed"], Units.fixed(float(h["depth"]), 1)]
 		if float(h["u"]) >= 0.0:
 			txt += "  (%s up)" % Units.len(float(h["u"]))
 	return {"txt": txt, "hits": all}
@@ -5015,7 +5029,7 @@ func _fighters_mark() -> void:
 	var at: Vector3 = _stage_xf() * Dummy.cross_at(hb, actors_rt[bk]["B"], actors_rt[bk]["xf"], best)   # hero space -> the view's
 	hit_dot.position = at
 	hit_tag.position = at + Vector3(0, 0.12, 0)
-	hit_tag.text = "%s  (%s, %.1f cm)" % [Dummy.cross_name(best).get_slice("|", 1), best[3], float(best[2]) * 100.0]
+	hit_tag.text = "%s  (%s, %s)" % [Dummy.cross_name(best).get_slice("|", 1), best[3], Units.fixed(float(best[2]), 1)]
 
 
 ## the playhead to contact i of the fighters' report (its row in the browser)
@@ -6334,10 +6348,14 @@ func _unhandled_input(ev: InputEvent) -> void:
 					_pick_t = float(pa[2])
 					pp = [-1, INF]
 				if int(pp[0]) >= 0 and (j == "" or float(pp[1]) < _pick_t):   # a prop in front of the body: the prop
+					if mb.ctrl_pressed or (mb.shift_pressed and (int(pp[0]) != sel_prop or _msel().size() >= 2)):   # L120 P10: Ctrl / Shift-click adds or takes out (Shift on the one picked prop is still the turn drag)
+						_prop_toggle(int(pp[0]))
+						return
 					_prop_press(int(pp[0]), mb.position, float(pp[1]))
 					return
 				if sel_prop >= 0:
 					sel_prop = -1
+					sel_props = []
 					_props_show()
 				redspots.press(j, mb.position, playhead)   # N074: a glowing part opens its finding and Fix (the press goes on)
 				if easy != null and easy.sliders != null:
@@ -6529,7 +6547,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			return
 		if k.ctrl_pressed:
 			match k.keycode:
-				KEY_Z: _undo()
+				KEY_Z: _redo() if k.shift_pressed else _undo()
 				KEY_K: ui_cmd.open() if (bld != null and bld.part != null and bld.part.ep != null and bld.part.ep.active()) else _toggle_autokey()   # s097: Easy Part: Ctrl+K opens the action search; elsewhere ROADMAP 42 auto-key on / off
 				KEY_Y: _redo()
 				KEY_S: _save_scene() if k.shift_pressed or (easy != null and easy.on) else _save_pose()   # Ctrl+Shift+S = the scene (round 15, V3); Easy: Ctrl+S too (startwalk bar 8: a beginner's Ctrl+S wrote a pose into moves/)
@@ -7594,9 +7612,95 @@ func _push_undo() -> void:
 		undo_dropped += 1
 		_tree.trim_root()
 	redo.clear()
+	_pu_note("pose", cur_page, null)
 	UndoBudget.settle(self)   # Friday 175: the old steps packed, the oldest forgotten over the memory budget
 	_jpending = true
 	_co_sync()
+
+
+## P12 (scripts/page_undo.gd): ONE ordered undo history across pages. The lists stay each their own; this keeps the order.
+var pu = load("res://scripts/page_undo.gd").new()
+
+
+## a step was made on a list: it is the newest of all, and the redo of every other list is gone with it
+func _pu_note(kind: String, page: String, u) -> void:
+	pu.note(kind, page, u)
+	if kind != "pose":
+		redo.clear()
+	if ksc != null and ksc.undo != u:
+		ksc.undo.redos.clear()
+	if kmed != null and kmed.undo != u:
+		kmed.undo.redos.clear()
+	if bld != null and bld.asm != null and bld.asm != u:
+		bld.asm.asm_redo.clear()
+	var vpn: Node = get_node_or_null("kmesh_vpaint")
+	if vpn != null and vpn.tp != null and vpn.tp != u:
+		vpn.tp._redo.clear()
+
+
+## KMeshUndo.commit calls this for every mesh step: the sculpt sphere's and the model cube's are noted, any other list's is not
+func _pu_mesh_step(u) -> void:
+	if ksc != null and ksc.on and ksc.undo == u:   # the body sculpt shares the body editor's list: the sculpt, while it is open
+		_pu_note("sculpt", "SCULPT", u)
+	elif kmed != null and kmed.undo == u:
+		_pu_note("model", cur_page if ExpertPages.PAGES.has(cur_page) and cur_page != "SCULPT" else "MODEL", u)
+	elif ksc != null and ksc.undo == u:
+		_pu_note("sculpt", "SCULPT", u)
+
+
+## which UI takes this entry's step back now: "pose", "sculpt", "model", "asm", "tex" or "" (its list is gone, closed or has no step)
+func _pu_owner(e: Dictionary, back: bool) -> String:
+	var u = e["u"]
+	match String(e["k"]):
+		"pose":
+			return "pose" if not (undo if back else redo).is_empty() else ""
+		"sculpt", "model":
+			var has: bool = u != null and not (u.steps if back else u.redos).is_empty()
+			if has and ksc != null and ksc.on and ksc.undo == u:
+				return "sculpt"
+			if has and kmed != null and kmed.on and kmed.undo == u:
+				return "model"
+		"asm":
+			if bld != null and bld.asm != null and bld.asm == u and not (u.asm_undo if back else u.asm_redo).is_empty():
+				return "asm"
+		"tex":
+			var vp: Node = get_node_or_null("kmesh_vpaint")
+			if vp != null and vp.on and vp.tex_mode and vp.tp == u and (u.can_undo() if back else not u._redo.is_empty()):
+				return "tex"
+	return ""
+
+
+func _pu_has(e: Dictionary, back: bool) -> bool:
+	return _pu_owner(e, back) != ""
+
+
+## Ctrl+Z / Ctrl+Y over every page: the newest step anywhere, on its own page. true = a step was taken
+func _pu_route(back: bool) -> bool:
+	var e: Dictionary = pu.take(back, _pu_has)
+	if e.is_empty():
+		return false
+	var owner := _pu_owner(e, back)
+	var pg := String(e["page"])
+	if owner == "model" and pg == "SCULPT":
+		pg = "MODEL"   # a body sculpt step, the sculpt left: the body editor owns it
+	var pose_on_mesh := String(e["k"]) == "pose" and ExpertPages.PAGES.has(pg)
+	if pg != cur_page and not pose_on_mesh:
+		_page_set(pg)
+	match String(e["k"]):
+		"pose":
+			if back: _undo_pose()
+			else: _redo_pose()
+		"asm":
+			bld.asm.undo_redo(back)
+		"tex":
+			get_node("kmesh_vpaint").tex_undo_redo(back)
+		_:
+			if owner == "sculpt":
+				ksc.undo_redo(back)
+			else:
+				kmed.undo_redo(back)
+	pu.give(e, back)
+	return true
 
 
 ## the top bar's Undo / Redo on a mesh page: the page's own mesh history (the pose's is a different list). true = taken
@@ -7613,8 +7717,12 @@ func _mesh_undo(back: bool) -> bool:
 
 
 func _undo() -> void:
-	if _mesh_undo(true):
+	if _pu_route(true) or _mesh_undo(true):
 		return
+	_undo_pose()
+
+
+func _undo_pose() -> void:
 	sk.fitted = []   # I9: the faint fitted skeleton belongs to the pose that was undone
 	var sk_hist: Variant = sk.hist.back() if not sk.hist.is_empty() else null
 	sk.flips = {}   # ...and so do its flip handles, unless this undo takes back a flip (below)
@@ -7674,8 +7782,12 @@ func _easy_forget_msg() -> void:
 
 
 func _redo() -> void:
-	if _mesh_undo(false):
+	if _pu_route(false) or _mesh_undo(false):
 		return
+	_redo_pose()
+
+
+func _redo_pose() -> void:
 	_tree_sync()
 	if redo.is_empty():
 		_say("Nothing to redo")   # S252: said in words (status line and toast), never a silent key press or an empty "Redid:"
@@ -7999,6 +8111,7 @@ func _push_undo_lib(files: Array) -> void:
 func _drop_undo() -> void:
 	_tree_sync()
 	undo.pop_back()
+	pu.drop_pose()
 	_tree.drop_cur()
 	_undo_tips()
 	_history_rows.call_deferred()
@@ -8053,6 +8166,7 @@ func _tree_go(id: int) -> void:
 		e2["name"] = _step_label(_tree.node(fw[k]))
 		redo.append(e2)
 	_restore(target)
+	pu.sync_pose(undo.size(), redo.size(), cur_page)   # the ordered log follows the swapped pose list
 	_say("history: %d step%s done" % [undo.size(), "" if undo.size() == 1 else "s"])
 	_undo_tips()
 	_history_rows()
@@ -9269,7 +9383,7 @@ func _ikh_move(mp: Vector2) -> void:
 	_refresh()
 	var tip: String = _ikh_drag["tip"]
 	_say("MOVING the IK %s of the %s%s" % [_ikh_drag["kind"], _ik_words(tip),
-		("     out of reach by %.1f cm" % (float(r["miss"]) * 100.0)) if float(r["miss"]) > 0.002 else ""])
+		("     out of reach by %s" % Units.fixed(float(r["miss"]), 1)) if float(r["miss"]) > 0.002 else ""])
 
 
 ## the dragged limb solved onto the live target / pole (and mixed by the weight). IK3: the pin wins over the grip; the
@@ -9643,7 +9757,7 @@ func _sph_move(mp: Vector2) -> void:
 	_refresh()
 	var cl: Array = r["clamped"]
 	_say("MOVING the spine spline %s%s%s" % [d["kind"], ("     a limit holds the %s" % ", ".join(cl.map(func(j): return nice(j)))) if not cl.is_empty() else "",
-		("     the chest is %.1f cm from its handle" % (float(r["miss"]) * 100.0)) if float(r["miss"]) > 0.002 else ""])
+		("     the chest is %s from its handle" % Units.fixed(float(r["miss"]), 1)) if float(r["miss"]) > 0.002 else ""])
 
 
 func _sph_release() -> void:
@@ -11501,6 +11615,11 @@ func _reset_part() -> void:
 
 
 ## snap the selected joint's free angles to the nearest 90 (or 45) the range allows; it stops at contact
+## the S search lines "Snap the part to 90 / 45": the snap itself, not a replay of Q (with the brush pie on, a Q on a mesh page opens the ring)
+func _snap_cmd(step: float) -> void:
+	_do(func(): _snap(step))
+
+
 func _snap(step: float) -> void:
 	if sel in Body.WEAPON:
 		return
@@ -16805,9 +16924,9 @@ func next_step() -> Dictionary:
 	if not sk.is_empty() and dummy_on and float(sk["gap"]) > STRIKE_LANDS:
 		if float(sk["aim_gap"]) > STRIKE_LANDS * 0.2:
 			if T.dist > 0.61:
-				return {"text": "Dummy closer: the arm cannot reach its head from %s (the fist stops %.0f cm short)" % [Units.len(T.dist), float(sk["gap"]) * 100.0], "cmd": "Dummy closer", "kind": "dummy"}
+				return {"text": "Dummy closer: the arm cannot reach its head from %s (the fist stops %s short)" % [Units.len(T.dist), Units.fixed(float(sk["gap"]), 0)], "cmd": "Dummy closer", "kind": "dummy"}
 		else:
-			return {"text": "Land the punch: its fist ends %.0f cm from the dummy's head (Strike: aim the fist at the dummy's head)" % (float(sk["gap"]) * 100.0), "cmd": "Strike: aim the fist at the dummy's head", "kind": "aim"}
+			return {"text": "Land the punch: its fist ends %s from the dummy's head (Strike: aim the fist at the dummy's head)" % Units.fixed(float(sk["gap"]), 0), "cmd": "Strike: aim the fist at the dummy's head", "kind": "aim"}
 	return {"text": "Export this clip (Export...)", "cmd": "Export...", "kind": "export"}
 
 
@@ -16897,9 +17016,9 @@ func _strike_aim() -> void:
 		playhead = S.times()[i][1]
 		_rebuild_cards())
 	if gap > 0.01:
-		_say("card %d '%s': the %s fist stops %.0f cm from the dummy's head: it is out of arm's reach, so press Dummy closer, then this again" % [i + 1, S.cards[i]["name"], "left" if hand == "hand_l" else "right", gap * 100.0])
+		_say("card %d '%s': the %s fist stops %s from the dummy's head: it is out of arm's reach, so press Dummy closer, then this again" % [i + 1, S.cards[i]["name"], "left" if hand == "hand_l" else "right", Units.fixed(gap, 0)])
 	else:
-		_say("card %d '%s': the %s fist now lands on the dummy's head (gap %.1f cm).  Run Check, then Ctrl+Z takes it back" % [i + 1, S.cards[i]["name"], "left" if hand == "hand_l" else "right", gap * 100.0])
+		_say("card %d '%s': the %s fist now lands on the dummy's head (gap %s).  Run Check, then Ctrl+Z takes it back" % [i + 1, S.cards[i]["name"], "left" if hand == "hand_l" else "right", Units.fixed(gap, 1)])
 
 
 func _next_sync() -> void:
@@ -17030,6 +17149,7 @@ func _page_set(p: String, save := true) -> void:
 	_pp("leave")
 	if p != was_page:
 		_pw_leave(was_page)
+		_dock_leave(was_page)
 	cur_page = p
 	if p != was_page:
 		_pw_enter(p)
@@ -17064,6 +17184,7 @@ func _page_set(p: String, save := true) -> void:
 	_pp("reactions")
 	_sides_apply()
 	_pp("sides_apply")
+	_dock_enter(p, p != was_page)   # L123: this page's own widths, folds and floating panels (after the page's defaults)
 	_layout_bottom()
 	_pp("layout_bottom")
 	_chrome_sync()
@@ -17588,9 +17709,186 @@ var camx: CamExtras   # C01
 var kt: KeymapTranslate   # P20: Blender / Maya key helper
 var blk: BlKeys           # B16: Blender-style modal G / R / S layer
 var pg_spaces: PageSpaces   # P07: per-page panel layouts
+var pg_docks: PageDocks   # L123 P07: per app page (all nine): side widths, folds, floating panels
+var side_w := {"left": float(LEFT_W), "right": float(RIGHT_W)}   # the side panels' widths on the page shown now (dragged by the grips)
+var _dock_grips := {}
+var _dock_win_ok := {}   # page -> the floating panels' owners existed when the page was entered (the stored panels were applied)
+var _grip_drag := ""
+var _grip_x0 := 0.0
+var _grip_w0 := 0.0
 var _learn_toast: PanelContainer
 var _learn_shown := {}   # command id -> true: its suggestion toast was shown this session (once each)
 const PAGE_WS := {"ANIMATE": "animate", "MODEL": "part", "SCULPT": "part", "SURFACE": "part"}   # the app page -> the workspace page (scripts/work_layouts.gd) whose layout it keeps
+
+
+## L123: the grips on the inner edge of the side panels; a real drag widens a panel (never narrower than the app's own width)
+func _dock_widths() -> void:
+	if ui_root == null or not ui_side_of.has("left") or not ui_side_of.has("right") or ui_body == null:
+		return
+	var lp: Control = ui_side_of["left"]
+	var rp: Control = ui_side_of["right"]
+	lp.offset_right = side_w["left"]
+	ui_body.offset_right = side_w["left"]
+	rp.offset_left = -side_w["right"]
+	for k in ["left", "right"]:
+		if not _dock_grips.has(k):
+			var g := Control.new()
+			g.name = "dock_grip_" + k
+			g.mouse_filter = Control.MOUSE_FILTER_STOP
+			g.mouse_default_cursor_shape = Control.CURSOR_HSIZE
+			g.z_index = 20
+			g.tooltip_text = "drag to widen this panel (remembered for this page)"
+			g.offset_top = TOP_H + 6
+			g.anchor_bottom = 1.0
+			g.offset_bottom = -BOTTOM_H - 6
+			if k == "right":
+				g.anchor_left = 1.0
+				g.anchor_right = 1.0
+			g.gui_input.connect(_grip_input.bind(k))
+			ui_root.add_child(g)
+			_dock_grips[k] = g
+		var gg: Control = _dock_grips[k]
+		if k == "left":
+			gg.offset_left = side_w["left"] - 4.0
+			gg.offset_right = side_w["left"] + 4.0
+			gg.visible = lp.visible or ui_body.visible
+		else:
+			gg.offset_left = -side_w["right"] - 4.0
+			gg.offset_right = -side_w["right"] + 4.0
+			gg.visible = rp.visible
+
+
+func _grip_input(ev: InputEvent, which: String) -> void:
+	if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		if (ev as InputEventMouseButton).pressed:
+			_grip_drag = which
+			_grip_x0 = (ev as InputEventMouseButton).global_position.x
+			_grip_w0 = side_w[which]
+		else:
+			_grip_drag = ""
+			if pg_docks != null:
+				pg_docks.save_file()
+	elif ev is InputEventMouseMotion and _grip_drag == which:
+		var dx: float = (ev as InputEventMouseMotion).global_position.x - _grip_x0
+		side_w[which] = PageDocks.clamp_w(which, _grip_w0 + (dx if which == "left" else -dx))
+		_sides_apply()
+		_layout_bottom()
+		_dock_note()
+
+
+## the side widths and folds of the page shown now are this page's own from here on
+func _dock_note() -> void:
+	if pg_docks == null:
+		return
+	var e := pg_docks.entry(cur_page)
+	e["w"] = {"left": side_w["left"], "right": side_w["right"]}
+	e["fold"] = {"left": fold["left"], "right": fold["right"], "bottom": fold["bottom"]}
+
+
+## the floating panels of a page: id -> {ctl, owner (can be shown now), open, close, move}
+func _dock_windows(pg: String) -> Dictionary:
+	var out := {}
+	match pg:
+		"MODEL":
+			var p = ui_root.get_node_or_null(ModelChecksUI.NAME) if ui_root != null else null
+			out["checks"] = {"ctl": p, "owner": kmed != null and kmed.on, "move": false,
+				"open": func(): ModelChecksUI.toggle(self),
+				"close": func(): if p != null: p.visible = false}
+		"SCULPT":
+			var pr = ksc.presets if ksc != null else null
+			out["presets"] = {"ctl": pr, "owner": ksc != null and ksc.on and pr != null, "move": false,
+				"open": func(): pr.open(), "close": func(): pr.close()}
+		"SURFACE":
+			var uv = kmed.uved if kmed != null else null
+			out["uv"] = {"ctl": uv, "owner": kmed != null and kmed.on, "move": false,   # the editor is docked under the Materials panel (kmesh_material_ui.gd places it every frame): visibility only
+
+				"open": func(): kmed.toggle_uv_editor(),
+				"close": func(): kmed.toggle_uv_editor()}
+	return out
+
+
+func _dock_leave(pg: String) -> void:
+	if pg_docks == null or not PAGES.has(pg):
+		return
+	var wins := _dock_windows(pg)
+	if wins.is_empty():
+		return
+	var e := pg_docks.entry(pg)
+	var stored: Dictionary = e.get("win", {})
+	var all_owned := true
+	for id in wins:
+		all_owned = all_owned and bool(wins[id]["owner"])
+	if not all_owned or (not stored.is_empty() and not bool(_dock_win_ok.get(pg, false))):
+		return   # nothing to read yet, or the saved panels were never put back this visit: keep what is saved
+	var w := {}
+	for id in wins:
+		var c = wins[id]["ctl"]
+		var v: bool = c != null and (c as Control).visible
+		w[id] = {"on": v, "x": (c as Control).position.x if c != null else 0.0, "y": (c as Control).position.y if c != null else 0.0}
+	e["win"] = w
+	pg_docks.save_file()
+
+
+func _dock_enter(pg: String, windows := true) -> void:
+	if pg_docks == null or not PAGES.has(pg):
+		return
+	var e: Dictionary = pg_docks.pages.get(pg, {})
+	var changed := false
+	var nw := {"left": float(LEFT_W), "right": float(RIGHT_W)}
+	if e.has("w"):
+		nw = {"left": float(e["w"]["left"]), "right": float(e["w"]["right"])}
+	if nw["left"] != side_w["left"] or nw["right"] != side_w["right"]:
+		side_w = nw
+		changed = true
+	if e.has("fold"):
+		for k in fold:
+			if fold[k] != bool(e["fold"][k]):
+				fold[k] = bool(e["fold"][k])
+				changed = true
+	var wins := _dock_windows(pg) if windows else {}
+	var owned := not wins.is_empty()
+	for id in wins:
+		owned = owned and bool(wins[id]["owner"])
+	if windows:
+		_dock_win_ok[pg] = owned
+	if owned and e.has("win"):
+		for id in wins:
+			var sw: Dictionary = e["win"].get(id, {})
+			if sw.is_empty():
+				continue
+			var cur: bool = wins[id]["ctl"] != null and (wins[id]["ctl"] as Control).visible
+			if bool(sw["on"]) != cur:
+				(wins[id]["open"] if sw["on"] else wins[id]["close"]).call()
+			var c2 = _dock_windows(pg)[id]["ctl"]
+			if bool(sw["on"]) and bool(wins[id]["move"]) and c2 != null:
+				(c2 as Control).position = Vector2(float(sw["x"]), float(sw["y"]))
+	if changed:
+		_sides_apply()
+		_layout_bottom()
+		_fit_rows.call_deferred()
+
+
+## "View: reset this page's panel layout": the page goes back to the app's own widths, folds and closed floating panels
+func dock_reset(pg := "") -> void:
+	if pg == "":
+		pg = cur_page
+	if pg_docks == null:
+		return
+	pg_docks.forget(pg)
+	if pg == cur_page:
+		side_w = {"left": float(LEFT_W), "right": float(RIGHT_W)}
+		for k in fold:
+			fold[k] = _page_want(pg, k)
+		var wins := _dock_windows(pg)
+		for id in wins:
+			var w: Dictionary = wins[id]
+			if w["owner"] and w["ctl"] != null and (w["ctl"] as Control).visible:
+				w["close"].call()
+		_sides_apply()
+		_layout_bottom()
+		_fit_rows.call_deferred()
+	pg_docks.save_file()
+	_say("%s page: panels back to their default layout" % pg)
 
 
 func _pw_ws() -> WorkLayouts:
@@ -17623,6 +17921,7 @@ func _pw_save() -> void:
 	hk.learn.save_file()
 	if pg_spaces != null:
 		pg_spaces.save_file()
+	_dock_leave(cur_page)
 
 
 ## a command ran: count it; a habit (3+ runs, no key) gets one small non-modal suggestion per session
@@ -17781,6 +18080,7 @@ func _commands() -> Array:
 	add.call("Stop macro recording", "", _macro_stop, "macro stop end save finish recording", false, "save the macro being recorded under its name; it then shows in the S box as 'Macro: <name>'")
 	add.call("Play macro...", "", func(): ui_cmd.open_with("macro:"), "macro play run list saved", false, "the S box lists the saved macros: click or Enter plays one on the part picked now (ONE undo step)")
 	add.call("Guided first pose", "", func(): guided_pose.begin(), "guided first pose tutorial onboarding learn beginner steps", false, "a six-step guide to your first pose (body, click a part, drag, second part, clip, play); each step moves on by doing it, Skip closes it")
+	add.call("Task coach: make a fighter", "", func(): task_coach.start(), "task coach guide walk steps body model surface pose fighter make tutorial", false, "a small panel walks BODY, MODEL, SURFACE, POSE: each step has a live check from the real app state, and Next waits until it is green; Cancel changes nothing")
 	add.call("Page tour", "", func(): page_tour.replay(), "page tour help guide learn body model sculpt surface intro onboarding", false, "the five-step tour of the page you are on (BODY, MODEL, SCULPT or SURFACE; BODY from any other page), seen or not")
 	add.call("First steps tour", "", _tour_start, "tour help start begin learn new intro guide", false, "five steps that show the poser by doing: click a part, drag it, clip two cards, play, check")
 	add.call("Help: show the tour", "", easy.tour_start, "help tour easy beginner first steps learn guide intro", false, "the Easy tour: five steps (drag a hand, key the pose, move the playhead, key again, play), each moved on by doing it")
@@ -18036,13 +18336,14 @@ func _commands() -> Array:
 		add.call("Part key type: " + kt, "", _part_ktype.bind(kt), "key type keyframe breakdown inbetween main " + kt, true, "the picked part's key (or the curve editor's picked keys on it) becomes a " + kt + " key")
 	add.call("Breakdown: add a key at the playhead in between", "", _part_breakdown, "breakdown in between key add playhead interpolated pose blender", true, "a breakdown key on the picked part at the playhead, on its curve: the pose does not change")
 	add.call("Curve editor: pick only main keys", "", _curve_main_keys, "pick select main keys only retime breakdown inbetween curve", false, "the curve editor picks just its main keys (not breakdowns or in-betweens), so a drag retimes only them")
-	add.call("Snap the part to 90°", "Q", _press.bind(KEY_Q), "round", true, "round the picked part's angles to the 90° steps its range allows")
-	add.call("Snap the part to 45°", "Shift+Q", _press.bind(KEY_Q, true), "round", true, "round the picked part's angles to the 45° steps its range allows")
+	add.call("Snap the part to 90°", "Q", _snap_cmd.bind(90.0), "round", true, "round the picked part's angles to the 90° steps its range allows")
+	add.call("Snap the part to 45°", "Shift+Q", _snap_cmd.bind(45.0), "round", true, "round the picked part's angles to the 45° steps its range allows")
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
 	add.call("Voxel remesh", "", _sculpt_remesh, "remesh voxel even topology quads rebuild retopo sculpt sphere uniform", true, "the test sphere becomes an even mesh at 1.5 cm voxels: its surface is rebuilt; one undo step (Ctrl+Z takes it back)")
 	add.call("Sculpt: a test sphere (preview)", "", _sculpt_start, "sculpt brush draw clay inflate smooth flatten pinch crease grab snake hook pressure tablet zbrush", false, "add a test sphere to the stage and sculpt it: drag to stroke, D C I S F P E G K brushes, [ ] radius, Shift+[ ] strength, O falloff, X symmetry, Ctrl invert, Shift smooth, Ctrl+Z undo, Esc leaves (nothing is saved)")
 	add.call("Import rig (glTF): animate your own skeleton", "", func(): _rig_ui().import_ask(), "import rig gltf glb own skeleton creature animal tail quadruped non human bones custom pose key", false, "pick a .glb / .gltf with a skeleton that is not a human one: it becomes this scene's own rig, drawn in the view; click a bone, turn it, key it, play it back. Saved in the scene")
+	add.call("View: reset this page's panel layout", "", func(): dock_reset(), "reset page panel layout widths folds default workspace dock inspector browser presets checks uv editor", false, "this page's side panel widths, folds and floating panels go back to the app's defaults; the other pages keep their own (L123)")
 	add.call("Rig: bone editor (add / delete / parent bones)", "", func(): _bone_ui().toggle(), "bone bones rig skeleton add delete parent extrude roll rest edit armature tail chain joint", false, "open / close the bone editor: your own bones on the body (E extrude from a tail, Shift+A add, X delete, drag the end balls; name, parent, length, roll in its panel). Each edit is one undo step; the body's own skeleton is not edited")
 	add.call("Model: edit a test cube (preview)", "", _kmesh_edit_start, "model mesh cube edit select vertex edge face box lasso xray polygon modeling", false, "add a 4x4-per-side test cube to the stage and select on it: click, Shift+click, B box, L lasso, X x-ray, 1/2/3 vertex / edge / face, Esc leaves (nothing is saved)")
 	add.call("Character: import a rigged character (glb / fbx)", "", func(): CharImportApp.ask(self), "character import rigged rig skin skinned mesh blendshape blend shape fbx glb mixamo unreal rigify vrm own model mapping bring in", false, "a .glb / .fbx with a skinned mesh becomes the fighter: its mesh, skin weights and blend shapes, its skeleton mapped onto Kine's body (names, then geometry; a map screen to fix bones). Kine's poses, limits, balance and contacts then drive it, on its own proportions")
@@ -19338,7 +19639,7 @@ func _stay_in_place() -> void:
 		wt.mark_dirty()
 		_rebuild_cards()
 		S.apply(B, playhead))
-	_say("stay in place: the hips' travel removed from %d cards (they had moved up to %.2f m on the floor).  Ctrl+Z takes it back in one step; nothing is saved until you save" % [m.get("cards", 0), m.get("metres", 0.0)])
+	_say("stay in place: the hips' travel removed from %d cards (they had moved up to %s on the floor).  Ctrl+Z takes it back in one step; nothing is saved until you save" % [m.get("cards", 0), Units.metres(float(m.get("metres", 0.0)), 2)])
 
 
 ## STYLE TRANSFER (ROADMAP 25): "Style: make it <older | tired | heavy | angry>" asks for the intensity (0-100 %), then saves
@@ -21452,6 +21753,8 @@ func _close_asked() -> void:
 
 
 func _quit_app() -> void:
+	if _bgs != null:
+		_bgs.wait_all()   # L124: the writer finishes first
 	_pw_save()
 	if quit_fn.is_valid():
 		quit_fn.call()
@@ -21747,6 +22050,46 @@ func _selfcheck_save() -> void:
 	get_tree().quit()
 
 
+var _bgs: BgSave
+var _bg_pending := false   # a background save's doc key has not come back yet: the scene counts as saved
+
+
+## the rest of a save, one piece per frame so no frame carries all of it (recents + thumbnail, journal, the index, the lists, the doc line)
+func _bg_after(path: String) -> void:
+	await get_tree().process_frame
+	_recent_note(path, true)
+	_journal_saved()
+	await get_tree().process_frame
+	if np.loaded:
+		np.update_file(path)
+	await get_tree().process_frame
+	_lists()
+	await get_tree().process_frame
+	_doc_line(true)
+var save_prof := {}   # L124: ms since the start of the last _save_scene_now at each stage (cumulative)
+
+
+## the background writer (scripts/bg_save.gd), made when first needed
+func bgs() -> BgSave:
+	if _bgs == null:
+		_bgs = BgSave.new()
+		_bgs.name = "BgSave"
+		add_child(_bgs)
+	return _bgs
+
+
+## a background save has finished: the index learns the file; a failed write makes the scene unsaved again (the old file is untouched)
+func _bg_saved(ok: bool, err: String, path: String) -> void:
+	_bg_pending = false
+	if ok:
+		_clean = bgs().last_key   # the key of the snapshot that was written (made on the worker)
+		_autosave_drop()
+		_bg_after(path)
+	else:
+		_clean = "[bg save failed]"
+		_say("NOT SAVED: %s. The old file is untouched; save again." % err)
+
+
 func _save_scene_now(nm: String) -> void:
 	if co != null and co.connected() and not co.is_host:
 		_say("live co-edit: the host saves the scene (your fighter's work is on its side too): ask the host to save, or save your own copy under another name")
@@ -21754,25 +22097,40 @@ func _save_scene_now(nm: String) -> void:
 	var H := _hero_scene()   # TC3: the file is the hero's scene, whoever is active
 	H.name = nm if nm != "" else "scene_" + _stamp()   # the name as typed: what the scene is called
 	BodyFile.before_save(self, safe_file(H.name).get_file())   # G07: an applied body with no file yet: a NEW .kbody first
+	var _t0 := Time.get_ticks_usec()
+	save_prof = {}
 	var d := _scene_dict()   # TC3: the hero's file with its actors (lossless: the body kept, round 8)
+	save_prof["dict"] = (Time.get_ticks_usec() - _t0) / 1000.0
 	var fname := safe_file(H.name) if safe_file(H.name) != "" else "scene_" + _stamp()
 	var tpv: Node = get_node_or_null(KMeshVPaintUI.NODE)   # L55: the painted texture goes beside the scene (PNG) and is recorded in its JSON
 	var tps: Dictionary = tpv.texture_source() if tpv != null else {}
 	KMeshTPaintFile.record(d, tps, "%s_tpaint.png" % fname)
-	if not _write("res://scenes/%s.json" % fname, d):   # S271: say it was skipped; the old file and scene_path stay as they were
+	var big := BgSave.is_big(d)   # L124 P15: a big scene is written on a worker thread (scripts/bg_save.gd); a small one at once, as before
+	if big:
+		var bpath := UserPaths.w("res://scenes/%s.json" % fname)
+		if _test_keeps(bpath):
+			_say("not saved: a test run may not overwrite the shipped scene %s (save under another name, or a zz_ name)" % fname)
+			return
+		bgs().request(bpath, d, _bg_saved.bind(bpath), _doc_key_of.bind(_doc_key_inputs(true)))
+	elif not _write("res://scenes/%s.json" % fname, d):   # S271: say it was skipped; the old file and scene_path stay as they were
 		_say("not saved: a test run may not overwrite the shipped scene %s (save under another name, or a zz_ name)" % fname)
 		return
 	if not tps.is_empty():
 		KMeshTPaintFile.write_png(tps, ProjectSettings.globalize_path(UserPaths.w("res://scenes/%s_tpaint.png" % fname)))
-	if np.loaded:
+	if np.loaded and not big:
 		np.update_file(UserPaths.w("res://scenes/%s.json" % fname))   # R27: the index of your habits learns the saved scene
-	_clean = _doc_key()
-	_autosave_drop()
+	save_prof["write"] = (Time.get_ticks_usec() - _t0) / 1000.0
 	scene_path = UserPaths.w("res://scenes/%s.json" % fname)
-	_recent_note(scene_path, true)
-	_journal_saved()
-	_lists()
-	_refresh()
+	if big:   # L124: the doc key is made on the worker, the recents / index / lists / doc line run in later frames (_bg_saved)
+		_bg_pending = true
+	else:
+		_clean = _doc_key()
+		_autosave_drop()
+		_recent_note(scene_path, true)
+		_journal_saved()
+		_lists()
+		_refresh()
+	save_prof["refresh"] = (Time.get_ticks_usec() - _t0) / 1000.0
 	if easy != null and easy.on:   # Easy: "Saved run 68 (3.3 seconds)." (the name as its words; the length to a tenth of a second)
 		_say("Saved %s (%.1f seconds)." % [H.name.replace("_", " "), roundf(H.length() * 10.0 + 0.001) / 10.0])   # the 0.001: 3.25 s reads 3.3, not 3.2 (float)
 		if easy.home != null:   # the toast says where it went: the file's name and its folder (the status line keeps its words)
@@ -22953,7 +23311,9 @@ func _props_show(resettle := true) -> void:
 	var carried_props := []
 	for cr in S.carries():
 		carried_props.append(int(cr["prop"]))
-	var shared := PropInstances.plan(S.props, sel_prop, carried_props)   # M3: the still copies of one kind share one drawn mesh
+	var plan_skip := carried_props.duplicate()
+	plan_skip.append_array(sel_props)   # L120: a picked copy is drawn alone so it can carry the tint
+	var shared := PropInstances.plan(S.props, sel_prop, plan_skip)   # M3: the still copies of one kind share one drawn mesh
 	var in_shared := {}
 	for g in shared:
 		for i in g:
@@ -22972,7 +23332,7 @@ func _props_show(resettle := true) -> void:
 		var key := "prop_%d" % i
 		live[key] = true
 		var vol := Props.animated(p) or Props.hinged(p) or carried_props.has(i)
-		var sig := hash(p) + (1 if i == sel_prop else 0)
+		var sig := hash(p) + (1 if i == sel_prop or sel_props.has(i) else 0)
 		var old = _pn.get(key)
 		if old != null and not vol and int(old[0]) == sig and is_instance_valid(old[1][0]) and (old[1][0] as Node3D).get_parent() == ui_props_root 				and ((old[1][0] as Node3D).transform).is_equal_approx(PropInstances.root_xf(p)):
 			continue
@@ -22982,7 +23342,7 @@ func _props_show(resettle := true) -> void:
 			_gone_said[p["kind"]] = true
 			_say_plain("the model file of the %s is missing: it is drawn as a box. Open the importer and add the model again, or delete the prop" % p["kind"])
 		n.name = key
-		if i == sel_prop:
+		if i == sel_prop or (sel_props.has(i) and sel_props.has(sel_prop)):
 			for mi in n.find_children("*", "MeshInstance3D", true, false):
 				(mi as MeshInstance3D).material_overlay = tint
 		ui_props_root.add_child(n)
@@ -23030,6 +23390,7 @@ func _props_show(resettle := true) -> void:
 		_grey(ui_use_btns["Pick up"], "" if kind != "" and sel_card >= 0 else ("pick a card first: the body on it holds the prop" if kind != "" else "pick a prop first: click it in the view, or add one with Add prop"))
 		_grey(ui_use_btns["Put down"], "" if not _held_at(sel_card).is_empty() else "pick a card where a prop is held (after its Pick up card): the hands let it go there")
 	_props_pose()
+	_multi_panel_sync()
 	if shading.mode != "solid":
 		shading.set_mode(self, shading.mode)   # K01: the new prop nodes are drawn in the view's shading mode
 	if ui_browser != null:
@@ -23149,6 +23510,7 @@ func _prop_name(i: int) -> String:
 
 ## a press on a prop: picked, and a drag moves it over the floor (snapped onto what it stands over); one undo step
 func _prop_press(i: int, mp: Vector2, t: float) -> void:
+	sel_props = []   # L120: a plain press picks this one prop alone
 	if Outliner.locked(S, "prop:%d" % i):   # L36: a locked object is picked, never grabbed: no drag, no undo step
 		sel_prop = i
 		sel_obj = "prop:%d" % i
@@ -23286,6 +23648,7 @@ func _prop_add(kind: String, at: Variant = null) -> void:   # at: a floor point 
 	p["xf"] = xf
 	S.props.append(p)
 	sel_prop = S.props.size() - 1
+	sel_props = []
 	_props_show()
 	_doc_line()
 	if easy.on:   # Easy has no SET ribbon: the sit is the panel's "Sit on it" (walk-through round 5), or the strip's "Sit on the chair" once a clip is built (the panel is hidden then: walk-through 10, B)
@@ -23298,44 +23661,55 @@ func _prop_add(kind: String, at: Variant = null) -> void:   # at: a floor point 
 
 
 func _prop_turn(deg: float) -> void:
-	if sel_prop < 0 or sel_prop >= S.props.size():
-		return
-	if _outl_locked_say(sel_prop):
+	var ids := _multi_ids()   # L125: every picked (unlocked) prop turns about its own origin by the same step
+	if ids.is_empty():
 		return
 	_push_undo()
-	_prop_live(sel_prop)
-	var d := Props.to_dict(S.props[sel_prop])
-	d["yaw"] = wrapf(float(d["yaw"]) + deg, -180.0, 180.0)
-	S.props[sel_prop] = Props.from_dict(d)
-	Outliner.moved(S, "prop:%d" % sel_prop)   # L36: its children turn / grow with it
-	_prop_autokey(sel_prop)
+	for i in ids:
+		_prop_live(i)
+		var d := Props.to_dict(S.props[i])
+		d["yaw"] = wrapf(float(d["yaw"]) + deg, -180.0, 180.0)
+		S.props[i] = Props.from_dict(d)
+		Outliner.moved(S, "prop:%d" % i)   # L36: its children turn / grow with it
+		_prop_autokey(i)
 	_props_show()
 	_doc_line()
-	_say("turned the %s to %.0f°" % [_prop_name(sel_prop), float(d["yaw"])])
+	if ids.size() > 1:
+		_say("turned %d objects by %.0f° each" % [ids.size(), deg])
+	else:
+		_say("turned the %s to %.0f°" % [_prop_name(ids[0]), float(Props.to_dict(S.props[ids[0]])["yaw"])])
 
 
 ## SIZE of the picked prop (Easy's Bigger / Smaller: f = 1.15 or 1 / 1.15; Expert reads the same field): one undo step; the
 ## range is Props.SIZE_MIN..SIZE_MAX, and at the end of it the status says so
 func _prop_resize(f: float) -> void:
-	if sel_prop < 0 or sel_prop >= S.props.size():
-		return
-	var old := Props.scale_of(S.props[sel_prop])
-	var new_s := clampf(old * f, Props.SIZE_MIN, Props.SIZE_MAX)
-	if absf(new_s - old) < 0.0005:
-		_say("the %s is as %s as it goes" % [_prop_name(sel_prop), "big" if f > 1.0 else "small"])
-		return
-	if _outl_locked_say(sel_prop):
+	var ids := _multi_ids()   # L125: every picked (unlocked) prop scales by the same factor about its own origin
+	var todo := []
+	for i in ids:
+		var old := Props.scale_of(S.props[i])
+		var new_s := clampf(old * f, Props.SIZE_MIN, Props.SIZE_MAX)
+		if absf(new_s - old) >= 0.0005:
+			todo.append([i, new_s])
+	if todo.is_empty():
+		if not ids.is_empty():
+			_say("the %s is as %s as it goes" % [_prop_name(ids[0]) if ids.size() == 1 else "objects", "big" if f > 1.0 else "small"])
 		return
 	_push_undo()
-	_prop_live(sel_prop)
-	var d := Props.to_dict(S.props[sel_prop])
-	d["scale"] = snappedf(new_s, 0.0001)
-	S.props[sel_prop] = Props.from_dict(d)
-	Outliner.moved(S, "prop:%d" % sel_prop)   # L36: its children turn / grow with it
-	_prop_autokey(sel_prop)
+	for t in todo:
+		var i: int = t[0]
+		_prop_live(i)
+		var d := Props.to_dict(S.props[i])
+		d["scale"] = snappedf(float(t[1]), 0.0001)
+		S.props[i] = Props.from_dict(d)
+		Outliner.moved(S, "prop:%d" % i)   # L36: its children turn / grow with it
+		_prop_autokey(i)
 	_props_show()
 	_doc_line()
-	_say("the %s is %s now (%d%% of its real size)" % [_prop_name(sel_prop), "bigger" if f > 1.0 else "smaller", roundi(new_s * 100.0)])
+	if todo.size() > 1:
+		_say("%d objects are %s now" % [todo.size(), "bigger" if f > 1.0 else "smaller"])
+	else:
+		var i0: int = todo[0][0]
+		_say("the %s is %s now (%d%% of its real size)" % [_prop_name(i0), "bigger" if f > 1.0 else "smaller", roundi(float(todo[0][1]) * 100.0)])
 
 
 ## COLOUR of the picked prop (Easy's Colour button cycles Props.COLOUR_ORDER; the first press gives blue): one undo step
@@ -23494,29 +23868,32 @@ func _prop_copies_row() -> void:
 
 
 func _prop_del() -> void:
-	if sel_prop < 0 or sel_prop >= S.props.size():
+	var ids := _multi_ids()   # L125: every picked (unlocked) prop goes, in ONE undo step
+	if ids.is_empty():
 		return
-	if _outl_locked_say(sel_prop):
-		return
+	sel_props = []
 	_push_undo()
-	var nm := _prop_name(sel_prop)
-	S.props.remove_at(sel_prop)
-	Outliner.prop_removed(S, sel_prop)   # L36: the parents / hide / lock follow the new numbers
-	for c in S.cards:   # UU2: the cards' take / drop marks follow the props' new numbers
-		if c.has("take"):
-			if int(c["take"]["prop"]) == sel_prop:
-				c.erase("take")
-			elif int(c["take"]["prop"]) > sel_prop:
-				c["take"]["prop"] = int(c["take"]["prop"]) - 1
-		if c.has("drop"):
-			if int(c["drop"]) == sel_prop:
-				c.erase("drop")
-			elif int(c["drop"]) > sel_prop:
-				c["drop"] = int(c["drop"]) - 1
+	var nm := _prop_name(ids[0]) if ids.size() == 1 else "%d objects" % ids.size()
+	ids.sort()
+	ids.reverse()   # highest number first: the lower numbers stay valid
+	for pi in ids:
+		S.props.remove_at(pi)
+		Outliner.prop_removed(S, pi)   # L36: the parents / hide / lock follow the new numbers
+		for c in S.cards:   # UU2: the cards' take / drop marks follow the props' new numbers
+			if c.has("take"):
+				if int(c["take"]["prop"]) == pi:
+					c.erase("take")
+				elif int(c["take"]["prop"]) > pi:
+					c["take"]["prop"] = int(c["take"]["prop"]) - 1
+			if c.has("drop"):
+				if int(c["drop"]) == pi:
+					c.erase("drop")
+				elif int(c["drop"]) > pi:
+					c["drop"] = int(c["drop"]) - 1
 	sel_prop = -1
 	_props_show()
 	_doc_line()
-	_say("deleted the %s: Ctrl+Z puts it back" % nm)
+	_say("deleted the %s: Ctrl+Z puts %s back" % [nm, "it" if ids.size() == 1 else "them"])
 
 
 ## APROP: EASY PICK UP. The picked Part (a cup you built) leaves the scene and goes into his right hand, as Give to a character
@@ -23932,10 +24309,134 @@ func _use_card(nm: String, before: Dictionary) -> void:
 			Rulebook.part_words(hits[0][0]), float(hits[0][2]) * 100.0, String(S.props[hits[0][1]]["kind"])])
 
 
+## ---- MULTI-OBJECT EDITING (L120, ROADMAP_400 P10; scripts/multi_edit.gd, scripts/multi_panel.gd)
+## the picked props: the multi-selection when sel_prop is in it, else the one picked, else none
+func _msel() -> Array:
+	var o := []
+	for i in sel_props:
+		if int(i) >= 0 and int(i) < S.props.size() and not o.has(int(i)):
+			o.append(int(i))
+	if o.size() >= 2 and o.has(sel_prop):
+		return o
+	return [sel_prop] if sel_prop >= 0 and sel_prop < S.props.size() else []
+
+
+## Ctrl / Shift-click on prop i: it joins the picked props, or leaves them (no undo step)
+func _prop_toggle(i: int) -> void:
+	var cur := _msel()
+	if cur.has(i):
+		cur.erase(i)
+	else:
+		cur.append(i)
+	if cur.is_empty():
+		sel_prop = -1
+		sel_props = []
+	else:
+		sel_prop = i if cur.has(i) else int(cur[-1])
+		sel_props = cur if cur.size() >= 2 else []
+	sel_obj = "prop:%d" % sel_prop if sel_prop >= 0 else ""
+	_props_show()
+	_say_plain("%d object%s picked: the Transform panel edits them all (Shift / Ctrl-click adds or takes out)" % [cur.size(), "" if cur.size() == 1 else "s"])
+
+
+func _multi_panel_sync() -> void:
+	if multi_panel == null:
+		if ui_root == null:
+			return
+		multi_panel = MultiPanel.new()
+		multi_panel.typed.connect(_multi_typed)
+		multi_panel.scrub_begin.connect(_multi_scrub_begin)
+		multi_panel.scrub_move.connect(_multi_scrub_move)
+		multi_panel.scrub_end.connect(_multi_scrub_end)
+		ui_root.add_child(multi_panel)
+	var ids := _msel()
+	multi_panel.visible = not ids.is_empty()
+	if ids.is_empty():
+		return
+	multi_panel.position = Vector2(maxf(ui_root.size.x - 210.0, 0.0), 150.0)
+	var t := {}
+	for f in MultiEdit.FIELDS:
+		t[f] = MultiEdit.text(S.props, ids, f)
+	multi_panel.show_values(t, ids.size())
+
+
+func _multi_ids() -> Array:
+	var out := []
+	for i in _msel():
+		if Outliner.locked(S, "prop:%d" % i):
+			_outl_locked_say(i)
+		else:
+			out.append(i)
+	return out
+
+
+## a value typed in a field: every picked (unlocked) prop gets it; one undo step
+func _multi_typed(f: String, text: String) -> void:
+	(multi_panel.edits[f] as LineEdit).release_focus()
+	if not text.is_valid_float():
+		_say_plain("'%s' is not a number" % text)
+		_multi_panel_sync()
+		return
+	var ids := _multi_ids()
+	if ids.is_empty():
+		return
+	_step_hint = "Set %s of %d objects" % [MultiPanel.NAMES[f], ids.size()] if ids.size() > 1 else "Set " + MultiPanel.NAMES[f]
+	_push_undo()
+	for i in ids:
+		_prop_live(i)
+		MultiEdit.set_abs(S.props[i], f, text.to_float())
+		Outliner.moved(S, "prop:%d" % i)
+		_prop_autokey(i)
+	_props_show()
+	_doc_line()
+	_say("%s = %s for %d object%s. Ctrl+Z takes it back" % [MultiPanel.NAMES[f], text, ids.size(), "" if ids.size() == 1 else "s"])
+
+
+func _multi_scrub_begin(f: String) -> void:
+	var ids := _multi_ids()
+	_multi_starts = {}
+	if ids.is_empty():
+		return
+	_step_hint = "Drag %s of %d objects" % [MultiPanel.NAMES[f], ids.size()] if ids.size() > 1 else "Drag " + MultiPanel.NAMES[f]
+	_push_undo()
+	playing = false
+	for i in ids:
+		_prop_live(i)
+		_multi_starts[i] = (S.props[i]["xf"] as Transform3D)
+
+
+func _multi_scrub_move(f: String, d: float) -> void:
+	for i in _multi_starts:
+		S.props[i]["xf"] = MultiEdit.moved(_multi_starts[i], f, d)
+	if not _multi_starts.is_empty():
+		_props_show(false)
+
+
+func _multi_scrub_end(f: String) -> void:
+	if _multi_starts.is_empty():
+		return
+	var moved := false
+	for i in _multi_starts:
+		if not (S.props[i]["xf"] as Transform3D).is_equal_approx(_multi_starts[i]):
+			moved = true
+	if not moved:
+		undo.pop_back()   # a click on the label: no step
+		_history_rows()
+	else:
+		for i in _multi_starts:
+			Outliner.moved(S, "prop:%d" % i)
+			_prop_autokey(i)
+		_props_show()
+		_doc_line()
+		_say("moved %d object%s by the same amount. Ctrl+Z takes it back" % [_multi_starts.size(), "" if _multi_starts.size() == 1 else "s"])
+	_multi_starts = {}
+
+
 ## a row in the browser's Set: pick prop i (no undo step)
 func _prop_select(i: int) -> void:
 	if i < 0 or i >= S.props.size():
 		return
+	sel_props = []
 	sel_prop = i
 	sel_obj = "prop:%d" % i
 	_props_show()
@@ -26273,6 +26774,8 @@ static func _rm_tree(dir: String) -> void:
 
 
 func _unsaved() -> bool:
+	if _bg_pending:
+		return false   # L124: a background save is on its way (its doc key comes back from the worker)
 	var H := _hero_scene()   # TC3: the file is the hero's scene, whoever is active
 	# a drawn house (or a part with steps) is work too; a blank part (no steps: the BUILDING card's start, Nick 2026-10-28) is not
 	return (not H.cards.is_empty() or not H.props.is_empty() or not S.building.is_empty() or not (S.part.get("features", []) as Array).is_empty()) and _doc_key() != _clean
@@ -26281,19 +26784,33 @@ func _unsaved() -> bool:
 ## what "saved" compares: the cards, and the set when there is one (no props: the same string as before round 37); with
 ## a second actor (TC3) each actor's name, place and cards too (one actor: the same string as before)
 func _doc_key() -> String:
+	return _doc_key_of(_doc_key_inputs(false))
+
+
+## what the key reads, gathered on the main thread (deep: copies, so a worker can stringify them while the scene is edited)
+func _doc_key_inputs(deep := false) -> Dictionary:
 	var H := _hero_scene()
-	var k := JSON.stringify(H.cards) + ("" if H.props.is_empty() else JSON.stringify(H.props.map(func(p): return Props.to_dict(p))))
-	if not S.building.is_empty():
-		k += "|building" + JSON.stringify(Building.to_file(S.building))   # BUILD: a drawn room is an unsaved change
-	if not S.part.is_empty():
-		k += "|part" + JSON.stringify(Part.to_file(S.part))   # PART: a sketched feature is an unsaved change
-	if not H.shots.is_empty():
-		k += "|shots" + var_to_str(H.shots)   # the shots and their cameras: an unsaved change too (ROADMAP 75)
-	for a in H.actors:
-		k += "|" + JSON.stringify([a["name"], a["xf"], (a["scene"] as Scene).cards])
-	# the fighter's applied body and armour plates are the scene's too (an edit to them is unsaved, so the autosave holds it)
-	k += "|body%d|plates%d" % [BaseBody.gen(self), ArmourFromBody.parts(self).size()]
-	return k
+	var inp := {"cards": H.cards.duplicate(true) if deep else H.cards,
+		"props": H.props.map(func(p): return Props.to_dict(p)) if not H.props.is_empty() else [],
+		"building": Building.to_file(S.building) if not S.building.is_empty() else {},
+		"part": Part.to_file(S.part) if not S.part.is_empty() else {},
+		"shots": H.shots.duplicate(true) if deep else H.shots,
+		"actors": H.actors.map(func(a): return [a["name"], a["xf"], (a["scene"] as Scene).cards.duplicate(true) if deep else (a["scene"] as Scene).cards]),
+		"tail": "|body%d|plates%d" % [BaseBody.gen(self), ArmourFromBody.parts(self).size()]}   # the fighter's applied body and armour plates are the scene's too (an edit to them is unsaved, so the autosave holds it)
+	return inp
+
+
+static func _doc_key_of(inp: Dictionary) -> String:
+	var k := JSON.stringify(inp["cards"]) + ("" if (inp["props"] as Array).is_empty() else JSON.stringify(inp["props"]))
+	if not (inp["building"] as Dictionary).is_empty():
+		k += "|building" + JSON.stringify(inp["building"])   # BUILD: a drawn room is an unsaved change
+	if not (inp["part"] as Dictionary).is_empty():
+		k += "|part" + JSON.stringify(inp["part"])   # PART: a sketched feature is an unsaved change
+	if not (inp["shots"] as Array).is_empty():
+		k += "|shots" + var_to_str(inp["shots"])   # the shots and their cameras: an unsaved change too (ROADMAP 75)
+	for a in inp["actors"]:
+		k += "|" + JSON.stringify(a)
+	return k + String(inp["tail"])
 
 
 func _load_scene(path0: String, work := false) -> void:   # work: a copy the app wrote into scenes/_wip (a card build, a mirror, a restore), not a file the user saved or opened
@@ -26760,7 +27277,7 @@ func _shot_apply() -> bool:
 		ui_root.move_child(ui_shot, 0)   # under every panel
 	if ui_shot != null:
 		ui_shot.visible = not clean
-		ui_shot.show_rect(r, "SHOT CAMERA  %.0f mm  16:9%s" % [float(k["f"]), "" if is_nan(float(k["focus"])) else "  f/%.1f  focus %.2f m" % [float(k["fstop"]), float(k["focus"])]])
+		ui_shot.show_rect(r, Units.shot_readout(float(k["f"]), float(k["fstop"]), float(k["focus"])))
 	return true
 
 
@@ -26980,8 +27497,8 @@ func _shot_fstop(n: float) -> void:
 	_do(func(): _shot_fx_make()["fstop"] = n)
 	var f := float(ShotCam.sample(_shot_keys(), clampf(playhead, 0.0, S.length()))["f"])
 	var d := ShotFx.dof(f, n, 3.0)
-	_say("shot camera f/%s at %.0f mm: with the focus 300 cm away the sharp zone runs %s to %s (Ctrl+Z takes it back; 'look through' shows the blur)" % [
-		String.num(n, 1), f, Units.len(float(d["near"])), "infinity" if float(d["far"]) >= 999.0 else Units.len(float(d["far"]))])
+	_say("shot camera f/%s at %.0f mm: with the focus %s away the sharp zone runs %s to %s (Ctrl+Z takes it back; 'look through' shows the blur)" % [
+		String.num(n, 1), f, Units.fixed(3.0, 0), Units.len(float(d["near"])), "infinity" if float(d["far"]) >= 999.0 else Units.len(float(d["far"]))])
 
 
 func _shot_focus_remove() -> void:

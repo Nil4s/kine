@@ -58,6 +58,10 @@ var alpha_rot := SculptAlphaStroke.R_STROKE
 var alpha_angle := 0.0           # deg
 var _seed := 0
 var _stroking := false
+var pen_target := "strength"   # P09 tablet: what pen pressure scales: strength | radius | both | off (a mouse is always full)
+var pen_tilt := false          # P09: the pen tilt rotates the alpha stamp
+var _pen := KMeshPen.new()
+var _stroke_r := 0.08          # the radius the stroke began with (pressure in radius mode scales it per dab)
 var _grab_plane := Plane()
 var _hover := {}     # {"point" (world), "normal" (world)} under the mouse, or {}
 var _mouse := Vector2.ZERO
@@ -182,9 +186,11 @@ func _params(ev: InputEvent) -> Dictionary:
 		if (ev as InputEventWithModifiers).shift_pressed:
 			b = KMeshSculpt.SMOOTH
 	_seed += 1
+	_pen_sync()
+	inv = inv or _pen.erasing()   # P09: the eraser end of the pen is the inverse brush
 	return KMeshTopoMirror.get_shared().sculpt_params(mesh, view.global_transform if view != null else Transform3D.IDENTITY, {"brush": b, "radius": radius, "strength": strength, "falloff": falloff, "spacing": spacing, "invert": inv, "sym_x": sym_x, "dyntopo": dyntopo, "detail": dyn_detail,
 		"sym_y": sym_y, "sym_z": sym_z, "radial": radial, "radial_axis": radial_axis,
-		"alpha": alpha, "stroke_method": stroke_method, "alpha_rot": alpha_rot, "alpha_angle": deg_to_rad(alpha_angle), "seed": _seed,   # C08
+		"alpha": alpha, "stroke_method": stroke_method, "alpha_rot": alpha_rot, "alpha_angle": deg_to_rad(alpha_angle) + _pen.tilt_angle(), "seed": _seed,   # C08
 		"alpha_ref": _local_n((m.get("cam") as Camera3D).global_transform.basis.x) if view != null and m.get("cam") is Camera3D else Vector3.RIGHT})   # B22: the edit mirror on = its partner map
 
 
@@ -291,7 +297,7 @@ func input(ev: InputEvent) -> bool:
 		var ke := ev as InputEventKey
 		var k := ke.keycode
 		if ke.ctrl_pressed and k == KEY_Z:
-			undo_redo(not ke.shift_pressed)
+			m._redo() if ke.shift_pressed else m._undo()   # P12: through Main, the newest step of ALL pages (Main._pu_route)
 			return true
 		if _mask_key(ke) or fsets.key(self, ke):
 			return true
@@ -348,7 +354,9 @@ func input(ev: InputEvent) -> bool:
 			undo.begin(mesh)
 			sculpt.begin(mesh, fsets.params(self, _params(mb), s))
 			_grab_plane = Plane(cam.global_transform.basis.z, s["point"])   # grab: the drag slides on a screen-facing plane
-			sculpt.to(_local(s["point"]), _local_n(s["normal"]), 1.0)
+			_stroke_r = float(sculpt.p["radius"])
+			_pen_dab()
+			sculpt.to(_local(s["point"]), _local_n(s["normal"]), _pen.sk())
 			_stroking = true
 			view.mark_dirty()
 			return true
@@ -363,11 +371,14 @@ func input(ev: InputEvent) -> bool:
 	if ev is InputEventMouseMotion:
 		var mm := ev as InputEventMouseMotion
 		_mouse = mm.position
+		_pen_sync()
+		_pen.note(mm)
 		_hover = surface_at(cam, mm.position)
 		_ov.queue_redraw()
 		if not _stroking:
 			return false
-		var pr := KMeshSculpt.pressure_of(mm)
+		var pr := _pen.sk()
+		_pen_dab()
 		if sculpt.p["brush"] == KMeshSculpt.GRAB or sculpt.p["brush"] == KMeshSculpt.SNAKE:
 			var wp = _grab_plane.intersects_ray(cam.project_ray_origin(mm.position), cam.project_ray_normal(mm.position))
 			if wp != null:
@@ -379,6 +390,21 @@ func input(ev: InputEvent) -> bool:
 		view.mark_dirty()
 		return true
 	return false
+
+
+## P09: the page's pen options into the pen state
+func _pen_sync() -> void:
+	_pen.target = pen_target
+	_pen.tilt_on = pen_tilt
+
+
+## P09: before a dab, the pen's radius factor (radius mode) and tilt (a stamp turn) go into the running stroke
+func _pen_dab() -> void:
+	var rk := _pen.rk()
+	if rk != 1.0:
+		sculpt.p["radius"] = _stroke_r * rk
+	if pen_tilt:
+		sculpt.p["alpha_angle"] = deg_to_rad(alpha_angle) + _pen.tilt_angle()
 
 
 func _draw_overlay() -> void:
@@ -422,6 +448,7 @@ var size_sl: HSlider
 var strength_sl: HSlider
 var size_lbl: Label
 var strength_lbl: Label
+var pie_cb: CheckBox   # L135
 
 
 func make_sliders() -> void:
@@ -451,14 +478,21 @@ func make_sliders() -> void:
 	dyn_cb.focus_mode = Control.FOCUS_NONE
 	dyn_cb.toggled.connect(_on_dyntopo)
 	box.add_child(dyn_cb)
-	var pie_cb := CheckBox.new()   # P04
+	pie_cb = CheckBox.new()   # P04
 	pie_cb.name = "sculpt_pie"
 	pie_cb.text = "Brush pie menu (Q)"
 	pie_cb.tooltip_text = "Q opens a ring of the brushes around the mouse; release the mouse on one to pick it. Off by default."
 	pie_cb.focus_mode = Control.FOCUS_NONE
 	pie_cb.button_pressed = m.pie_on
-	pie_cb.toggled.connect(func(v: bool): m.pie_on = v)
+	pie_cb.toggled.connect(func(v: bool):   # L135: the same setting as Settings' pie: saved, and Settings follows
+		m.pie_on = v
+		AccessPrefs.save("pie", v)
+		var sp := m.find_child("settings_pie", true, false) as CheckBox
+		if sp != null:
+			sp.set_pressed_no_signal(v))
 	box.add_child(pie_cb)
+	PenPicker.load_into(self, "sculpt")
+	PenPicker.add(box, self, "sculpt")
 	_sync_sliders()
 
 
@@ -494,6 +528,8 @@ func _on_strength(v: float) -> void:
 func _sync_sliders() -> void:
 	if size_sl == null:
 		return
+	if pie_cb != null:
+		pie_cb.set_pressed_no_signal(m.pie_on)
 	var r_mm := radius * 1000.0
 	var s_mm := strength * 1000.0
 	size_sl.set_value_no_signal(r_mm)

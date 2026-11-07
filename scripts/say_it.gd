@@ -36,7 +36,7 @@ const JOINT_NUM := {"knee": "calf", "elbow": "lowerarm", "hip": "thigh", "wrist"
 const STANDING_HIP := 0.0   # (unused: the standing height is read from the body each time)
 
 # ---- the stance numbers (m). Sources are in the comments; the rest is mine and is checked by tests/i5_test.gd ----
-const SPREAD_DEFAULT := 0.16     # half the feet's distance apart for an athletic stance: ~ shoulder width 0.38 m (ANSUR II male biacromial/2 ~ 0.2) -> feet a bit under it
+const SPREAD_DEFAULT := 0.16     # half the feet's distance apart for an athletic stance: ~ biacromial breadth 0.416 m (ANSUR II men, mean verified L138; half = 0.208) -> feet a bit under it
 const SPREAD_WIDE := 0.30
 const SPREAD_NARROW := 0.05
 const STAGGER := 0.18            # half the front-back distance of a ready stance (a boxer's lead foot is ~ 0.35-0.45 m ahead)

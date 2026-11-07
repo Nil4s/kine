@@ -81,8 +81,8 @@ static func analyze(scenes: Array, xfs: Array, size: float, fps := 30) -> Dictio
 	var w: Dictionary = fighters[worst]
 	var msg := ""
 	if fits:
-		msg = "fits a %.1f m ring: the tightest fighter (%d) has %.2f m to the %s wall = %d step%s" % [size, worst + 1, float(w["room"]), w["wall"], int(w["steps"]), "" if int(w["steps"]) == 1 else "s"]
+		msg = "fits a %s ring: the tightest fighter (%d) has %s to the %s wall = %d step%s" % [Units.metres(size, 1), worst + 1, Units.metres(float(w["room"]), 2), w["wall"], int(w["steps"]), "" if int(w["steps"]) == 1 else "s"]
 	else:
 		var where := ("the %s corner" % String(w["corner"])) if String(w["corner"]).contains(" ") else ("the %s wall" % String(w["wall"]))
-		msg = "does NOT fit a %.1f m ring: fighter %d is pushed into %s, %.2f m past it at %.2f s; the fight needs %.2f m" % [size, worst + 1, where, float(w["over"]), float(w["t"]), 2.0 * need]
+		msg = "does NOT fit a %s ring: fighter %d is pushed into %s, %s past it at %.2f s; the fight needs %s" % [Units.metres(size, 1), worst + 1, where, Units.metres(float(w["over"]), 2), float(w["t"]), Units.metres(2.0 * need, 2)]
 	return {"ok": true, "msg": msg, "size": size, "half": half, "need": 2.0 * need, "fits": fits, "fighters": fighters}

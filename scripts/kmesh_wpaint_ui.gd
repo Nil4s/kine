@@ -45,6 +45,9 @@ var _lock_chk: CheckBox
 var _locks_lbl: Label
 var _ov: Control
 var _stroking := false
+var pen_target := "strength"   # P09 tablet: what pen pressure scales: strength | radius | both | off (a mouse is always full)
+var _pen := KMeshPen.new()
+var _stroke_r := 0.05
 var _hover := {}
 var _heat_dirty := true
 var _seen_data = null       # the weights array the heat was built from (an undo swaps it)
@@ -180,7 +183,11 @@ func set_lock(id: int, locked: bool) -> void:
 
 
 func _params() -> Dictionary:
-	return {"brush": brush, "bone": bone, "radius": radius, "strength": strength, "value": value, "falloff": falloff,
+	_pen.target = pen_target
+	var br := brush
+	if _pen.erasing():   # P09: the eraser end subtracts where the brush adds, and adds where it subtracts
+		br = KMeshWPaint.SUB if brush == KMeshWPaint.ADD else (KMeshWPaint.ADD if brush == KMeshWPaint.SUB else brush)
+	return {"brush": br, "bone": bone, "radius": radius, "strength": strength, "value": value, "falloff": falloff,
 		"mirror": mirror, "mirror_of": mirror_of, "locks": locks.duplicate()}
 
 
@@ -304,17 +311,36 @@ func _local(wpt: Vector3) -> Vector3:
 	return ed.view.global_transform.affine_inverse() * wpt
 
 
+
+var _pie_mouse := Vector2(-1, -1)   # the last mouse motion seen (events carry it; the OS cursor can differ under a pushed event)
+
+
+## P04 follow-up: the brush pie (option m.pie_on, off by default); a release on a wedge picks it (scripts/ring_menu.gd, release_pick)
+func _open_pie() -> void:
+	var its: Array = []
+	for b in KMeshWPaint.MODES:
+		its.append({"name": b, "run": func():
+			brush = b
+			_sync_panel()
+			_status()})
+	m.ui_pie.open(_pie_mouse if _pie_mouse.x >= 0.0 else m.get_viewport().get_pie_mouse_position(), "Brush", its)
+
+
 ## true = used
 func input(ev: InputEvent) -> bool:
+	if ev is InputEventMouseMotion:
+		_pie_mouse = (ev as InputEventMouseMotion).position
+	if ev is InputEventKey and ev.pressed and not ev.echo and ev.keycode == KEY_Q and not ev.ctrl_pressed and not ev.alt_pressed 			and not ev.shift_pressed and m.pie_on and m.ui_pie != null:
+		_open_pie()   # the brush pie (Q is free on this page; snap-90 stays on the S search line)
+		return true
 	if ev is InputEventKey and ev.pressed:
 		var ke := ev as InputEventKey
 		var k := ke.keycode
 		if ke.ctrl_pressed and (k == KEY_Z or k == KEY_Y):
 			var re := k == KEY_Y or ke.shift_pressed
-			var lb: String = ed.undo.redo() if re else ed.undo.undo()
+			m._redo() if re else m._undo()   # L126: the one ordered log (P12), not this mesh's list alone
 			ed.view.mark_dirty()
 			_heat_dirty = true
-			m._say("Model: %s %s" % ["redone" if re else "undone", lb] if lb != "" else "Model: nothing to %s" % ("redo" if re else "undo"))
 			return true
 		if ke.echo:
 			return false
@@ -354,7 +380,9 @@ func input(ev: InputEvent) -> bool:
 				return true
 			ed.undo.begin(ed.mesh)
 			wp.begin(ed.mesh, _params())
-			wp.to(_local(s["point"]), Vector3.UP, 1.0)
+			_stroke_r = float(wp.p["radius"])
+			_pen_dab()
+			wp.to(_local(s["point"]), Vector3.UP, _pen.sk())
 			wp.flush()
 			_stroking = true
 			_heat_dirty = true
@@ -372,14 +400,24 @@ func input(ev: InputEvent) -> bool:
 		var mm := ev as InputEventMouseMotion
 		_hover = _surface_at(cam, mm.position)
 		_ov.queue_redraw()
+		_pen.target = pen_target
+		_pen.note(mm)
 		if not _stroking:
 			return false
 		if not _hover.is_empty():
-			wp.to(_local(_hover["point"]), Vector3.UP, KMeshSculpt.pressure_of(mm))
+			_pen_dab()
+			wp.to(_local(_hover["point"]), Vector3.UP, _pen.sk())
 			wp.flush()
 			_heat_dirty = true
 		return true
 	return false
+
+
+## P09: before a dab, the pen's radius factor (radius mode) goes into the running stroke
+func _pen_dab() -> void:
+	var rk := _pen.rk()
+	if rk != 1.0:
+		wp.p["radius"] = _stroke_r * rk
 
 
 func _status() -> void:
@@ -437,6 +475,8 @@ func _build_panel() -> void:
 		if not _syncing:
 			mirror = b)
 	vb.add_child(_mirror_chk)
+	PenPicker.load_into(self, "wpaint")
+	PenPicker.add(vb, self, "wpaint")
 	panel.add_child(vb)
 	m.ui_root.add_child(panel)
 

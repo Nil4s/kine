@@ -265,7 +265,7 @@ static func to_html(plan: Dictionary, title: String, png_name: String) -> String
 			h += "<tr><td>%d</td><td>%s</td><td>%.2f s</td><td>%.2f s</td><td>%s, %s</td></tr>\n" % [int(s["n"]), s["foot"], float(s["t"]), float(s["t1"]), Units.len(s["pos"].x), Units.len(s["pos"].y)]
 		h += "</table>\n<p class=\"note\">%s</p>\n" % ("The footprints are the scene's foot plants." if f["from_plants"] else "The scene has no foot plants: the footprints are read from sole contact (sole within 3 cm of the floor, moving under 0.25 m/s, for at least 0.1 s).")
 		for st in f["strikes"]:
-			h += "<div>Strike at %.2f s: %s travels %.2f m from the wind-up (%.2f s).</div>\n" % [float(st["t1"]), String(st["tip"]).replace("_", " "), float(st["len"]), float(st["t0"])]
+			h += "<div>Strike at %.2f s: %s travels %s from the wind-up (%.2f s).</div>\n" % [float(st["t1"]), String(st["tip"]).replace("_", " "), Units.metres(float(st["len"]), 2), float(st["t0"])]
 	if not (plan["safety"] as Array).is_empty():
 		h += "<h2>Safety margins (from the safety sheet)</h2>\n"
 		for sf in plan["safety"]:

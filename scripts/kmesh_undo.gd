@@ -8,6 +8,9 @@ extends RefCounted
 const MAX_STEPS := 200
 const MAX_BYTES := 256 * 1024 * 1024
 
+## P12: called with the list at every kept step (Main notes it in the page-spanning order, scripts/page_undo.gd); empty = nobody listens
+static var on_step := Callable()
+
 var steps: Array = []   # done, oldest first
 var redos: Array = []
 var sel: KMeshSelect = null   # the edit's selection: each step keeps the picks from before and after it (set by the edit UI)
@@ -118,6 +121,8 @@ func commit(label := "edit") -> Dictionary:
 	steps.append(st)
 	redos.clear()
 	_trim()
+	if on_step.is_valid():
+		on_step.call(self)
 	return st
 
 

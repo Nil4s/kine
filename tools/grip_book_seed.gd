@@ -7,7 +7,7 @@ extends SceneTree
 ##   BO_L   = the left hand of Nick's two-hand bo pose (data/grips/staff.json "second", from moves/bo_two_hand_nick.json):
 ##            the SECOND hand of every two-hand grip, thumb toward the tip like the first (not the first hand mirrored: a
 ##            mirrored hand holds a mirrored weapon, and it missed its place by 10-33 cm on the same one)
-## A hand's spot u is its PALM centre: a hand is ~9 cm across the palm (ANSUR II hand breadth, 50th pct men 8.9 cm), so a
+## A hand's spot u is its PALM centre: a hand is ~9 cm across the palm (ANSUR II hand breadth, 50th pct men 8.8 cm), so a
 ## hand against a guard or an end sits 4.5 cm from it.
 const HALF := 0.045
 

@@ -65,7 +65,7 @@ Merged: 115 / 400 (★ 29 / 119) (lane L66 audit, 2026-11-07: 9 added with evide
 - [ ] A17 $$ GPU skinning path for KMesh (so A–F meshes animate like the mannequin)
 - [x] A18 ★ $$ Body-aware mesh: every vertex knows its nearest bone and body region (UE5 names) from the first second
 - [x] A19 ★ $$ Anatomy tags: regions (deltoid, patella, knuckle...) painted once on the base body, carried through every edit
-- [ ] A20 ★ $$ Pose-aware edit: edit a mesh while the character is POSED; the edit is mapped back to rest pose (inverse skinning)
+- [x] A20 ★ $$ Pose-aware edit: edit a mesh while the character is POSED; the edit is mapped back to rest pose (inverse skinning) (done as C19 SculptPose; A20 bars tests/poseedit_test.gd)
 
 ## B. MODEL page
 
