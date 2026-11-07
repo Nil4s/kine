@@ -15,7 +15,7 @@ const POINTS := ["head", "pelvis", "spine_03", "upperarm_l", "upperarm_r", "lowe
 const METHODS := ["commands", "open", "new", "run", "pose", "state", "measure", "describe", "ask", "check", "diff", "validate", "save", "quit", "assert", "events", "where", "place", "facts", "brief", "dry", "text_view", "lint", "frame_data"]
 ## C06: the methods the MCP server advertises on top of METHODS. They are NOT in METHODS: its list is the "ready" line and the -32601 text of the
 ## byte-for-byte transcript (refs/agent/serve_transcript.jsonl), which tests/agent_tools_test.gd replays. tools/mcp/poser_mcp.py names each of these (advertised with --math / POSER_MCP_MATH=1)
-const MCP_EXTRA := ["cancel_windows", "reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo"]
+const MCP_EXTRA := ["cancel_windows", "reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "anykey", "bake_any"]
 ## MCPFAST: the CAD tools (scripts/build/mcp_cad.gd); advertised with --cad
 const MCP_CAD := ["cad_part", "cad_asm", "check_fit", "bom", "eval_gd", "cad_reset"]
 
@@ -519,6 +519,18 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			return _ok(id, prc) if bool(prc["ok"]) else _err(id, -32602, String(prc["error"]))
 
 
+		"anykey":   # L13/L15: key a shape-key weight ("shape:<mesh>:<key>") or any property ("prop:<target>:<path>") at the playhead (or t), one undo step; no value = read the curve. Not in METHODS
+			var akid := String(p.get("id", ""))
+			if akid == "":
+				return _ok(id, {"rows": AnyKey.ids(m.S)})
+			if p.has("t"):
+				m.playhead = float(p["t"])
+			if p.has("value"):
+				m._anykey_put(akid, float(p["value"]))
+			return _ok(id, {"id": akid, "t": m.playhead, "value": AnyKey.float_at(m.S, akid, m.playhead), "rows": AnyKey.ids(m.S)})
+		"bake_any":   # L16: bake constraints / drivers per frame into plain part keys: {joints, first, last, remove_source, step}; one undo step. Not in METHODS
+			var bar: Dictionary = m._bake_any(p.get("joints", []), int(p.get("first", 0)), int(p.get("last", 29)), bool(p.get("remove_source", true)), int(p.get("step", 1)))
+			return _ok(id, bar)
 		"look_facts":   # item 242: numbers for how the final picture LOOKS per piece / kind / nature item (scripts/build/look_facts.gd). Not in METHODS
 			var lf: Dictionary = await LookFacts.serve(m, p)
 			return _ok(id, lf) if bool(lf["ok"]) else _err(id, -32602, String(lf["error"]))

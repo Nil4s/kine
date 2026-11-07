@@ -6994,6 +6994,7 @@ func _snapshot() -> Dictionary:
 		"armour": load("res://scripts/armour_from_body.gd").snap(self),   # B23: the armour parts on the fighter (scripts/armour_from_body.gd)
 		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
 		"drivers": S.drivers.duplicate(true),   # user drivers (drivers.gd), undone like a card
+		"anykeys": S.anykeys.duplicate(true),   # L13/L15 any-property keys, undone like a card
 		"audio_tracks": S.audio_tracks.duplicate(true),   # the sounds on the timeline (AudioTrack, ROADMAP 77), undone like a card
 		"lip": S.lip.duplicate(true),   # the lip-sync channel (lip_sync.gd), undone like a card
 		"face": S.face.duplicate(true),   # THE FACE keys (face.gd), undone like a card
@@ -7235,6 +7236,8 @@ func _restore(u: Dictionary) -> void:
 		S.sets = u["sets"].duplicate(true)   # selection / keying sets (part_sets.gd), undone like a card
 		if ui_browser != null:
 			ui_browser.refresh()
+	if u["scene"] == S and u.has("anykeys") and var_to_str(u["anykeys"]) != var_to_str(S.anykeys):
+		S.anykeys = u["anykeys"].duplicate(true)   # L13/L15
 	if u["scene"] == S and u.has("drivers") and var_to_str(u["drivers"]) != var_to_str(S.drivers):
 		S.drivers = u["drivers"].duplicate(true)   # user drivers (GAP row 15), undone like a card
 	if u.has("body_gen"):
@@ -10902,6 +10905,28 @@ func _bake() -> void:
 	_say("BAKED: %d cards became %d (one a frame at %d fps)%s; Ctrl+Z gives them back" % [r["was"], r["cards"], S.fps,
 		("; part keys on %d part%s folded in" % [r["part_keys"], "" if r["part_keys"] == 1 else "s"]) if r["part_keys"] > 0 else ""]
 		+ ("; turned off (now inside the cards): %s" % ", ".join(r["off"]) if not (r["off"] as Array).is_empty() else ""))
+
+
+## ANY KEY (L13/L15, scripts/any_key.gd): key a shape-key weight or any registered property at the playhead, one undo step
+func _anykey_put(id: String, v: Variant) -> void:
+	_step_hint = "Key " + AnyKey.label(id)
+	_push_undo()
+	AnyKey.put(S, id, playhead, v)
+	AnyKey.play(S, playhead)
+	_refresh()
+	_say("keyed %s = %s at %.2f s (Ctrl+Z takes it back)" % [AnyKey.label(id), str(v), playhead])
+
+
+## BAKE FROM ANYTHING (L16): constraints / drivers sampled per frame f0..f1 into plain part keys, optionally removing the source, ONE undo step
+func _bake_any(joints: Array, f0: int, f1: int, remove_source: bool, step := 1) -> Dictionary:
+	_step_hint = "Bake to keys"
+	_push_undo()
+	var GB := Body.new()
+	GB.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var r := AnyKey.bake(S, GB, joints, f0, f1, remove_source, step)
+	_refresh()
+	_say("BAKED %d keys on %d joints over %d frames%s (Ctrl+Z gives the source back)" % [r["keys"], (r["joints"] as Array).size(), r["frames"], ("; removed " + ", ".join(r["removed"])) if not (r["removed"] as Array).is_empty() else ""])
+	return r
 
 
 ## KEY REDUCTION (ROADMAP 68, scripts/key_reduce.gd): a tolerance slider over every joint's part keys. The readout says

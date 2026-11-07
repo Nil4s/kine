@@ -46,7 +46,9 @@ func worst(a: Array, b: Array) -> float:
 	return w
 
 
-func scene3(B: Body) -> Scene:
+func scene3(_unused: Body) -> Scene:
+	var B := Body.new()   # a fresh rest body per scene: the cards must not inherit the last scene's pose
+	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 	var S := Scene.new()
 	S.name = "zz_anykey"
 	S.fps = 30
@@ -151,8 +153,9 @@ func _init() -> void:
 	ok(var_to_bytes([mat.metallic, mat.albedo_color, other.roughness, other.metallic]) == before_unkeyed, "2c unkeyed properties byte-identical")
 	var plain := scene3(B)
 	mat.roughness = 0.37
+	var rough_bytes := var_to_bytes(mat.roughness)   # float32 storage: compare what the material holds, not the double 0.37
 	plain.apply(B, tm)
-	ok(mat.roughness == 0.37 and not JSON.stringify(plain.to_dict(B)).contains("anykeys"), "2d a scene without anykeys leaves roughness 0.37 and writes no anykeys")
+	ok(var_to_bytes(mat.roughness) == rough_bytes and not JSON.stringify(plain.to_dict(B)).contains("anykeys"), "2d a scene without anykeys leaves roughness 0.37 and writes no anykeys")
 
 	# ---- 3 bake
 	var Sb := scene3(B)
