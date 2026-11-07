@@ -96,6 +96,7 @@ func _place() -> void:
 	_keys_menu.reset_size()
 	_multi_btn.position = Vector2(_break.position.x + _break.size.x + 8, 1)   # ROADMAP 65: after Unify / Break
 	_keys_menu.position = Vector2(_multi_btn.position.x + _multi_btn.size.x + 8, 1)
+	place_extra(_keys_menu.position.x + _keys_menu.size.x + 8)   # L95: Ghost, Interp, channel picker
 
 
 func set_multi(on: bool) -> void:
@@ -265,7 +266,7 @@ func key_item(id: int) -> void:
 			if not msel.is_empty():
 				var s := 0.0
 				for q in msel:
-					s += _val(q)
+					s += _qval(q)
 				cursor_v = s / msel.size()
 		4:
 			set_normalize(not normalize)
@@ -430,7 +431,7 @@ func dot_pos(j: String, c: int, i: int) -> Vector2:
 	return Vector2(t_to_x(float(k["t"])), ch_to_y(j, c, (k["v"] as Vector3)[c]))
 
 
-func _val(q: Array) -> float:
+func _qval(q: Array) -> float:
 	return (scene.part_keys[q[0]][q[2]]["v"] as Vector3)[q[1]]
 
 
@@ -716,8 +717,8 @@ func pivot() -> Vector2:
 		var t := float(scene.part_keys[q[0]][q[2]]["t"])
 		lt = minf(lt, t)
 		ht = maxf(ht, t)
-		lv = minf(lv, _val(q))
-		hv = maxf(hv, _val(q))
+		lv = minf(lv, _qval(q))
+		hv = maxf(hv, _qval(q))
 	return Vector2((lt + ht) * 0.5, (lv + hv) * 0.5)
 
 

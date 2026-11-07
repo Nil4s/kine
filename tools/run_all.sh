@@ -1105,3 +1105,4 @@ EXTRA="$EXTRA fpswave:h"   # L92 L19+L14: frame-rate conversion with sub-frame k
 EXTRA="$EXTRA spacing:h"   # L96 spacing chart from a tracked reference (tests/spacing_test.gd)
 EXTRA="$EXTRA bodylimits:h"   # L97 N030 jump budget + N032 grip hold check (tests/bodylimits_test.gd)
 EXTRA="$EXTRA floorinjury:h"   # L98 floor material (mu) + injury profile (tests/floorinjury_test.gd)
+EXTRA="$EXTRA uiwire:w"   # L95 UIWIRE: AnyKey registry + Key this property, graph ghost + Alt-drag weight, AU picker, rig/react/weight palette + slider, Interp menu slerp, quaternion readout (tests/uiwire_test.gd)
