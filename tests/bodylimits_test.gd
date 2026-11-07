@@ -152,7 +152,7 @@ func _init() -> void:
 		var a2: Dictionary = BodyLimits.serve("grip_hold", node, {})
 		var a1b: Dictionary = BodyLimits.serve("jump_budget", node, {})
 		var a2b: Dictionary = BodyLimits.serve("grip_hold", node, {})
-		var same := JSON.stringify(S.to_dict(B)) == sd0 and JSON.stringify(B.state()) == bs0 and node.undo.size() == u0
+		var same: bool = JSON.stringify(S.to_dict(B)) == sd0 and JSON.stringify(B.state()) == bs0 and node.undo.size() == u0
 		ok(a1["ok"] and a2["ok"] and same and JSON.stringify(a1) == JSON.stringify(a1b) and JSON.stringify(a2) == JSON.stringify(a2b),
 			"6 %s read-only (scene + body byte-identical, %d undo steps) and deterministic" % [path.get_file(), node.undo.size() - u0])
 		print("     ", path.get_file(), "  jump: ", a1["result"].get("msg", ""), "  grip: ", a2["result"].get("msg", ""))
