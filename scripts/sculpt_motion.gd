@@ -298,31 +298,29 @@ func _make_thumb(j: int) -> void:
 		"cam_xf": Transform3D(bas, mid + d * 0.8), "need": maxf(x1 - x0, y1 - y0) * 1.6 + 0.03, "cam_size": 0.1, "normal": d})
 
 
-## the arrays of thumbnail j's patch mesh (one flat colour per triangle: red and unshaded where at least two of its corners are in
-## the region, else grey with a headlight), so the red marker ends where the region ends
+## the arrays of thumbnail j's patch mesh: region red and unshaded, the rest grey with a headlight
 func patch_arrays(j: int) -> Array:
 	var pos: PackedVector3Array = patch_pos[j]
 	var d: Vector3 = thumbs[j]["normal"]
-	var vo := PackedVector3Array()
-	var no := PackedVector3Array()
-	var col := PackedColorArray()
+	var nrm := PackedVector3Array()
+	nrm.resize(pos.size())
 	for i in range(0, patch_tri.size(), 3):
-		var a := patch_tri[i]
-		var b := patch_tri[i + 1]
-		var c := patch_tri[i + 2]
-		var fn := (pos[b] - pos[a]).cross(pos[c] - pos[a]).normalized()
-		var inr := int(flag[patch_v[a]]) + int(flag[patch_v[b]]) + int(flag[patch_v[c]])
-		var cl := Color(1, 0, 0)
-		if inr < 2:
-			var lit := 0.4 + 0.6 * absf(fn.dot(d))
-			cl = Color(0.62 * lit, 0.64 * lit, 0.68 * lit)
-		for v in [a, b, c]:
-			vo.append(pos[v])
-			no.append(fn)
-			col.append(cl)
+		var fn := (pos[patch_tri[i + 1]] - pos[patch_tri[i]]).cross(pos[patch_tri[i + 2]] - pos[patch_tri[i]])
+		for q in 3:
+			nrm[patch_tri[i + q]] += fn
+	var col := PackedColorArray()
+	col.resize(pos.size())
+	for i in pos.size():
+		nrm[i] = nrm[i].normalized()
+		if flag[patch_v[i]] == 1:
+			col[i] = Color(1, 0, 0)
+		else:
+			var lit := 0.4 + 0.6 * absf(nrm[i].dot(d))
+			col[i] = Color(0.62 * lit, 0.64 * lit, 0.68 * lit)
 	var arr := []
 	arr.resize(Mesh.ARRAY_MAX)
-	arr[Mesh.ARRAY_VERTEX] = vo
-	arr[Mesh.ARRAY_NORMAL] = no
+	arr[Mesh.ARRAY_VERTEX] = pos
+	arr[Mesh.ARRAY_NORMAL] = nrm
 	arr[Mesh.ARRAY_COLOR] = col
+	arr[Mesh.ARRAY_INDEX] = patch_tri
 	return arr
