@@ -240,6 +240,8 @@ func confirm() -> void:
 	ui.view.mark_dirty()
 	ui._ov.queue_redraw()
 	var what := "Extrude" if kind == "extrude" else "Inset"
+	if not live.is_empty() and ui.get("redo_panel") != null:   # P03: the redo panel for this op
+		ui.redo_panel.note(kind, {"distance" if kind == "extrude" else "amount": amount, "each": each}, live, sel0)
 	ui.m._say("Model: %s by %s%s; the new part is selected (Ctrl+Z takes it back)" % [what.to_lower(), Units.len(amount), ", each face on its own" if each else ""])
 
 
