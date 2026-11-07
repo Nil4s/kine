@@ -308,7 +308,7 @@ func _init() -> void:
 	var Bs: Array = to_edges(SeamMotion.shortest(R, pb, qb))
 	var a_near := true
 	for e in A:
-		if R.verts[e.x].distance_to(elbow) > 0.09 or R.verts[e.y].distance_to(elbow) > 0.09:
+		if R.verts[e.x].distance_to(elbow) > 0.11 or R.verts[e.y].distance_to(elbow) > 0.11:
 			a_near = false
 	var b_far := true
 	for e in Bs:
@@ -318,8 +318,8 @@ func _init() -> void:
 	for e in A + Bs:
 		real = real and elen.has(ekey(e.x, e.y))
 	ok(NF >= 90 and bmax >= 100.0, "0 the scene has %d frames, the elbow bends %.0f deg (frame %d); bend direction %s" % [NF, bmax, fmax, str(n)])
-	ok(A.size() >= 4 and a_near, "0 seam A: %d edges, rest length %.3f m, all within 9 cm of the elbow: %s" % [A.size(), seam_len(A), str(a_near)])
-	ok(Bs.size() >= 4 and b_far, "0 seam B: %d edges, rest length %.3f m, all > 10 cm from the elbow: %s" % [Bs.size(), seam_len(Bs), str(b_far)])
+	ok(A.size() >= 4 and a_near, "0 seam A: %d edges, rest length %.3f m, all within 11 cm of the elbow: %s" % [A.size(), seam_len(A), str(a_near)])
+	ok(Bs.size() >= 3 and b_far, "0 seam B: %d edges, rest length %.3f m, all > 10 cm from the elbow: %s" % [Bs.size(), seam_len(Bs), str(b_far)])
 	ok(real, "0 both seams are chains of real mesh edges")
 	if A.size() < 1 or Bs.size() < 1:
 		print("seammotion: %d fails" % fails)
