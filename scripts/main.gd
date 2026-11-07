@@ -11836,6 +11836,7 @@ func _hands_dock_tick() -> void:
 
 var _hd_last_key := 0   # L58: the hands card's last placement inputs and where it went
 var _hd_last_pos := Vector2(INF, INF)
+var _hd_last_size := Vector2.ZERO
 var _props_gen := 0   # L58: counts the prop redraws (the hands card avoids props)
 
 
@@ -11884,12 +11885,14 @@ func _hands_refresh() -> void:
 				if not d0["easy"] and d0.has("both"):
 					hb_flow = (d0["both"] as Control).get_parent()
 					(d0["state"] as Label).text = st   # its wrapped height is part of the card's size
-			var _hd_key := hash([body, vrect, ps, x0, x1, y0, y1, _props_gen, sel, cur_page, held, B.wep_hand, B.wep_kind, on_h])   # L58: the same inputs place the card in the same spot
+			var _hd_blk: Array = HandsDock.blockers(self, ui_hands_panel, vrect, [ui_status, ui_mouse, ui_bar, ui_cube]) if hb_flow != null else []   # L58b: a Button planted on the view changes the key (the cached skip ignored it)
+			var _hd_key := hash([_hd_blk, body, vrect, ps, x0, x1, y0, y1, _props_gen, sel, cur_page, held, B.wep_hand, B.wep_kind, on_h])   # L58: the same inputs place the card in the same spot
 			if _hd_key == _hd_last_key and _hd_last_pos.is_finite():
+				ui_hands_panel.size = _hd_last_size   # L58b: place() had set the size too (reset_size above shrinks it back)
 				ui_hands_panel.position = _hd_last_pos
 			else:
 				_hk = PerfDoc.t()
-				var docked: bool = hb_flow != null and HandsDock.place(ui_hands_panel, hb_flow, vrect, HandsDock.blockers(self, ui_hands_panel, vrect, [ui_status, ui_mouse, ui_bar, ui_cube]), body, HandsDock.points(self))
+				var docked: bool = hb_flow != null and HandsDock.place(ui_hands_panel, hb_flow, vrect, _hd_blk, body, HandsDock.points(self))
 				PerfDoc.add("h_dock", _hk)
 				if not docked:
 					var pick := Vector2(x1, y1)
@@ -11900,6 +11903,7 @@ func _hands_refresh() -> void:
 					ui_hands_panel.position = PickDodge.fit(ui_hands_panel, pick, Rect2(float(LEFT_W) + 8.0, float(TOP_H) + 8.0, vs.x - float(LEFT_W) - float(RIGHT_W) - 16.0, vs.y - float(TOP_H) - 16.0 - float(BOTTOM_H) - 56.0), PickDodge.points(self))   # C29: never over a body pick point
 				_hd_last_key = _hd_key
 				_hd_last_pos = ui_hands_panel.position
+				_hd_last_size = ui_hands_panel.size
 		ui_hands_panel.position = ui_hands_panel.position.clamp(Vector2.ZERO, (vs - ui_hands_panel.size).max(Vector2.ZERO))   # no candidate fits a short window: it still stays on the view
 	var _hk2 := PerfDoc.t()
 	for d in ui_hands:
