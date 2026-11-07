@@ -111,12 +111,15 @@ static func from_node(root: Node, fps := 30.0) -> Dictionary:
 static func set_pose(rig: Dictionary, bone: String, delta: Quaternion) -> bool:
 	if not (rig["names"] as Array).has(bone):
 		return false
-	rig["pose"][bone] = delta.normalized()
+	rig["pose"][bone] = clamp_delta(rig, bone, delta.normalized())
 	return true
 
 
 static func key(rig: Dictionary, frame: int) -> void:
 	rig["keys"][frame] = (rig["pose"] as Dictionary).duplicate()
+	if not rig.has("pkeys"):
+		rig["pkeys"] = {}
+	rig["pkeys"][frame] = rig.get("pos", Vector3.ZERO)   # the root position goes in every key
 
 
 static func key_frames(rig: Dictionary) -> Array:
@@ -159,25 +162,202 @@ static func pose_at(rig: Dictionary, frame: float) -> Dictionary:
 			continue
 		var qa: Quaternion = rig["keys"][prev][b]
 		if next < 0 or next == prev:
-			out[b] = qa
+			out[b] = clamp_delta(rig, b, qa)
 		else:
-			out[b] = qa.slerp(rig["keys"][next][b], (frame - prev) / float(next - prev))
+			out[b] = clamp_delta(rig, b, qa.slerp(rig["keys"][next][b], (frame - prev) / float(next - prev)))
 	return out
 
 
+## the root bone position offset at a frame: the position keys interpolated linearly, held outside them (no position keys: the current one)
+static func pos_at(rig: Dictionary, frame: float) -> Vector3:
+	var pk: Dictionary = rig.get("pkeys", {})
+	if pk.is_empty():
+		return rig.get("pos", Vector3.ZERO)
+	var fr: Array = pk.keys()
+	fr.sort()
+	var prev: int = fr[0]
+	var next := -1
+	for f in fr:
+		if f <= frame:
+			prev = f
+		elif next < 0:
+			next = f
+	if frame < fr[0] or next < 0:
+		return pk[prev]
+	return (pk[prev] as Vector3).lerp(pk[next], (frame - prev) / float(next - prev))
+
+
+## ---- joint limits: per bone, degrees, on the euler angles of the bone delta from rest (Basis.get_euler, YXZ: x = pitch within +-90)
+static func set_limit(rig: Dictionary, bone: String, mn: Vector3, mx: Vector3) -> String:
+	if not (rig["names"] as Array).has(bone):
+		return "no bone called \"%s\"" % bone
+	for i in 3:
+		if mn[i] > mx[i]:
+			return "the minimum is above the maximum on axis %s" % ["X", "Y", "Z"][i]
+	mn.x = clampf(mn.x, -89.9, 89.9)
+	mx.x = clampf(mx.x, -89.9, 89.9)
+	if not rig.has("limits"):
+		rig["limits"] = {}
+	rig["limits"][bone] = {"min": mn, "max": mx}
+	if (rig["pose"] as Dictionary).has(bone):
+		rig["pose"][bone] = clamp_delta(rig, bone, rig["pose"][bone])
+	return ""
+
+
+static func clear_limit(rig: Dictionary, bone: String) -> void:
+	if rig.has("limits"):
+		(rig["limits"] as Dictionary).erase(bone)
+
+
+## euler degrees clamped into a bone limit (no limit: unchanged)
+static func clamp_euler_deg(rig: Dictionary, bone: String, e: Vector3) -> Vector3:
+	var lim: Variant = (rig.get("limits", {}) as Dictionary).get(bone)
+	if lim == null:
+		return e
+	var mn: Vector3 = lim["min"]
+	var mx: Vector3 = lim["max"]
+	return Vector3(clampf(e.x, mn.x, mx.x), clampf(e.y, mn.y, mx.y), clampf(e.z, mn.z, mx.z))
+
+
+## a delta rotation clamped into its bone limit (the same rotation back when it is inside)
+static func clamp_delta(rig: Dictionary, bone: String, q: Quaternion) -> Quaternion:
+	if not (rig.get("limits", {}) as Dictionary).has(bone):
+		return q
+	var e := Basis(q.normalized()).get_euler() * (180.0 / PI)
+	var c := clamp_euler_deg(rig, bone, e)
+	if c.is_equal_approx(e):
+		return q
+	return Quaternion(Basis.from_euler(c * (PI / 180.0))).normalized()
+
+
+## ---- IK on a chain the user marks: bones = a parent-to-child path; the last bone origin is the effector. pole = a world point (or null)
+static func mark_chain(rig: Dictionary, cname: String, bones: Array, pole: Variant = null) -> String:
+	if cname.strip_edges() == "":
+		return "a chain needs a name"
+	if bones.size() < 2:
+		return "a chain needs at least 2 bones"
+	var names: Array = rig["names"]
+	for i in bones.size():
+		var bi := names.find(bones[i])
+		if bi < 0:
+			return "no bone called \"%s\"" % bones[i]
+		if i > 0 and rig["parent"][bi] != names.find(bones[i - 1]):
+			return "\"%s\" is not a child of \"%s\": a chain is a path down the skeleton" % [bones[i], bones[i - 1]]
+	if not rig.has("chains"):
+		rig["chains"] = {}
+	rig["chains"][cname] = {"bones": bones.duplicate(), "pole": pole}
+	return ""
+
+
+static func _local_delta(rig: Dictionary, g: Array, i: int, new_world: Basis) -> Quaternion:
+	var p: int = rig["parent"][i]
+	var pw: Basis = (g[p] as Transform3D).basis.orthonormalized() if p >= 0 else Basis.IDENTITY
+	var rb: Basis = (rig["rest"][i] as Transform3D).basis.orthonormalized()
+	return (rb.inverse() * pw.inverse() * new_world).orthonormalized().get_rotation_quaternion()
+
+
+## turn chain bone k (shortest arc, in the world) so the effector bone eff moves toward to_pt, then clamp into its limit; true if the clamp changed it
+static func _aim(rig: Dictionary, pose: Dictionary, idx: Array, k: int, eff: int, to_pt: Vector3, off: Vector3) -> bool:
+	var g := globals(rig, pose, off)
+	var bo: Vector3 = (g[idx[k]] as Transform3D).origin
+	var v1: Vector3 = (g[eff] as Transform3D).origin - bo
+	var v2 := to_pt - bo
+	if v1.length() < 1e-9 or v2.length() < 1e-9:
+		return false
+	var r := Quaternion(v1.normalized(), v2.normalized())
+	var nw := Basis(r) * (g[idx[k]] as Transform3D).basis.orthonormalized()
+	var d := _local_delta(rig, g, idx[k], nw)
+	var nm: String = rig["names"][idx[k]]
+	var c := clamp_delta(rig, nm, d)
+	pose[nm] = c
+	return not c.is_equal_approx(d)
+
+
+## solve a marked chain to a world target. Returns {"ok", "reached", "why", "err" (m), "limited", "pose"}; apply = write the pose into the rig.
+## Two bones plus a third as effector (a leg: upper, lower, paw) is solved exactly, the pole picking the bend side; any other chain by CCD.
+## Joint limits are never exceeded: a limited solve stops short and says so.
+static func ik_solve(rig: Dictionary, cname: String, target: Vector3, apply := true) -> Dictionary:
+	var ch: Variant = (rig.get("chains", {}) as Dictionary).get(cname)
+	if ch == null:
+		return {"ok": false, "reached": false, "why": "no chain called \"%s\"" % cname, "err": INF, "limited": false}
+	var idx := []
+	for b in ch["bones"]:
+		idx.append((rig["names"] as Array).find(b))
+	var n := idx.size()
+	var off: Vector3 = rig.get("pos", Vector3.ZERO)
+	var pose: Dictionary = (rig["pose"] as Dictionary).duplicate()
+	var g := globals(rig, pose, off)
+	var A: Vector3 = (g[idx[0]] as Transform3D).origin
+	var total := 0.0
+	for i in n - 1:
+		total += ((g[idx[i + 1]] as Transform3D).origin - (g[idx[i]] as Transform3D).origin).length()
+	var dist := (target - A).length()
+	var oor := dist > total + 1e-6
+	var te := A
+	if dist > 1e-9:
+		te = A + (target - A).normalized() * minf(dist, total * 0.999999)
+	var limited := false
+	if n == 3:
+		var B: Vector3 = (g[idx[1]] as Transform3D).origin
+		var C: Vector3 = (g[idx[2]] as Transform3D).origin
+		var l1 := (B - A).length()
+		var l2 := (C - B).length()
+		var T := te - A
+		var d := clampf(T.length(), absf(l1 - l2) + 1e-6, l1 + l2)
+		var u := T.normalized()
+		var along := (l1 * l1 + d * d - l2 * l2) / (2.0 * d)
+		var h := sqrt(maxf(l1 * l1 - along * along, 0.0))
+		var perp := Vector3.ZERO
+		var pv: Variant = ch.get("pole")
+		if pv is Vector3:
+			perp = ((pv as Vector3) - A) - u * (((pv as Vector3) - A).dot(u))
+		if perp.length() < 1e-9:
+			perp = (B - A) - u * ((B - A).dot(u))
+		if perp.length() < 1e-9:
+			perp = u.cross(Vector3.UP) if absf(u.dot(Vector3.UP)) < 0.99 else u.cross(Vector3.RIGHT)
+		perp = perp.normalized()
+		var Mp := A + u * along + perp * h
+		var Tp := A + u * d
+		limited = _aim(rig, pose, idx, 0, idx[1], Mp, off) or limited
+		limited = _aim(rig, pose, idx, 1, idx[2], Tp, off) or limited
+	var err := ((globals(rig, pose, off)[idx[n - 1]] as Transform3D).origin - target).length()
+	if n != 3 or (err > 1e-4 and not oor):
+		for it in 400:
+			for k in range(n - 2, -1, -1):
+				limited = _aim(rig, pose, idx, k, idx[n - 1], te, off) or limited
+			if ((globals(rig, pose, off)[idx[n - 1]] as Transform3D).origin - te).length() < 1e-6:
+				break
+		err = ((globals(rig, pose, off)[idx[n - 1]] as Transform3D).origin - target).length()
+	var reached := err < 1e-3 and not oor
+	var why := ""
+	if oor:
+		why = "out of reach: the target is %.3f m from the chain root and the chain is %.3f m long; it is stretched toward it" % [dist, total]
+	elif not reached:
+		why = ("stopped %.1f mm short: the joint limits stop the chain" if limited else "stopped %.1f mm short") % (err * 1000.0)
+	if apply:
+		for b in pose:
+			rig["pose"][b] = pose[b]
+	return {"ok": true, "reached": reached, "why": why, "err": err, "limited": limited, "pose": pose}
+
+
 ## every bone's world transform for a pose (bone -> delta; missing = rest)
-static func globals(rig: Dictionary, pose: Dictionary) -> Array:
+static func globals(rig: Dictionary, pose: Dictionary, off := Vector3.ZERO) -> Array:
 	var n := (rig["names"] as Array).size()
 	var out := []
 	out.resize(n)
 	var done := PackedByteArray()
 	done.resize(n)
 	for i in n:
-		_glob(rig, pose, i, out, done, 0)
+		_glob(rig, pose, i, out, done, 0, off)
 	return out
 
 
-static func _glob(rig: Dictionary, pose: Dictionary, i: int, out: Array, done: PackedByteArray, depth: int) -> Transform3D:
+## the drawn world transforms: the rig current pose and its root position offset
+static func globals_posed(rig: Dictionary) -> Array:
+	return globals(rig, rig["pose"], rig.get("pos", Vector3.ZERO))
+
+
+static func _glob(rig: Dictionary, pose: Dictionary, i: int, out: Array, done: PackedByteArray, depth: int, off := Vector3.ZERO) -> Transform3D:
 	if done[i] == 1:
 		return out[i]
 	var loc: Transform3D = rig["rest"][i]
@@ -185,9 +365,11 @@ static func _glob(rig: Dictionary, pose: Dictionary, i: int, out: Array, done: P
 	if pose.has(nm):
 		loc = Transform3D(loc.basis * Basis(pose[nm] as Quaternion), loc.origin)
 	var p: int = rig["parent"][i]
+	if p < 0:
+		loc.origin += off
 	var g := loc
 	if p >= 0 and depth < 4096:
-		g = _glob(rig, pose, p, out, done, depth + 1) * loc
+		g = _glob(rig, pose, p, out, done, depth + 1, off) * loc
 	out[i] = g
 	done[i] = 1
 	return g
@@ -282,7 +464,39 @@ static func to_file(rig: Dictionary) -> Dictionary:
 			var q: Quaternion = rig["keys"][f][b]
 			row[b] = [q.x, q.y, q.z, q.w]
 		keys.append({"f": f, "q": row})
-	return {"names": (rig["names"] as Array).duplicate(), "parent": (rig["parent"] as Array).duplicate(), "rest": rest, "keys": keys, "fps": float(rig.get("fps", 30.0))}
+	var d := {"names": (rig["names"] as Array).duplicate(), "parent": (rig["parent"] as Array).duplicate(), "rest": rest, "keys": keys, "fps": float(rig.get("fps", 30.0))}
+	var lim: Dictionary = rig.get("limits", {})
+	if not lim.is_empty():
+		var lo := {}
+		var lk := lim.keys()
+		lk.sort()
+		for b in lk:
+			var mn: Vector3 = lim[b]["min"]
+			var mx: Vector3 = lim[b]["max"]
+			lo[b] = [mn.x, mn.y, mn.z, mx.x, mx.y, mx.z]
+		d["limits"] = lo
+	var chs: Dictionary = rig.get("chains", {})
+	if not chs.is_empty():
+		var co := {}
+		var ck := chs.keys()
+		ck.sort()
+		for c in ck:
+			var pv: Variant = chs[c].get("pole")
+			co[c] = {"bones": (chs[c]["bones"] as Array).duplicate(), "pole": [pv.x, pv.y, pv.z] if pv is Vector3 else null}
+		d["chains"] = co
+	var pk: Dictionary = rig.get("pkeys", {})
+	var any_pos := false
+	for f in pk:
+		if (pk[f] as Vector3) != Vector3.ZERO:
+			any_pos = true
+	if any_pos:
+		var pl := []
+		var pf := pk.keys()
+		pf.sort()
+		for f in pf:
+			pl.append({"f": f, "p": [pk[f].x, pk[f].y, pk[f].z]})
+		d["pkeys"] = pl
+	return d
 
 
 static func from_file(d: Variant) -> Dictionary:
@@ -308,6 +522,21 @@ static func from_file(d: Variant) -> Dictionary:
 	var fr := key_frames(rig)
 	if not fr.is_empty():
 		rig["pose"] = (keys[fr[0]] as Dictionary).duplicate()
+	if d.has("limits"):
+		rig["limits"] = {}
+		for b in d["limits"]:
+			var a: Array = d["limits"][b]
+			rig["limits"][String(b)] = {"min": Vector3(a[0], a[1], a[2]), "max": Vector3(a[3], a[4], a[5])}
+	if d.has("chains"):
+		rig["chains"] = {}
+		for c in d["chains"]:
+			var pa: Variant = d["chains"][c].get("pole")
+			rig["chains"][String(c)] = {"bones": (d["chains"][c]["bones"] as Array).map(func(x): return String(x)), "pole": Vector3(pa[0], pa[1], pa[2]) if pa is Array else null}
+	if d.has("pkeys"):
+		rig["pkeys"] = {}
+		for k in d["pkeys"]:
+			rig["pkeys"][int(k["f"])] = Vector3(k["p"][0], k["p"][1], k["p"][2])
+		rig["pos"] = pos_at(rig, float(fr[0])) if not fr.is_empty() else Vector3.ZERO
 	return rig
 
 

@@ -351,6 +351,10 @@ func pps() -> float:
 		return _drag["pps"]
 	var S := _S()
 	var L := S.length() if S != null and not S.cards.is_empty() else 1.0
+	if m != null and m.has_method("rig_len"):
+		L = maxf(L if S != null and not S.cards.is_empty() else 0.0, m.rig_len())   # OWN RIG (L78): the rig's keys count toward the strip's length
+		if L <= 0.0:
+			L = 1.0
 	return (size.x - 2.0 * PAD) / maxf(L, 0.5)
 
 
@@ -996,7 +1000,36 @@ func _drop_stale() -> void:
 		_drag = {}
 
 
+var rk_drawn: Array = []   # OWN RIG (L78): the centre of each key diamond drawn on the own-rig key row (the test reads the x)
+
+
+func rig_key_frames() -> Array:
+	var S := _S()
+	return CustomRig.key_frames(S.own_rig) if S != null and not S.own_rig.is_empty() else []
+
+
+## the own-rig key row: a thin row along the bottom, one diamond per rig key at x_of(frame / fps)
+func _draw_rig_row() -> void:
+	rk_drawn = []
+	var fr := rig_key_frames()
+	if fr.is_empty():
+		return
+	var fps := float(_S().own_rig.get("fps", 30.0))
+	var y := size.y - 8.0
+	draw_rect(Rect2(0, y - 6.0, size.x, 12.0), Color(0.95, 0.75, 0.2, 0.12))
+	draw_string(get_theme_default_font(), Vector2(2, y + 4.0), "rig", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(0.95, 0.75, 0.2, 0.8))
+	for f in fr:
+		var x := x_of(float(f) / fps)
+		draw_colored_polygon(PackedVector2Array([Vector2(x, y - 5), Vector2(x + 5, y), Vector2(x, y + 5), Vector2(x - 5, y)]), Color(0.95, 0.75, 0.2))
+		rk_drawn.append(Vector2(x, y))
+
+
 func _draw() -> void:
+	_draw_cards()
+	_draw_rig_row()
+
+
+func _draw_cards() -> void:
 	_drop_stale()
 	var S := _S()
 	draw_rect(Rect2(Vector2.ZERO, size), Tok.c("tl_bg"))

@@ -3870,9 +3870,9 @@ func _process_body(dt: float) -> void:
 	PerfDoc.add("p_props", _p1)
 	PerfDoc.add("p_pre", _pre)
 	var _a_before := playhead   # the sound follows whatever moved the playhead this frame (_audio_tick)
-	if playing and not S.cards.is_empty():
+	if playing and (not S.cards.is_empty() or rig_len() > 0.0):
 		# WW4: inside the preview range, if one is set. ROADMAP 48: how far the playhead moves is the play clock's mode
-		var stp := play_clock.advance(playhead, dt, S.fps, _ps().length(), pv_in, pv_out, S.loop)
+		var stp := play_clock.advance(playhead, dt, S.fps, play_len(), pv_in, pv_out, S.loop)
 		playhead = stp["t"]
 		# ROADMAP 77: while a track sounds, the audio clock drives the playhead (monotonic; the frame clock only
 		# stands in when no track sounds, at a loop or stop, or when the two disagree by more than a quarter second)
@@ -3889,7 +3889,7 @@ func _process_body(dt: float) -> void:
 		if stp["stop"]:
 			playing = false
 		_pp = PerfDoc.t()
-		if not PerfStub.skip("body"):
+		if not PerfStub.skip("body") and not S.cards.is_empty():
 			var ps := _ps()
 			ps.apply(B, ps.play_t(playhead))   # ROADMAP 99: the evaluated time is a tick of the bake grid, the pose a baked one
 		PerfDoc.add("body", _pp)
@@ -6602,6 +6602,8 @@ func _lb_step(pull: bool, alt: bool) -> void:
 
 
 func _toggle_keep_balance() -> void:
+	if _own_gate("balance"):
+		return
 	keep_balance = not keep_balance
 	var cf := ConfigFile.new()
 	cf.load(settings)
@@ -6786,6 +6788,35 @@ func _rig_ui() -> OwnRigUI:
 
 
 ## the Scene menu's "Import rig (glTF)": "" = done, else why not
+## OWN RIG (L78): the seconds the rig's keys reach (0 = none); Play and the strip use the longer of this and the cards
+func rig_len() -> float:
+	if S == null or S.own_rig.is_empty() or (S.own_rig.get("keys", {}) as Dictionary).is_empty():
+		return 0.0
+	return float(CustomRig.key_frames(S.own_rig)[-1]) / float(S.own_rig.get("fps", 30.0))
+
+
+func play_len() -> float:
+	return maxf(_ps().length(), rig_len())
+
+
+var own_gate_log := {}   # tool -> the "not a human rig" words it was answered with (the test counts them)
+
+
+## the human-only panels (Check, human limits, feasibility, contacts, retarget, keep balance) ask this first: true = the scene's active subject is an
+## own rig, the tool is refused with the reason and must not run
+func _own_gate(tool: String) -> bool:
+	if rig_ui == null or S.own_rig.is_empty() or not rig_ui.active:
+		return false
+	var r := CustomRig.human_tool(S.own_rig, tool)
+	if r["ok"]:
+		return false
+	own_gate_log[tool] = String(r["why"])
+	_say(String(r["why"]))
+	if rig_ui.gate_label != null:
+		rig_ui.gate_label.text = String(r["why"])
+	return true
+
+
 func rig_import(path: String) -> String:
 	return _rig_ui().import_file(path)
 
@@ -8605,6 +8636,8 @@ func _ik_pin() -> void:
 ## weapon or the other hand from the playhead on; its tip stays where it is at this frame (one undo step)
 ## ROADMAP 88: contact mode on / off (no body change: no undo step). Read by _drag_joint for the hands.
 func _ik_contact_toggle() -> void:
+	if _own_gate("contacts"):
+		return
 	ik_contact = not ik_contact
 	_say("CONTACT ON: a hand you drag slides along the nearest wall or table in the set, palm on it" if ik_contact else "CONTACT OFF: a hand you drag pulls through everything, as before")
 
@@ -19283,6 +19316,8 @@ func _check_btn() -> void:
 	_sm = sm
 
 func _check(given = null) -> void:
+	if _own_gate("check"):
+		return
 	_previews.clear()   # the previews were for the cards as they were
 	_pv_gen += 1
 	_pv_hover = {}
@@ -20695,14 +20730,14 @@ func _set_fps(f: int) -> void:
 
 
 func _toggle_play() -> void:
-	if S.cards.size() < 2:
+	if S.cards.size() < 2 and rig_len() <= 0.0:   # an own rig with keys plays without cards (L78)
 		_say("a scene needs two cards or more to play: press Enter to add the body as a card (two at least), or open a scene in the list below")
 		return
 	playing = not playing
 	_a_after = -1.0   # the sound starts (or stops) with the next frame
-	if playing and playhead >= _ps().length() - 0.01:
+	if playing and playhead >= play_len() - 0.01:
 		playhead = 0.0
-	var sp := PreviewRange.span(pv_in, pv_out, _ps().length())
+	var sp := PreviewRange.span(pv_in, pv_out, play_len())
 	if playing and not sp.is_empty() and (playhead < sp[0] or playhead >= sp[1] - 0.01):
 		playhead = sp[0]   # WW4: Play starts inside the range
 	if playing:
@@ -23972,6 +24007,8 @@ func _audio_remove() -> void:
 ## and mixed into the playblast's mp4 (PlayblastExport.args). One undo step
 ## ROADMAP 10: the human-limits rules in or out of Check (HumanLimits.on), then Check again
 func _human_check() -> void:
+	if _own_gate("human_limits"):
+		return
 	HumanLimits.on = not HumanLimits.on
 	_check()
 	_say(("Check now asks 'could a human do this?' too: joint speed and tipping against recorded limits (experimental)" if HumanLimits.on else "Check is back to the rulebook alone"))
@@ -23979,6 +24016,8 @@ func _human_check() -> void:
 
 ## "Is this clip physically possible?": Check with the feasibility verdict (scripts/feasible.gd) switched on
 func _feasible_check() -> void:
+	if _own_gate("feasible"):
+		return
 	HumanLimits.on = true
 	_check()
 	if S.cards.size() < 2:
@@ -24416,6 +24455,8 @@ func _retarget_on() -> bool:
 
 
 func _retarget_toggle() -> void:
+	if _own_gate("retarget"):
+		return
 	var on := not _retarget_on()
 	var cf := ConfigFile.new()
 	cf.load(settings)
