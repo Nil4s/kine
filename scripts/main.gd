@@ -21529,6 +21529,8 @@ func _close_asked() -> void:
 
 
 func _quit_app() -> void:
+	if _bgs != null:
+		_bgs.wait_all()   # L124: the writer finishes first
 	_pw_save()
 	if quit_fn.is_valid():
 		quit_fn.call()
@@ -21824,6 +21826,29 @@ func _selfcheck_save() -> void:
 	get_tree().quit()
 
 
+var _bgs: BgSave
+
+
+## the background writer (scripts/bg_save.gd), made when first needed
+func bgs() -> BgSave:
+	if _bgs == null:
+		_bgs = BgSave.new()
+		_bgs.name = "BgSave"
+		add_child(_bgs)
+	return _bgs
+
+
+## a background save has finished: the index learns the file; a failed write makes the scene unsaved again (the old file is untouched)
+func _bg_saved(ok: bool, err: String, path: String) -> void:
+	if ok:
+		if np.loaded:
+			np.update_file(path)
+		_lists()
+	else:
+		_clean = "[bg save failed]"
+		_say("NOT SAVED: %s. The old file is untouched; save again." % err)
+
+
 func _save_scene_now(nm: String) -> void:
 	if co != null and co.connected() and not co.is_host:
 		_say("live co-edit: the host saves the scene (your fighter's work is on its side too): ask the host to save, or save your own copy under another name")
@@ -21836,12 +21861,19 @@ func _save_scene_now(nm: String) -> void:
 	var tpv: Node = get_node_or_null(KMeshVPaintUI.NODE)   # L55: the painted texture goes beside the scene (PNG) and is recorded in its JSON
 	var tps: Dictionary = tpv.texture_source() if tpv != null else {}
 	KMeshTPaintFile.record(d, tps, "%s_tpaint.png" % fname)
-	if not _write("res://scenes/%s.json" % fname, d):   # S271: say it was skipped; the old file and scene_path stay as they were
+	var big := BgSave.is_big(d)   # L124 P15: a big scene is written on a worker thread (scripts/bg_save.gd); a small one at once, as before
+	if big:
+		var bpath := UserPaths.w("res://scenes/%s.json" % fname)
+		if _test_keeps(bpath):
+			_say("not saved: a test run may not overwrite the shipped scene %s (save under another name, or a zz_ name)" % fname)
+			return
+		bgs().request(bpath, d, _bg_saved.bind(bpath))
+	elif not _write("res://scenes/%s.json" % fname, d):   # S271: say it was skipped; the old file and scene_path stay as they were
 		_say("not saved: a test run may not overwrite the shipped scene %s (save under another name, or a zz_ name)" % fname)
 		return
 	if not tps.is_empty():
 		KMeshTPaintFile.write_png(tps, ProjectSettings.globalize_path(UserPaths.w("res://scenes/%s_tpaint.png" % fname)))
-	if np.loaded:
+	if np.loaded and not big:
 		np.update_file(UserPaths.w("res://scenes/%s.json" % fname))   # R27: the index of your habits learns the saved scene
 	_clean = _doc_key()
 	_autosave_drop()
