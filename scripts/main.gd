@@ -341,6 +341,8 @@ var ui_doc_dot: Label     # unsaved changes
 var ui_ribbon := {}        # tab -> its row of tools (round 7)
 var ui_ribbon_tabs := {}   # tab -> its tab button
 var ui_toggles := []       # [button, func -> is it on]: the ribbon's on/off buttons show their state (synced in _refresh)
+var pie_on := false   # P04: the brush pie menu (Q on the sculpt page); off by default (scripts/kmesh_sculpt_ui.gd)
+var ui_pie: RingMenu   # P04: the brush pie, a RingMenu that picks on mouse release
 var ui_ring: RingMenu   # right-CLICK a part: a ring of actions (round 7, scripts/ring_menu.gd)
 var _rpress := {}   # the right button's press: where, the view's turn then, the part under it (click vs drag)   # left panel, 2nd tab: every part by name + the scene's clips (round 7, scripts/browser.gd)   # top-right of the view: turns with the camera, click a face = that view (round 7)   # S: type to find any command (round 7, scripts/command_search.gd)
 var ui_card_btns: Array = []
@@ -15067,6 +15069,10 @@ func _ui() -> void:
 	ui_ring = RingMenu.new()
 	ui_ring.top_margin = TOP_H
 	ui_root.add_child(ui_ring)
+	ui_pie = RingMenu.new()
+	ui_pie.top_margin = TOP_H
+	ui_pie.release_pick = true
+	ui_root.add_child(ui_pie)
 	ui_cmd = CommandSearch.new()
 	ui_cmd.offset_top = TOP_H + 10
 	ui_root.add_child(ui_cmd)
