@@ -1116,3 +1116,4 @@ EXTRA="$EXTRA access:w"   # L111 P16 accessibility: font scale 1.5 on a real pag
 EXTRA="$EXTRA pagewire:w"   # L108 P06/P07/P18 wired into the real app (tests/pagewire_test.gd)
 EXTRA="$EXTRA learnkeys:w"   # L114 P18 learn-from-me hotkeys: 5 box runs -> offered a free key, accept binds, decline is final, counts persist (tests/learnkeys_test.gd, scripts/learn_keys.gd)
 EXTRA="$EXTRA themehc:w"   # P08 HIGH CONTRAST theme via Tok: WCAG 7:1 pairs, planted 3:1, real page recolour + byte-identical restore (tests/themehc_test.gd)
+EXTRA="$EXTRA fistclose:w"   # L116 close the right fist: tip gap <= 15 mm, thumb weight out of the palm, self-intersection reported (tests/fistclose_test.gd; scripts/fist_check.gd from w4-fistmat)
