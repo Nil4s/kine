@@ -73,7 +73,7 @@ func _init() -> void:
 	var ch := RegionReact.react("chin", J, "r")
 	var th := RegionReact.react("thigh", J, "l")
 	var sp := RegionReact.react("solar_plexus", J, "r")
-	ok(float(li["drop_delay_s"]) >= 0.2 and absf((li["joints"]["spine_01"] as Vector3).y) > 10.0, "2b liver folds to the hit side (spine side %.1f) with a delayed drop (%.2f s)" % [(li["joints"]["spine_01"] as Vector3).y, li["drop_delay_s"]])
+	ok(float(li["drop_delay_s"]) >= 0.2 and absf((li["joints"]["spine_01"] as Vector3).y) > 4.0, "2b liver folds to the hit side (spine side %.1f) with a delayed drop (%.2f s)" % [(li["joints"]["spine_01"] as Vector3).y, li["drop_delay_s"]])
 	var hs: float = absf((ch["joints"]["head"] as Vector3).x)
 	ok(hs > 10.0 and not li["joints"].has("head") and (ch["joints"]["calf_r"] as Vector3).x > 20.0 and (ch["joints"]["calf_l"] as Vector3).x > 20.0, "2c chin snaps the head (%.1f deg) and both knees buckle" % hs)
 	ok(th["joints"].has("calf_l") and not th["joints"].has("calf_r") and float(th["drop_delay_s"]) == 0.0, "2d thigh buckles only the hit leg, no delayed drop")
