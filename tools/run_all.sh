@@ -1084,3 +1084,4 @@ EXTRA="$EXTRA kmeshnat:w"   # L60: KMesh from_array_mesh/rebuild/is_manifold, Ca
 EXTRA="$EXTRA fastsave:w"   # L56 FASTSAVE: save/USD with 1000 props <= 300 ms warm, file byte-identical (tests/fastsave_test.gd)
 EXTRA="$EXTRA propsgrid:w"   # L58 PROPSGRID: Props.settle in C++ with a grid (GDScript twin), undo without re-settle, _props_show keeps nodes per prop (tests/propsgrid_test.gd)
 EXTRA="$EXTRA graphed:h"   # L84 weighted tangents, buffer curves, curve modifiers via curve_graph tool (tests/graphed_test.gd)
+EXTRA="$EXTRA eulerwarp:h"   # L86 Euler filter, quaternion view, slerp, clip time warp via euler_warp tool (tests/eulerwarp_test.gd)

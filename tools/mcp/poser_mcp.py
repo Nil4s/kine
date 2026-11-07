@@ -60,6 +60,8 @@ TOOLS = {
                     {"type": "object", "properties": {"pieces": {"type": "array", "items": S}, "camera": {"type": "object"}, "w": N, "h": N, "part": {"type": "object"}}, "additionalProperties": False}),
     "curve_graph": ("curve_graph", "Graph editor curve of one joint's part keys. action: read | weight (key, side in/out, weight 1.0 default .. 3.0; one undo step) | snapshot (buffer curve, returns slot) | swap (slot; live <-> buffer exactly) | compare (slot: max/rms/per-channel deviation in deg) | mod (type noise/stepped/limits/cycles + fields) | unmod (index) | drop (slot).",
                     {"type": "object", "properties": {"action": S, "joint": S, "key": N, "side": S, "weight": N, "slot": N, "name": S, "type": S, "index": N, "strength": N, "scale": N, "seed": N, "step": N, "min": N, "max": N, "ch": N}, "required": ["action"], "additionalProperties": True}),
+    "euler_warp": ("euler_warp", "Euler filter, quaternion view, slerp and clip time warp. action: euler (joints: part names; unwrap 360 jumps, one undo step) | quat (joint, t0, t1, fps: [t, w, x, y, z] per frame of the part's world rotation, read-only) | slerp (joints, on: key interpolation along the shortest quaternion arc; one undo step) | warp (clip index, knots [[x, y]..] a monotone time curve of strip progress to source progress; refused when not monotone; one undo step) | warp_clear (clip) | warp_read (clip).",
+                   {"type": "object", "properties": {"action": S, "joints": {"type": "array", "items": S}, "joint": S, "t0": N, "t1": N, "fps": N, "on": {"type": "boolean"}, "clip": N, "knots": {"type": "array"}}, "required": ["action"], "additionalProperties": True}),
     "dyntopo": ("dyntopo", "Dynamic topology step: under the sculpt brush edges longer than L_max = detail x radius are split and edges shorter than 0.4 L_max are collapsed. "
                 "Runs one step on a test sphere and returns tris before/after, splits, collapses, edges in the brush outside the band (band_bad), min/max edge in mm, manifold, native, ms.",
                 {"type": "object", "properties": {"radius": N, "detail": N, "levels": N}, "additionalProperties": False}),
@@ -115,7 +117,7 @@ TOOLS = {
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "curve_graph"]
+MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "curve_graph", "euler_warp"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:

@@ -313,6 +313,32 @@ static func warp_norm(a) -> Array:
 	return []
 
 
+## L86 (ROADMAP_400 L05): the STRICT check for a warp a caller hands in (warp_clean quietly drops what is wrong; this refuses). Returns ""
+## when the knots are a legal monotone time curve, else the reason: at most WARP_MAX knots, each [x, y] with x strictly inside (0, 1),
+## x strictly increasing, y in 0..1 and never falling (the source would run backwards)
+static func warp_check(a) -> String:
+	if not a is Array:
+		return "knots must be a list of [x, y] pairs"
+	if (a as Array).size() > WARP_MAX:
+		return "at most %d knots (got %d)" % [WARP_MAX, (a as Array).size()]
+	var px := 0.0
+	var py := 0.0
+	for k in a:
+		if not (k is Array and (k as Array).size() >= 2):
+			return "each knot is an [x, y] pair"
+		var x := float(k[0])
+		var y := float(k[1])
+		if not (x > 0.0 and x < 1.0) or y < 0.0 or y > 1.0:
+			return "knot [%s, %s] is outside the open square (x in 0..1 exclusive, y in 0..1)" % [x, y]
+		if x <= px:
+			return "x must increase: %s after %s" % [x, px]
+		if y < py:
+			return "not monotone: y falls from %s to %s (the source would run backwards)" % [py, y]
+		px = x
+		py = y
+	return ""
+
+
 ## the warp curve at p in 0..1: monotone cubic Hermite through (0,0), the knots and (1,1)
 static func warp_f(knots: Array, p: float) -> float:
 	if knots.is_empty():

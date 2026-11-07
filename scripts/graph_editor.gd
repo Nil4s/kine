@@ -48,7 +48,7 @@ var _gscene: Scene = null
 var _multi_btn: Button
 var _keys_menu: MenuButton
 const RANGE_ITEMS := ["Range of the last modifier: start at the playhead", "Range of the last modifier: end at the playhead", "Range of the last modifier: blend 0.25 s in and out", "Range of the last modifier: clear"]   # GE5
-const KEY_ITEMS := ["Scale time x factor (about the pivot)", "Scale value x factor (about the pivot)", "Pivot: 2D cursor / box centre", "Cursor value to selection", "Normalize view on / off", "Select all keys", "Show every channel"]
+const KEY_ITEMS := ["Scale time x factor (about the pivot)", "Scale value x factor (about the pivot)", "Pivot: 2D cursor / box centre", "Cursor value to selection", "Normalize view on / off", "Select all keys", "Show every channel", "Euler filter (selected parts)"]
 
 
 func _ready() -> void:   # the parent's header controls exist by now (they are made in its _init)
@@ -232,6 +232,27 @@ func _draw_ranges(j: String, col: Color) -> void:
 				draw_dashed_line(Vector2(x, p.position.y), Vector2(x, p.end.y), Color(col, 0.7), 1.0, 3.0)
 
 
+## L86: the Euler filter on the parts of the selected dots (the picked part when none), ONE undo step. Returns QuatCurve's report
+func euler_sel() -> Dictionary:
+	if scene == null:
+		return {}
+	var js := []
+	for q in msel:
+		if not q[0] in js:
+			js.append(q[0])
+	if js.is_empty() and joint != "":
+		js.append(joint)
+	if js.is_empty():
+		return {}
+	if begin.is_valid():
+		begin.call()
+	var r := QuatCurve.euler_filter_parts(scene.part_keys, js)
+	queue_redraw()
+	if changed.is_valid():
+		changed.call()
+	return r
+
+
 func key_item(id: int) -> void:
 	match id:
 		0:
@@ -256,6 +277,8 @@ func key_item(id: int) -> void:
 						msel.append([ch[0], ch[1], i])
 		6:
 			off_ch = {}
+		7:
+			euler_sel()
 	queue_redraw()
 
 

@@ -172,7 +172,7 @@ func _init() -> void:
 		wd = maxf(wd, maxf(basis_diff(raw_world[i][0], Basis(R.G[JA])), basis_diff(raw_world[i][1], Basis(R.G[JB]))))
 	ok(raw_jump_a > 300.0 and raw_jump_b > 300.0, "1 control: the raw planted curves jump %.1f and %.1f deg between two keys (> 300)" % [raw_jump_a, raw_jump_b])
 	ok(bool(r1["ok"]) and jump_a <= 1.0 and jump_b <= 1.0, "1 euler filter: largest key-to-key jump %.3f and %.3f deg (<= 1)" % [jump_a, jump_b])
-	ok(wd <= 1e-5, "1 the world rotation of the posed bones is unchanged: largest basis element difference %.2e (<= 1e-5)" % wd)
+	ok(wd <= 1e-5, "1 the world rotation of the posed bones is unchanged: largest basis element difference %.8f (<= 1e-5)" % wd)
 	ok(var_to_str(S.part_keys[JC]) == head_before and raw_keys != var_to_str(S.part_keys), "1 the part that was not selected (head) is byte-identical, the selected ones changed")
 	var undo_euler: int = m.undo.size() - n0
 
@@ -202,7 +202,7 @@ func _init() -> void:
 				var pq := Quaternion(fr[i - 1][2], fr[i - 1][3], fr[i - 1][4], fr[i - 1][1])
 				if pq.dot(q) < 0.0:
 					flips += 1
-	ok(frames_n == 21 and worst_q <= 1e-6, "2 quaternion view: %d frames, worst component difference to Basis.get_rotation_quaternion of the posed bone %.2e (<= 1e-6)" % [frames_n, worst_q])
+	ok(frames_n == 21 and worst_q <= 1e-6, "2 quaternion view: %d frames, worst component difference to Basis.get_rotation_quaternion of the posed bone %.8f (<= 1e-6)" % [frames_n, worst_q])
 	ok(flips == 0 and m.undo.size() == n1 and snap_q == var_to_str(Sq.part_keys) + var_to_str(Sq.cards), "2 the view keeps one hemisphere (%d sign flips), changes nothing, adds no undo step" % flips)
 
 	# 3 slerp
@@ -221,7 +221,7 @@ func _init() -> void:
 	var e1: Vector3 = PartKeys.value_at(S3.part_keys[JA], 2.0)
 	ok(lin_spread > 0.01, "3 control: linear angles over the same segment vary the angular velocity by %.1f%% (> 1%%)" % (lin_spread * 100.0))
 	ok(bool(r3["ok"]) and sl_spread <= 0.01, "3 slerp: angular velocity across the segment is constant within %.4f%% (<= 1%%)" % (sl_spread * 100.0))
-	ok((e0 - ks3[1]["v"]).length() <= 1e-6 and (e1 - ks3[2]["v"]).length() <= 1e-6, "3 both ends of the segment are the keys' values (%.2e, %.2e)" % [(e0 - ks3[1]["v"]).length(), (e1 - ks3[2]["v"]).length()])
+	ok((e0 - ks3[1]["v"]).length() <= 1e-6 and (e1 - ks3[2]["v"]).length() <= 1e-6, "3 both ends of the segment are the keys' values (%.8f, %.8f)" % [(e0 - ks3[1]["v"]).length(), (e1 - ks3[2]["v"]).length()])
 	var txt3 := JSON.stringify(S3.to_dict(B, false))
 	var S3b := Scene.new()
 	S3b.from_dict(JSON.parse_string(txt3))
@@ -299,7 +299,7 @@ func _init() -> void:
 	for i in 20:
 		var t := s0 + (i + 0.5) / 20.0 * D
 		w7 = maxf(w7, absf(float(Clips.at(ew.clips[0], L, t)["lt"]) - float(Clips.at(e2.clips[0], L, t)["lt"])))
-	ok(w7 <= 1e-9 and var_to_str(e2.clips[0].get("warp")) == var_to_str(ew.clips[0].get("warp")) and txt7.contains("warp"), "7 save and reload: source time differs by %.2e over 20 times (<= 1e-9), knots %s" % [w7, var_to_str(e2.clips[0].get("warp"))])
+	ok(w7 <= 1e-9 and var_to_str(e2.clips[0].get("warp")) == var_to_str(ew.clips[0].get("warp")) and txt7.contains("warp"), "7 save and reload: source time differs by %.8f over 20 times (<= 1e-9), knots %s" % [w7, var_to_str(e2.clips[0].get("warp"))])
 
 	# 8 bake = playback
 	var play := Scene.new()
