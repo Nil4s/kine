@@ -313,6 +313,7 @@ func _init() -> void:
 	var si := KMeshShapes.find(cube, "smile")
 	var sv := float(KMeshShapes.keys(cube)[si]["value"]) if si >= 0 else -1.0
 	ok(absf(sv - 0.5) <= 1e-6, "1b the cube's shape key reads %.9f at the midpoint (bar 0.5 +-1e-6)" % sv)
+	m.kmed.showing = false   # fixture: an open model cube takes every Ctrl+Z (main._mesh_undo), so the pose undos below would silently do nothing
 	var ui_any: PackedByteArray = var_to_bytes(m.S.anykeys)
 	for i in 4:
 		m._undo()
