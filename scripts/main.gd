@@ -23894,7 +23894,16 @@ func _face_geo_draw(P: Dictionary) -> void:
 		var hm: Material = (pieces["head"] as MeshInstance3D).material_override
 		if hm is StandardMaterial3D:
 			skin = (hm as StandardMaterial3D).albedo_color
-		face_geo_mask.mesh = FaceGeo.mask_mesh(d, FaceGeo.posed(d, st), skin)
+		var wrk := FaceWrinkle.compute(d, st)
+		face_geo_mask.mesh = FaceWrinkle.mask_mesh(d, wrk["verts"], wrk, skin)
+		# L62 I09: the wrinkle shader only while a wrinkle muscle is driven (a neutral face keeps the head's own StandardMaterial3D)
+		var wr_on := false
+		for gv in FaceWrinkle.gates(au):
+			wr_on = wr_on or gv > 0.0
+		if wr_on and not (face_geo_mask.material_override is ShaderMaterial):
+			face_geo_mask.material_override = FaceWrinkle.material(hm)
+		elif not wr_on and face_geo_mask.material_override is ShaderMaterial:
+			face_geo_mask.material_override = FaceGeo.mask_material(hm)
 		var tf := FaceGeo.eye_transforms(d, st)
 		for i in 2:
 			(face_geo_eye_nodes[i] as Node3D).transform = tf[i]
