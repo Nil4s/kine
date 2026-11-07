@@ -1,0 +1,12 @@
+{
+  "name": "Export Counter",
+  "version": "1.0.0",
+  "author": "Teschima Studios",
+  "license": "MIT-0 (free to copy)",
+  "api": 2,
+  "permissions": ["export"],
+  "description": "Exports the scene as BVH into the plugin's own folder and counts the exports in a setting. Needs the export permission.",
+  "commands": [
+    {"id": "export", "name": "Export BVH", "desc": "writes <scene>.bvh and adds 1 to the exports counter"}
+  ]
+}

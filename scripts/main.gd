@@ -14806,8 +14806,11 @@ func _ui() -> void:
 	ui_root.add_child(ui_cmd)
 	plugins = Plugins.new()
 	plugins.host = {"scene": func(): return S, "clamp": func(j, v): return B.clamp_ang(j, v), "has_joint": func(j): return B.lim.has(j),
-		"begin": _push_undo, "say": _say, "changed": _plugins_changed, "run": _plugin_run}
+		"begin": _push_undo, "say": _say, "changed": _plugins_changed, "run": _plugin_run,
+		"sel_get": _plugin_sel_get, "sel_card": _plugin_sel_card, "sel_joint": _plugin_sel_joint, "mesh": _plugin_mesh,
+		"tool": _plugin_tool, "export": _plugin_export, "rollback": _plugin_rollback}
 	plugins.configure(["user://plugins", "res://examples/plugins"], "user://plugins.json", "user://plugins")   # the app's own folders
+	plugins.project_root = UserPaths.user_root() if UserPaths.exported() else "res://"
 	plugins.scan()
 	ui_plugins = PluginsPanel.new()
 	ui_plugins.plugins = plugins
@@ -21555,6 +21558,85 @@ func _plugin_run(i: int, cid: String) -> void:
 		_say("plugin command done: it changed nothing")
 	else:
 		_say("plugin command done: one undo step (Ctrl+Z takes it back)")
+
+
+func _plugin_sel_get() -> Dictionary:
+	return {"card": sel_card, "joint": sel, "object": sel_obj if sel_obj != "" else ("prop:%d" % sel_prop if sel_prop >= 0 else "")}
+
+
+func _plugin_sel_card(i: int) -> void:
+	sel_card = i
+	sel_end = -1
+	_rebuild_cards()
+
+
+func _plugin_sel_joint(j: String) -> void:
+	sel = j
+
+
+func _plugin_mesh():
+	return kmed.mesh if kmed != null and kmed.mesh != null else null
+
+
+## L70: a plugin command that failed or ran too long takes its edits back: the step it opened is undone and dropped from redo
+func _plugin_rollback() -> void:
+	if not _macro_pushed:
+		return
+	_macro_nest = 0
+	_macro_pushed = false
+	_undo()
+	if not redo.is_empty():
+		redo.pop_back()
+
+
+## L70: api.run_tool: the synchronous lines of the tool language (AgentTools.step always waits a frame, so it cannot run here):
+## card=N  sel=<joint>  set=<joint>:bend,side,twist  name=<text>  pose=<words>  add  update
+func _plugin_tool(tok: String) -> Dictionary:
+	var no := func(why: String): return {"ok": false, "why": why}
+	if tok.begins_with("card="):
+		var n := int(tok.substr(5))
+		if n < 1 or n > S.cards.size():
+			return no.call("no card %d (the scene has %d)" % [n, S.cards.size()])
+		_plugin_sel_card(n - 1)
+	elif tok.begins_with("sel="):
+		var j := tok.substr(4)
+		if not (j in Body.BODY or j in Body.WEAPON):
+			return no.call("no part '%s'" % j)
+		sel = j
+	elif tok.begins_with("set="):
+		var p := tok.substr(4).split(":")
+		var v: PackedStringArray = p[1].split(",") if p.size() == 2 else PackedStringArray()
+		if p.size() != 2 or v.size() != 3 or not p[0] in Body.BODY:
+			return no.call("set=<joint>:bend,side,twist  e.g. set=lowerarm_r:90,0,0")
+		sel = p[0]
+		_do(func(): B.set_ang_safe(p[0], Vector3(float(v[0]), float(v[1]), float(v[2]))))
+	elif tok.begins_with("name="):
+		if sel_card < 0 or tok.substr(5).strip_edges() == "":
+			return no.call("name=<text> names the picked card: pick one first (card=N)")
+		_card_rename(sel_card, tok.substr(5))
+	elif tok.begins_with("pose="):
+		var pr: Dictionary = _pose_words(tok.substr(5))
+		if not pr["ok"]:
+			return no.call(String(pr["error"]))
+	elif tok == "add":
+		_card_add()
+	elif tok == "update":
+		if sel_card < 0:
+			return no.call("pick a card first (card=N)")
+		_card_update(sel_card)
+	else:
+		return no.call("unknown tool line '%s': the lines are card=N, sel=<joint>, set=<joint>:b,s,t, name=<text>, pose=<words>, add, update" % tok)
+	return {"ok": true, "why": "", "said": String(ui_status.text) if ui_status != null else ""}
+
+
+## L70: api.export
+func _plugin_export(kind: String, path: String) -> Dictionary:
+	if kind == "bvh":
+		if S.cards.size() < 2:
+			return {"ok": false, "why": "an animation needs at least 2 cards before it can be exported"}
+		var r := BvhExport.write(S, B, path)
+		return {"ok": r[0] == OK, "why": "" if r[0] == OK else "could not write the file (%s)" % error_string(r[0])}
+	return {"ok": false, "why": "unknown kind"}
 
 
 ## the S box's plugin rows follow the switches (a plugin switched on, off, or disabled itself)
