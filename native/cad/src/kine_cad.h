@@ -79,6 +79,7 @@ public:
 	static int mirror(int p_id, const Vector3 &p_origin, const Vector3 &p_normal); // the reflected copy only
 	static int pattern_linear(int p_id, const Vector3 &p_step, int p_count); // copies fused with the original
 	static int pattern_circular(int p_id, const Vector3 &p_axis_origin, const Vector3 &p_axis_dir, int p_count, double p_total_radians);
+	static Dictionary volume_inertia(int p_id); // L57: {volume, inertia} only (mass_properties without the surface integral): the same numbers, a third of the time
 	static Dictionary mass_properties(int p_id); // {volume, area, center, inertia (Basis about the centre, density 1)}
 
 	static void release(int p_id);

@@ -12,6 +12,10 @@ static func offset(id: int, distance_m: float) -> int:
 	return KineCAD.offset(id, distance_m)
 
 
+static func volume_inertia(id: int) -> Dictionary:   # L57
+	return KineCAD.volume_inertia(id)
+
+
 static func union_many(base: int, tools: PackedInt32Array) -> int:   # C70
 	return KineCAD.union_many(base, tools)
 
