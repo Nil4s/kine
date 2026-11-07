@@ -34,7 +34,7 @@ var shading := ""
 var stretch := {}        # the last KMeshUV.stretch result while shading is "uv_stretch"
 var paint_tex: Texture2D   # L53 Texture mode: the painted texture drawn through the "uv" attribute (scripts/kmesh_tpaint.gd)
 var show_color := false  # E04: the surface takes the "color" attribute (vertex paint, scripts/kmesh_vpaint.gd)
-var _pal_dark := true
+var _pal_dark := "dark"
 var show_heat := false
 var heat := {}
 
@@ -75,7 +75,7 @@ func mark_dirty() -> void:
 
 
 func _process(_dt: float) -> void:
-	if Tok.dark != _pal_dark:
+	if Tok.mode() != _pal_dark:
 		dirty = true
 	if dirty:
 		rebuild()
@@ -191,7 +191,7 @@ func _out(v: int, off: float) -> Vector3:
 
 func rebuild() -> void:
 	dirty = false
-	_pal_dark = Tok.dark
+	_pal_dark = Tok.mode()
 	if mesh == null:
 		return
 	_build_pick_cache()

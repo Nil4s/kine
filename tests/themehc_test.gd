@@ -95,8 +95,11 @@ func same(a: Dictionary, b: Dictionary) -> bool:
 		return false
 	for i in a["labels"].size():
 		if a["labels"][i] != b["labels"][i] or (a["labels"][i] as Color).to_html(true) != (b["labels"][i] as Color).to_html(true):
+			print("  diff label %d: %s -> %s" % [i, a["labels"][i], b["labels"][i]])   # diagnostic only
 			return false
 	for k in a["theme"]:
+		if a["theme"][k] != b["theme"][k]:
+			print("  diff theme %s: %s -> %s" % [k, a["theme"][k], b["theme"][k]])
 		if a["theme"][k] != b["theme"][k] or (a["theme"][k] as Color).to_html(true) != (b["theme"][k] as Color).to_html(true):
 			return false
 	return true
