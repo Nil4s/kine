@@ -1114,3 +1114,4 @@ EXTRA="$EXTRA hotpage:h"   # L113 P06 per-page hotkeys wired into Hotkeys (tests
 EXTRA="$EXTRA redopanel:w"   # P03 last-op redo panel: bevel / extrude / inset / subdivide re-run from the pre-op state, one undo step, closes on the next edit (scripts/kmesh_redo_panel.gd; tests/redopanel_test.gd)
 EXTRA="$EXTRA access:w"   # L111 P16 accessibility: font scale 1.5 on a real page (sizes read from nodes, no new clipping) + colour-blind selection colours (Machado 2009 sims, CIE76 dE >= 15, planted red/green) (tests/access_test.gd, scripts/access.gd)
 EXTRA="$EXTRA pagewire:w"   # L108 P06/P07/P18 wired into the real app (tests/pagewire_test.gd)
+EXTRA="$EXTRA learnkeys:w"   # L114 P18 learn-from-me hotkeys: 5 box runs -> offered a free key, accept binds, decline is final, counts persist (tests/learnkeys_test.gd, scripts/learn_keys.gd)
