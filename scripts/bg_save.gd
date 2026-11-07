@@ -15,6 +15,7 @@ static var inject_fail := false   # tests: the worker fails half way through the
 
 var last_ok := true
 var last_error := ""
+var last_key := ""   # what the caller's key_fn made on the worker, for the write that just finished
 var max_active := 0
 var writes := 0
 var chip: Label
@@ -59,14 +60,14 @@ func reset_stats() -> void:
 	writes = 0
 
 
-func request(path: String, d: Dictionary, on_done := Callable()) -> void:
+func request(path: String, d: Dictionary, on_done := Callable(), key_fn := Callable()) -> void:
 	var snap := d.duplicate(true)   # the main-thread part: later edits to d or the scene cannot reach the file
 	var cbs := []
 	if on_done.is_valid():
 		cbs.append(on_done)
 	if _pending.has(path):
 		cbs = (_pending[path]["cbs"] as Array) + cbs   # latest wins; every caller still hears the result
-	_pending[path] = {"snap": snap, "cbs": cbs}
+	_pending[path] = {"snap": snap, "cbs": cbs, "key": key_fn}
 	_say("saving %s ..." % path.get_file())
 	_start_next()
 
@@ -82,10 +83,10 @@ func _start_next() -> void:
 	_active = {"path": path, "res": res, "cbs": job["cbs"]}
 	writes += 1
 	max_active = maxi(max_active, 1)
-	_task = WorkerThreadPool.add_task(_work.bind(ProjectSettings.globalize_path(path), job["snap"], res), false, "bg save")
+	_task = WorkerThreadPool.add_task(_work.bind(ProjectSettings.globalize_path(path), job["snap"], res, job["key"]), false, "bg save")
 
 
-static func _work(path: String, snap: Dictionary, res: Dictionary) -> void:
+static func _work(path: String, snap: Dictionary, res: Dictionary, key_fn: Callable) -> void:
 	var text := JSON.stringify(snap, " ")
 	var tmp := path + ".tmp"
 	var f := FileAccess.open(tmp, FileAccess.WRITE)
@@ -114,6 +115,8 @@ static func _work(path: String, snap: Dictionary, res: Dictionary) -> void:
 		res["err"] = "could not replace %s (error %d)" % [path.get_file(), r]
 		res["done"] = true
 		return
+	if key_fn.is_valid():
+		res["key"] = key_fn.call()
 	res["ok"] = true
 	res["done"] = true
 
@@ -134,6 +137,7 @@ func _finish() -> void:
 	_active = {}
 	last_ok = bool(res["ok"])
 	last_error = String(res["err"])
+	last_key = String(res.get("key", ""))
 	if last_ok:
 		if _pending.is_empty():
 			_say("saved %s" % path.get_file())

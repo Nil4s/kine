@@ -110,6 +110,12 @@ func _init() -> void:
 	ok(frames >= 2000 and size_old > 300 * 1024, "1 fixture: %d frames, file %d KB (> 300 KB)" % [frames, size_old / 1024])
 
 	# ---- 2 NEW path through the real app function
+	var pre := []
+	for i in 10:
+		var tp := Time.get_ticks_usec()
+		await process_frame
+		pre.append((Time.get_ticks_usec() - tp) / 1000.0)
+	print("idle frame right before the save: max %.1f ms, min %.1f ms (load shows here)" % [pre.max(), pre.min()])
 	var gaps := []
 	var t1 := Time.get_ticks_usec()
 	m._save_scene_now("zz_bgsave_new")
