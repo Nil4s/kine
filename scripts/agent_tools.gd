@@ -15,7 +15,7 @@ const POINTS := ["head", "pelvis", "spine_03", "upperarm_l", "upperarm_r", "lowe
 const METHODS := ["commands", "open", "new", "run", "pose", "state", "measure", "describe", "ask", "check", "diff", "validate", "save", "quit", "assert", "events", "where", "place", "facts", "brief", "dry", "text_view", "lint", "frame_data"]
 ## C06: the methods the MCP server advertises on top of METHODS. They are NOT in METHODS: its list is the "ready" line and the -32601 text of the
 ## byte-for-byte transcript (refs/agent/serve_transcript.jsonl), which tests/agent_tools_test.gd replays. tools/mcp/poser_mcp.py names each of these (advertised with --math / POSER_MCP_MATH=1)
-const MCP_EXTRA := ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets"]
+const MCP_EXTRA := ["cancel_windows", "reactable", "throw_check", "lock_check", "impact_align", "hit_region", "body_collide", "disarm_check", "group_fight", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render", "blend_matrix", "texture_paint", "dyntopo", "effort_face", "pain_face", "anim_stack", "bake_reaction", "fix_impact", "bake_momentum", "curve_graph", "teach_chain", "teach_landing", "teach_stance", "sockets", "react_time", "react_place", "weight_slider"]
 ## MCPFAST: the CAD tools (scripts/build/mcp_cad.gd); advertised with --cad
 const MCP_CAD := ["cad_part", "cad_asm", "check_fit", "bom", "eval_gd", "cad_reset"]
 
@@ -508,6 +508,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"bake_reaction", "fix_impact", "bake_momentum":   # L76: the fight maths baked as cards, one undo step (scripts/fight_bake_serve.gd). Not in METHODS
 			var fbr := FightBakeServe.serve(String(method), m, p)
 			return _ok(id, fbr["result"]) if fbr["ok"] else _err(id, -32602, String(fbr["error"]))
+		"react_time", "react_place", "weight_slider":   # L89: reaction auto-timing, mass slider (scripts/react_weight_serve.gd). Not in METHODS
+			var rwr := ReactWeightServe.serve(String(method), m, p)
+			return _ok(id, rwr["result"]) if rwr["ok"] else _err(id, -32602, String(rwr["error"]))
 		"lock_check":   # N041 wired: does the lock reach his limit, or go past it? {clip?, fps?, locker?} (scripts/lock_serve.gd). Not in METHODS
 			var lcr := LockServe.serve(m, p)
 			return _ok(id, lcr["result"]) if lcr["ok"] else _err(id, -32602, String(lcr["error"]))

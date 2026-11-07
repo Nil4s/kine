@@ -17949,6 +17949,8 @@ func _commands() -> Array:
 	add.call("Beats: find the beats in the sound", "", _beats_find, "beats bpm tempo music beat grid downbeat bar audio", true, "find the beats and the tempo of the sound (a wav): marks on the timeline, bars marked when a 4/4 grid is evident; one undo step")
 	add.call("Beats: snap the contact cards to the nearest beat", "", _beats_snap, "beats snap contact hit strike align music sync", true, "move each hit (contact) card so it lands on its nearest beat; a card never moves more than 25 % of its own move, else nothing moves; one undo step")
 	add.call("Weight: time the swing to the weapon", "", _weight_feel, "weight heavy light weapon mass inertia swing slow fast windup recovery hammer dagger bat feel", true, "retime the wind-up and recovery of the swing by the held weapon's moment of inertia about the shoulder (a heavy weapon is slower, a light one quicker; Cross & Bower: time goes as I^0.27); the hit card and its pose stay; one undo step")
+	add.call("Weight: make it heavier", "", _weight_step.bind(0.5), "weight heavier heavy mass slow anticipation settle momentum", true, "mass x1.41: longer anticipation and settle, lower peak velocity at the same impulse; poses and contacts stay; needs a hit marker; one undo step")
+	add.call("Weight: make it lighter", "", _weight_step.bind(-0.5), "weight lighter light mass quick snappy momentum", true, "mass x0.71: shorter anticipation and settle, higher peak velocity at the same impulse; poses and contacts stay; needs a hit marker; one undo step")
 	add.call("Beats: clear the beats", "", _beats_clear, "beats clear remove music", true, "take the beat marks off the timeline; one undo step")
 	add.call("Audio: mute or unmute the picked track", "", _audio_mute_picked, "audio sound track mute silence unmute lane", true, "the picked track (click its lane) silent or sounding again, in Play, the scrub and the playblast; one undo step")
 	add.call("Audio: solo or unsolo the picked track", "", _audio_solo_picked, "audio sound track solo only isolate lane", true, "the picked track soloed: only soloed tracks sound (in Play, the scrub and the playblast); one undo step")
@@ -24326,6 +24328,23 @@ func _weight_feel() -> void:
 	var r := WeightFeel.apply(trial, B)
 	if not r["ok"]:
 		_say(r["msg"] + " (nothing changed; pick another weapon or card, then try again)")
+		return
+	_push_undo()
+	_markers_hold()
+	S.cards = trial.cards
+	_markers_follow()
+	_retimed()
+	_say(r["msg"] + ".  Ctrl+Z undoes")
+
+
+## WEIGHT SLIDER (L23; WeightFeel.slider): the open scene heavier / lighter by a step of the slider (log2 of the mass ratio)
+func _weight_step(d: float) -> void:
+	var c := WeightFeel.contact_card(S)
+	var v := (float(S.cards[c].get("weight_s", 0.0)) if c >= 0 else 0.0) + d
+	var trial := S.clone()
+	var r := WeightFeel.slider(trial, v)
+	if not r["ok"]:
+		_say(r["msg"] + " (nothing changed)")
 		return
 	_push_undo()
 	_markers_hold()

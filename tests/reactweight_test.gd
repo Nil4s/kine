@@ -204,7 +204,7 @@ func _init() -> void:
 				same_moves = false
 		var poses_same := true
 		for i in D.cards.size():
-			if not is_same(D.cards[i]["pose"], d0.cards[i]["pose"]):
+			if D.cards[i]["pose"] != d0.cards[i]["pose"]:
 				poses_same = false
 		ok(bool(pl.get("ok", false)) and absf(onset - (cue + 0.29)) <= FR, "R3 gap %.2f placed: block starts %.3f s = cue + 0.29 = %.3f (within 1 frame)" % [g, onset, cue + 0.29])
 		ok(same_moves and poses_same and js(A) == ja and String(ReactTime.read(A, D).get("status", "")) == "ok", "R3 gap %.2f: moves, later holds and poses untouched, attacker byte-identical, read after place ok" % g)
